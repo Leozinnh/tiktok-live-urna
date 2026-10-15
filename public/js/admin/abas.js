@@ -1,5 +1,5 @@
 /*
- * As sete abas do painel, declaradas como dado.
+ * As quatro abas do painel, declaradas como dado.
  *
  * Cada aba é uma lista de campos com o caminho na configuração. Nenhuma delas
  * desenha nada — quem desenha é `campos.js` — e é essa separação que deixa um
@@ -12,30 +12,28 @@
  * nada muda. O que a spec pede e o servidor ainda não honra fica de fora, à
  * espera da etapa que o implementar.
  *
+ * ERAM SETE, e em 2026-10-15 o Leonardo cortou três: Presentes, Animação e
+ * Textos. Palavras dele: *"o admin as opcoes 'animacoes', 'presentes',
+ * 'textos' sao inuteis!"*. Ele edita essas três direto no `config/local.json`
+ * e não quer a tela no meio — e uma aba que o dono não usa é pior do que aba
+ * nenhuma, porque ela é a que envelhece sem ninguém notar.
+ *
+ * O que saiu foi a TELA, e não o recurso: `animacao.velocidade`,
+ * `placar.mensagem*`, `narracao.*` e `presentes.*` continuam no arquivo,
+ * continuam no `normalizar` e continuam valendo. `tests/admin-abas.test.js`
+ * prende as duas metades disso — as abas não voltam, e as chaves não somem.
+ *
+ * Com a aba de Animação foi embora também o único controle de `anim.speed` do
+ * painel: a velocidade da mão agora é do arquivo, e mudá-la pede reiniciar o
+ * servidor. Era o preço de tirar a aba, e é o que "deixe fixo" quer dizer.
+ *
  * `campos` é função, e não lista, por causa das abas que crescem com a
- * configuração: a de presentes tem um cartão por presente cadastrado, e a de
- * testes tem um botão por presente. Uma lista fixa mentiria no dia em que o
- * operador cadastrasse o terceiro presente.
+ * configuração: a de urnas tem um cartão por urna cadastrada, e a de testes
+ * tem um botão por presente. Uma lista fixa mentiria no dia em que o
+ * operador cadastrasse a terceira urna.
  */
 
 const COR = { tipo: 'cor' };
-
-/**
- * Os motores de voz, na ordem em que o painel os oferece.
- *
- * Esta lista é do PAINEL, e a de verdade é a do `server/voz.js` — pelo mesmo
- * motivo de `ACOES_SOCIAIS`. Importar a do servidor aqui seria mais direto e
- * não funciona: o navegador carregaria junto o `node:child_process` que o
- * `voz.js` importa, e o painel inteiro deixaria de abrir. Os dois lados
- * discordando é o defeito que `tests/admin-abas.test.js` prende.
- *
- * O rótulo diz o que decide na hora de escolher — como soa e do que depende —,
- * e não o nome técnico, que não diz nada a quem nunca mexeu num sintetizador.
- */
-export const MOTORES_DA_VOZ = Object.freeze([
-  { valor: 'edge', rotulo: 'Neural (soa como gente; precisa de internet)' },
-  { valor: 'sapi', rotulo: 'Do Windows (funciona sem internet; voz robótica)' },
-]);
 
 const CAMPOS_DA_URNA = [
   { campo: 'nome', rotulo: 'Nome na tela', tipo: 'texto' },
@@ -65,11 +63,6 @@ const CAMPOS_DA_URNA = [
   },
 ];
 
-const CAMPOS_DO_PRESENTE = [
-  { campo: 'nome', rotulo: 'Nome do presente', tipo: 'texto' },
-  { campo: 'giftId', rotulo: 'ID no TikTok', tipo: 'texto', dica: 'o número que o presente tem' },
-];
-
 /**
  * Os avisos sociais, na ordem em que o painel os oferece para teste.
  *
@@ -92,20 +85,6 @@ export const ACOES_SOCIAIS = Object.freeze([
   { tipo: 'compartilhou', rotulo: 'Compartilhou', quantidade: 1 },
   { tipo: 'assinatura', rotulo: 'Assinou', quantidade: 1 },
 ]);
-
-/** O que cada tipo de fala quer dizer, para o rótulo da caixa de texto. */
-const ROTULO_DA_FALA = Object.freeze({
-  seguidor: 'Quando alguém segue',
-  curtida: 'Quando alguém curte',
-  entrada: 'Quando alguém entra',
-  compartilhou: 'Quando alguém compartilha',
-  assinatura: 'Quando alguém assina',
-  // A única que não responde a um evento, e sim a um SILÊNCIO: o presente
-  // chegou, não achou urna, e a pessoa não escreveu o número. O rótulo diz
-  // isso, porque "quando alguém manda presente e não escreve o número" é a
-  // situação inteira, e "espera" não é nada.
-  espera: 'Quando alguém manda presente e não escreve o número',
-});
 
 /**
  * Um `giftId` que não está em nenhum mapeamento — o presente órfão do teste.
@@ -139,60 +118,6 @@ export function numeroDeTeste(urnas = {}) {
   return String(primeira?.numero ?? '').trim();
 }
 
-/*
- * As frases de cada tipo, uma caixa por tipo.
- *
- * A caixa é uma LISTA — uma frase por linha —, e não um texto corrido: são
- * frases alternadas, sorteadas sem repetir, e é a lista que carrega essa
- * alternância. Escritas numa linha só, elas virariam uma fala comprida que
- * ninguém quer ouvir.
- */
-const CAMPOS_DA_NARRACAO = [
-  {
-    caminho: 'narracao.ativa',
-    rotulo: 'Narração ligada',
-    tipo: 'booleano',
-    dica: 'desligada, a faixa continua aparecendo — só o som para',
-  },
-  {
-    caminho: 'narracao.motor',
-    rotulo: 'Motor da voz',
-    tipo: 'selecao',
-    // Um motor que o painel oferecesse sem o servidor conhecer seria salvo,
-    // mostrado como escolhido, e ignorado — a voz continuaria a mesma e nada na
-    // tela explicaria por quê. `tests/admin-abas.test.js` prende as duas listas.
-    opcoes: [...MOTORES_DA_VOZ],
-  },
-  {
-    caminho: 'narracao.voz',
-    rotulo: 'Voz',
-    tipo: 'texto',
-    largo: true,
-    // O nome da voz depende do motor: a neural se chama
-    // "pt-BR-FranciscaNeural", a do Windows é "Microsoft Maria Desktop". Uma
-    // dica que falasse de uma só mandaria o Leonardo procurar no lugar errado.
-    dica: 'vazio escolhe a voz padrão do motor; no edge: pt-BR-FranciscaNeural',
-  },
-  {
-    caminho: 'narracao.velocidade',
-    rotulo: 'Velocidade da voz',
-    tipo: 'numero',
-    min: -10,
-    max: 10,
-    passo: 1,
-    dica: '0 é o ritmo normal; negativo é mais devagar',
-  },
-  {
-    caminho: 'narracao.volume',
-    rotulo: 'Volume',
-    tipo: 'numero',
-    min: 0,
-    max: 1,
-    passo: 0.05,
-    dica: 'de 0 a 1; 0 é mudo, 1 é o volume cheio do arquivo',
-  },
-];
-
 export const ABAS = [
   {
     id: 'urnas',
@@ -203,45 +128,6 @@ export const ABAS = [
         grupo: { titulo: cfg.urnas[id]?.nome ?? id, chave: `urnas.${id}`, id },
         campos: CAMPOS_DA_URNA.map((c) => ({ ...c, caminho: `urnas.${id}.${c.campo}` })),
       })),
-  },
-  {
-    id: 'presentes',
-    rotulo: 'Presentes',
-    ajuda: 'Cada presente e a urna que ele alimenta. Presente sem urna não conta voto.',
-    campos: (cfg) => (cfg?.presentes ?? []).map((p, i) => {
-      const urnas = Object.entries(cfg?.urnas ?? {})
-        .map(([id, u]) => ({ valor: id, rotulo: u?.nome ?? id }));
-      const base = `presentes.${i}`;
-      return {
-        grupo: { titulo: p?.nome ?? p?.id ?? `presente ${i + 1}`, chave: base, id: p?.id },
-        // O `id` é a identidade do presente e não é editável aqui: é por ele
-        // que o log e o banco o chamam, e trocá-lo renomearia votos que já
-        // aconteceram. Ele viaja escondido, no patch, para o registro sobreviver
-        // ao salvamento — o `normalizar` recusa presente sem id.
-        oculto: [{ caminho: `${base}.id`, valor: p?.id ?? '' }],
-        campos: [
-          ...CAMPOS_DO_PRESENTE.map((c) => ({ ...c, caminho: `${base}.${c.campo}` })),
-          {
-            caminho: `${base}.urnaId`,
-            rotulo: 'Urna de destino',
-            tipo: 'selecao',
-            opcoes: [{ valor: '', rotulo: '— não conta —' }, ...urnas],
-          },
-          { caminho: `${base}.votos`, rotulo: 'Votos por presente', tipo: 'numero', min: 0, max: 999 },
-          { caminho: `${base}.moedas`, rotulo: 'Moedas', tipo: 'numero', min: 0, max: 99999 },
-          { caminho: `${base}.prioridade`, rotulo: 'Prioridade na fila', tipo: 'numero', min: 0, max: 100 },
-          {
-            caminho: `${base}.cooldownMs`,
-            rotulo: 'Espera entre iguais (ms)',
-            tipo: 'numero',
-            min: 0,
-            max: 600000,
-          },
-          { caminho: `${base}.efeito`, rotulo: 'Efeito visual', tipo: 'texto' },
-          { caminho: `${base}.ativo`, rotulo: 'Ativo', tipo: 'booleano' },
-        ],
-      };
-    }),
   },
   {
     id: 'rodada',
@@ -287,23 +173,6 @@ export const ABAS = [
     }],
   },
   {
-    id: 'animacao',
-    rotulo: 'Animação',
-    ajuda: 'A velocidade da mão. O resto da fila é do motor, não da configuração.',
-    campos: () => [{
-      grupo: { titulo: 'Ritmo', chave: 'animacao' },
-      campos: [{
-        caminho: 'animacao.velocidade',
-        rotulo: 'Velocidade',
-        tipo: 'numero',
-        min: 0.25,
-        max: 8,
-        passo: 0.25,
-        dica: '1x é o ritmo de uma pessoa digitando',
-      }],
-    }],
-  },
-  {
     id: 'teste',
     rotulo: 'Teste',
     ajuda: 'Dispara presente sem esperar a live. O que sai daqui é igual ao que vem do TikTok.',
@@ -345,51 +214,6 @@ export const ABAS = [
         },
       ],
     }],
-  },
-  {
-    id: 'textos',
-    rotulo: 'Textos',
-    ajuda: 'As frases da tela e as da voz. {urna} é a urna, {nome} é quem chegou.',
-    campos: (cfg) => {
-      /*
-       * Os tipos de fala vêm da CONFIGURAÇÃO, e não de uma lista escrita
-       * aqui. É a mesma decisão da aba de presentes: um tipo novo que nasça
-       * no servidor aparece sozinho, em vez de virar uma frase que só se
-       * editaria no arquivo.
-       *
-       * E vem do `cfg` de verdade, que o servidor sempre manda completo — o
-       * `normalizar` preenche os cinco tipos mesmo quando o arquivo do
-       * Leonardo não tem nenhum.
-       */
-      const tipos = Object.keys(cfg?.narracao?.falas ?? {});
-      return [{
-        grupo: { titulo: 'Mensagens do placar', chave: 'placar' },
-        campos: [
-          {
-            caminho: 'placar.mensagemLideranca',
-            rotulo: 'Quando alguém assume a liderança',
-            tipo: 'texto',
-            largo: true,
-          },
-          { caminho: 'placar.mensagemVitoria', rotulo: 'Quando alguém vence', tipo: 'texto', largo: true },
-          { caminho: 'placar.mensagemEmpate', rotulo: 'Quando dá empate', tipo: 'texto', largo: true },
-        ],
-      }, {
-        grupo: { titulo: 'Narração', chave: 'narracao' },
-        campos: [
-          ...CAMPOS_DA_NARRACAO,
-          ...tipos.map((tipo) => ({
-            caminho: `narracao.falas.${tipo}`,
-            rotulo: ROTULO_DA_FALA[tipo] ?? tipo,
-            tipo: 'lista',
-            largo: true,
-            dica: tipo === 'curtida'
-              ? 'uma frase por linha; {nome} e {quantidade} são trocados'
-              : 'uma frase por linha; {nome} é trocado pelo apelido',
-          })),
-        ],
-      }];
-    },
   },
 ];
 

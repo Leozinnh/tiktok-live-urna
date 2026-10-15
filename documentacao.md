@@ -31,7 +31,7 @@ cd C:\xampp\htdocs\tiktok-live-urna
 npm start          # sobe o servidor
 npm run dev        # sobe e recarrega sozinho quando um arquivo do servidor muda
 npm run reiniciar  # derruba quem está na porta 3000 e sobe de novo
-npm test           # a suíte inteira (703 testes, poucos segundos)
+npm test           # a suíte inteira (695 testes, poucos segundos)
 ```
 
 | Endereço | O que é |
@@ -131,7 +131,7 @@ diferença entre os dois é intencional.
 | `config.js` | A configuração que chega do servidor |
 | `net.js` | O canal WebSocket, dos dois lados |
 | `admin.js` | Ponto de entrada do **painel** |
-| `admin/abas.js` | As sete abas, declaradas como **dado** |
+| `admin/abas.js` | As quatro abas, declaradas como **dado** |
 | `admin/campos.js` | Desenha cada campo. Puro, testado sem navegador |
 | `admin/medidores.js` | Os quatro números do alto do painel |
 | `anim/timeline.js` | Linha do tempo com tweens nomeados |
@@ -213,21 +213,39 @@ aba tem que resolver contra o `PADRAO`. É o único teste da suíte que importa
 código dos dois lados, e é de propósito — o defeito que ele pega mora na
 costura.
 
-### As sete abas
+### As quatro abas
 
 | Aba | O que edita |
 |---|---|
 | **Urnas** | Nome, número, cargo, partido, cores, multiplicador, retrato |
-| **Presentes** | Qual presente vale voto, em qual urna, quantos votos, cooldown |
 | **Rodada** | A duração. (A política de fechamento ainda não — ver [o que ficou de fora](#o-que-ficou-de-fora-de-propósito)) |
-| **Animação** | A velocidade da mão |
 | **Teste** | Dispara presente, rajada, presente **sem urna** e o número no chat |
 | **Integração** | Simulador ou TikTok ao vivo, e o tempo de espera do número |
-| **Textos** | As frases do placar, as da voz, o motor e a voz |
 
 Os campos vivem em `public/js/admin/abas.js`, **declarados como dado** — não
 como marcação. É essa separação que deixa um teste conferir, sem navegador,
 que todo caminho existe do outro lado.
+
+**Eram sete, e três saíram em 2026-10-15** — Presentes, Animação e Textos.
+Palavras do Leonardo: *"o admin as opcoes 'animacoes', 'presentes', 'textos'
+sao inuteis!"*. Ele edita essas três direto no `config/local.json`, e uma aba
+que o dono não usa envelhece sem ninguém notar.
+
+O que saiu foi a **tela**, e não o recurso. `presentes.*`, `animacao.*`,
+`placar.mensagem*` e `narracao.*` continuam no `normalizar` e continuam
+valendo — só não há mais caminho de editá-los pelo navegador. Duas
+consequências que valem saber:
+
+- **A velocidade da mão ficou fixa no arquivo.** O campo `animacao.velocidade`
+  era o único do painel que mandava `anim.speed` (mudava a mão na hora, sem
+  gravar). Sem a aba, o listener saiu junto, e a mensagem `anim.speed`
+  continua no protocolo sem ninguém que a mande. Mudar a velocidade agora pede
+  reiniciar o servidor.
+- **Os presentes só se cadastram pelo arquivo.** O mesmo vale para as frases
+  da voz e o motor dela.
+
+`tests/admin-abas.test.js` prende as duas metades do corte: as abas não
+voltam sozinhas, e as chaves delas não somem junto com a tela.
 
 ---
 
@@ -325,7 +343,7 @@ npm test                              # tudo
 node --test tests/voz.test.js         # um arquivo
 ```
 
-**703 testes**, `node --test`, sem navegador. A regra do projeto é **TDD**:
+**695 testes**, `node --test`, sem navegador. A regra do projeto é **TDD**:
 teste que falha primeiro, pelo motivo certo, depois o código.
 
 **Nada de DOM falso.** As funções puras são testadas direto. O que só existe
@@ -341,7 +359,7 @@ duas coisas ao mesmo tempo:
 | Teste | O que ele prende |
 |---|---|
 | `tests/admin-abas.test.js` | Todo caminho de aba existe no `PADRAO` do servidor |
-| `tests/narracao.test.js` | Toda fala que o narrador sabe dizer é editável no painel |
+| `tests/presentes.test.js` | O desenho do presente aponta para um arquivo que o servidor entrega |
 | `tests/porta.test.js` | A mensagem de porta ocupada oferece o `npm run reiniciar` |
 | `tests/urna-bocal.test.js` | A geometria da boca da urna contra a foto de referência |
 | `tests/narrador.test.js` | O `wav` só vem da rota da voz — nos **dois** formatos |
@@ -351,22 +369,34 @@ duas coisas ao mesmo tempo:
 ## A receita de cada mudança comum
 
 ### Quero mudar uma frase da voz
-Painel → aba **Textos** → a caixa do tipo. **Uma frase por linha.** Elas são
-sorteadas sem repetir a anterior, e é a lista que carrega essa alternância —
-escritas numa linha só, elas virariam uma fala comprida que ninguém quer ouvir.
+`config/local.json` → `narracao.falas` → a lista do tipo. **Uma frase por
+linha.** Elas são sorteadas sem repetir a anterior, e é a lista que carrega
+essa alternância — escritas numa linha só, elas virariam uma fala comprida que
+ninguém quer ouvir.
 
 `{nome}` é trocado pelo apelido (e por `Alguém` quando não há apelido),
 `{quantidade}` pelo número.
 
+O arquivo é lido na **subida** do servidor: depois de salvar, reinicie.
+
 ### Quero mudar a voz
-Painel → aba **Textos** → **Motor da voz** e **Voz**. O nome da voz é
+`config/local.json` → `narracao.motor` e `narracao.voz`. O nome da voz é
 diferente em cada motor: a neural é `pt-BR-FranciscaNeural`, a do Windows é
-`Microsoft Maria Desktop`. Campo **Voz** vazio escolhe a melhor do motor.
+`Microsoft Maria Desktop`. `narracao.voz` vazia escolhe a melhor do motor.
 
 ### Quero cadastrar um presente novo
-Painel → aba **Presentes** → edite um cartão (ou o presente 3, quando
-existir). O `giftId` é o número que o presente tem na TikTok. **Presente sem
-urna não conta voto** — é assim que se desliga um presente.
+`config/local.json` → `presentes`, um objeto por presente. O `giftId` é o
+número que o presente tem na TikTok.
+
+**Para desligar um presente**, `"ativo": false` — ou `"urnaId": null`, que dá
+no mesmo. Nenhum dos dois abre a espera pelo número no chat: isso é só para
+presente que **não está no arquivo**, e a diferença é de propósito. Um
+presente desligado é uma decisão sua, e abrir uma janela para ele seria
+desfazer pelo chat o que você decidiu no arquivo.
+
+O `id` (`p1`, `p2`) é a identidade do presente: é por ele que o log e o banco
+o chamam, e trocá-lo renomearia votos que já aconteceram. Para acrescentar um
+terceiro, invente um id novo em vez de reaproveitar um que já existe.
 
 ### Quero mudar a cor de uma urna
 Painel → aba **Urnas**. As teclas BRANCO, CORRIGE e CONFIRMA mantêm as cores da
@@ -388,12 +418,13 @@ sem abrir um navegador.
 ### Quero adicionar um tipo de fala novo
 1. `server/narracao.js` → `FALAS_PADRAO`, com as frases;
 2. `server/sources/base.js` → `TIPOS_SOCIAIS`, se ele vem de um evento;
-3. `public/js/admin/abas.js` → `ROTULO_DA_FALA` com um rótulo humano.
+3. `config/local.json` → a lista do tipo, em `narracao.falas` — se você quiser
+   frases suas em vez das do código.
 
-O painel **ganha a caixa sozinho** — ele monta os campos a partir da
-configuração. E `tests/admin-abas.test.js` fica vermelho se faltar o rótulo,
-porque um tipo sem rótulo aparece com o nome técnico e o operador não faz
-ideia de para que serve.
+Era um quarto passo até 2026-10-15: um rótulo humano no `ROTULO_DA_FALA` do
+painel, porque a aba Textos montava uma caixa por tipo. Sem a aba, o que
+sobrou é o passo 3 — e `tests/narracao.test.js` prende que o padrão tem frase
+para todo tipo social, para nenhum tipo novo nascer mudo.
 
 ### Quero mexer no CSS
 Ver [As edições visuais são do Leonardo](#as-edições-visuais-são-do-leonardo)
@@ -450,8 +481,8 @@ transmissão com as instruções de captura no OBS.
 ### O que a suíte diz hoje
 
 ```
-ℹ tests 703
-ℹ pass 703
+ℹ tests 695
+ℹ pass 695
 ℹ fail 0
 ```
 

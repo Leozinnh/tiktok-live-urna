@@ -539,23 +539,19 @@ secoesEl.addEventListener('click', (ev) => {
   }
 });
 
-/* ------------------------------------------------------- controle rápido */
-
 /*
- * O `anim.speed` é o controle da RODADA, e não uma edição de configuração:
- * ele muda a velocidade agora e não grava nada. Por isso ele sai de um campo
- * da aba Animação sem passar pelo botão de salvar — quem persiste é o salvar,
- * que manda `config.update`.
+ * AQUI FICAVA O CONTROLE RÁPIDO DE VELOCIDADE.
+ *
+ * Era um `change` no campo `animacao.velocidade` que mandava `anim.speed` sem
+ * passar pelo salvar — mudava a mão agora e não gravava nada. O campo era o
+ * único da aba Animação, e a aba saiu em 2026-10-15; sem campo, o listener
+ * ficou inalcançável e saiu junto.
+ *
+ * A velocidade da mão agora vem de `animacao.velocidade` no
+ * `config/local.json`, lida na subida. O `anim.speed` continua existindo no
+ * protocolo e no `hub.js` — é a mensagem que o próximo controle, se houver,
+ * vai usar; o que não existe mais é quem a mande.
  */
-secoesEl.addEventListener('change', (ev) => {
-  const campo = ev.target.closest('[data-campo="animacao.velocidade"]');
-  if (!campo) return;
-  const v = Number(campo.value);
-  if (Number.isFinite(v) && v > 0) {
-    rede.enviar({ tipo: 'anim.speed', velocidade: v });
-    anotar(`velocidade agora em ${v}x`);
-  }
-});
 
 desenhar();
 // Os medidores nascem desenhados, com os zeros: o painel que abre com a faixa

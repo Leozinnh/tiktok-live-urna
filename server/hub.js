@@ -486,12 +486,15 @@ export function criarHub({
     const r = tally.processar(evento);
     if (!r.contado) {
       /*
-       * O presente que não está no painel abre uma espera pelo número.
+       * O presente que não está mapeado abre uma espera pelo número.
        *
-       * Só o `sem-mapeamento` abre. Um presente DESLIGADO no painel, ou
-       * apontando para uma urna apagada, é uma decisão do operador — abrir
-       * uma janela para ele seria desfazer, pelo chat, o que ele acabou de
-       * decidir na tela.
+       * Só o `sem-mapeamento` abre. Um presente DESLIGADO no arquivo, ou
+       * apontando para uma urna apagada, é uma decisão de quem configura —
+       * abrir uma janela para ele seria desfazer, pelo chat, o que ele
+       * acabou de decidir no `local.json`.
+       *
+       * (Era "no painel" até 2026-10-15: a aba de Presentes saiu, e o
+       * mapeamento passou a ser só do arquivo. A regra não mudou.)
        */
       if (r.motivo === 'sem-mapeamento') {
         espera.abrir({

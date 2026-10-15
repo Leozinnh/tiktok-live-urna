@@ -44,7 +44,8 @@ enquadramento do OBS.
 
 **A narração.** Além das urnas, o sistema tem um narrador: quando alguém
 segue, curte, entra, compartilha ou assina, ele **fala** e mostra uma faixa
-na tela. As frases são suas, editáveis na aba **Textos**, uma por linha.
+na tela. As frases são suas, em `config/local.json`, na chave
+`narracao.falas` — uma frase por linha.
 
 A voz sai pelo **servidor**, e não pela página: o navegador que o OBS embarca
 não fala, então quem sintetiza é o Node, que guarda o áudio em arquivo e manda
@@ -52,7 +53,8 @@ a página tocar. Se a voz não sair, o problema está no motor escolhido ou no
 volume — e não na live. Para descobrir isso sem esperar alguém seguir de
 verdade, a aba **Teste** tem um botão para cada um dos cinco avisos.
 
-**São dois motores de voz, e você escolhe na aba Textos:**
+**São dois motores de voz, e você escolhe em `narracao.motor`, no
+`config/local.json`:**
 
 | Motor | Como soa | Precisa de |
 |---|---|---|
@@ -171,20 +173,24 @@ um único botão.**
 
 ### 4. Abrir o painel, em outra aba
 
-Acesse <http://localhost:3000/admin>. O painel tem sete abas:
+Acesse <http://localhost:3000/admin>. O painel tem quatro abas:
 
 | Aba | Para quê |
 |---|---|
 | Urnas | Nome, número, partido e cores de cada urna |
-| Presentes | Qual presente vale voto, e em qual urna ele cai |
 | Rodada | **A duração da rodada** |
-| Animação | A velocidade da mão |
 | Teste | Disparar presente, disparar rajada, disparar um presente **sem urna** e o número no chat |
 | Integração | De onde vêm os presentes: simulador ou TikTok ao vivo |
-| Textos | As frases do placar, as da voz, o motor e a voz |
 
 Salve e o servidor confirma — o painel só diz **"enviado"** até o servidor
 responder, porque quem grava é ele.
+
+> **Eram sete abas.** Presentes, Animação e Textos saíram em 2026-10-15: essas
+> três coisas se editam direto no `config/local.json`, e a tela no meio só
+> atrapalhava. O que saiu foi a tela, não o recurso — as chaves
+> `presentes.*`, `animacao.velocidade` e `narracao.*` continuam valendo
+> exatamente como antes. A velocidade da mão deixou de ter controle ao vivo
+> junto: mudá-la agora pede reiniciar o servidor.
 
 ### 5. Disparar um voto de teste
 
@@ -204,7 +210,7 @@ Volte à janela do PowerShell e aperte **Ctrl+C**.
 npm test
 ```
 
-São **703 testes** cobrindo a geometria da cena, a matemática da animação, a
+São **695 testes** cobrindo a geometria da cena, a matemática da animação, a
 fila, as poses da mão, a tela da urna, o placar, o protocolo do servidor, os
 campos do painel, as duas pontas da voz e o desenho da urna contra a foto.
 A suíte roda em poucos segundos e não precisa de navegador.
@@ -216,7 +222,7 @@ painel salva chega à tela do ar. Para isso existem as sondas em
 protocolo de depuração. Elas não fazem parte do `npm test` porque precisam de
 um navegador instalado.
 
-**A suíte está inteira verde: 703 de 703.**
+**A suíte está inteira verde: 695 de 695.**
 
 ---
 
@@ -257,7 +263,7 @@ public/
     admin.js            Ponto de entrada do PAINEL
     admin/
       campos.js         Os campos do painel: puro, testado sem navegador
-      abas.js           As sete abas, montadas a partir da configuração
+      abas.js           As quatro abas, montadas a partir da configuração
       medidores.js      Os quatro números do alto do painel
     anim/
       timeline.js       Linha do tempo com tweens nomeados
@@ -291,7 +297,7 @@ ponte/
 config/local.json       A configuração do Leonardo (nasce vazia)
 dados/                  O banco e os votos gravados
 fotos/                  Os retratos dos candidatos
-tests/                  703 testes, rodando no `node --test`
+tests/                  695 testes, rodando no `node --test`
 .superpowers/sonda/     As sondas de navegador (não rodam no `npm test`)
 docs/superpowers/       A spec do produto e o plano de implementação
 ```
