@@ -266,6 +266,25 @@ export function markupDaMao() {
 </svg>`;
 }
 
+/**
+ * A etiqueta com o nome de quem está votando.
+ *
+ * Sem ela, uma mão anônima descendo sobre a urna é a máquina votando sozinha
+ * — e a graça da cena é justamente o contrário: alguém mandou um presente e
+ * está ali depositando o voto. O nome na tela é o que transforma o
+ * espectador em autor do que ele está vendo.
+ *
+ * O nome é escrito com `textContent`, nunca com `innerHTML`: é o apelido de
+ * uma pessoa na internet, e é a única string desta cena que vem de fora sem
+ * passar por um desenho nosso.
+ */
+export function markupDoBadge() {
+  return `
+<div class="mao__badge" data-badge>
+  <span class="mao__badge-nome" data-badge-nome></span>
+</div>`;
+}
+
 export function markupDaSombra() {
   return `
 <div class="mao__sombra" data-sombra>
@@ -307,9 +326,52 @@ export function criarMaoSvg() {
     grupos[junta] = el.querySelector(`[data-junta="${junta}"]`);
   }
 
+  const badge = document.createElement('div');
+  badge.innerHTML = markupDoBadge();
+  const badgeEl = badge.firstElementChild;
+  const badgeNome = badgeEl.querySelector('[data-badge-nome]');
+  // Medidas em `mostrarBadge`, quando o nome (e portanto a largura) já existe.
+  let largura = 0;
+  let larguraDoPalco = 0;
+
   return {
     el,
     sombra: sombraEl,
+    badge: badgeEl,
+
+    /**
+     * A etiqueta com o nome de quem mandou o presente.
+     *
+     * `nome` vazio não mostra etiqueta nenhuma, e é de propósito: no modo
+     * lote — a rajada — não há um espectador por voto para nomear, e inventar
+     * "Espectador" ali seria a tela afirmando uma autoria que ela não tem.
+     */
+    mostrarBadge(nome, cor) {
+      const limpo = String(nome ?? '').trim();
+      if (!limpo) return;
+      badgeNome.textContent = limpo;
+      badgeEl.style.setProperty('--cor-urna', cor ?? '#39435c');
+      badgeEl.classList.add('mao__badge--visivel');
+
+      /*
+       * A largura da etiqueta é medida UMA vez, aqui.
+       *
+       * Ela depende do nome, que só se sabe agora, e o `posicionar` roda a
+       * cada quadro: medir lá dentro seria uma leitura de layout por quadro,
+       * que é justamente o que trava a animação. Medida uma vez, o
+       * `posicionar` só faz conta.
+       *
+       * `offsetWidth` funciona com a etiqueta ainda transparente — opacidade
+       * zero não tira o elemento do layout, e é por isso que a entrada é um
+       * `transition` de opacidade e não um `display`.
+       */
+      largura = badgeEl.offsetWidth;
+      larguraDoPalco = badgeEl.offsetParent?.offsetWidth ?? 0;
+    },
+
+    esconderBadge() {
+      badgeEl.classList.remove('mao__badge--visivel');
+    },
 
     aplicarPose(pose) {
       const transforms = poseParaTransformacoes(pose);
@@ -332,6 +394,45 @@ export function criarMaoSvg() {
       sombraEl.style.setProperty('--sombra-escala', String(escala * (1 + altura * 0.002)));
       sombraEl.style.setProperty('--sombra-blur', `${14 + altura * 0.12}px`);
       sombraEl.style.setProperty('--sombra-opacidade', String(Math.max(0.12, 0.75 - altura * 0.004)));
+
+      /*
+       * A etiqueta anda junto, mas NÃO herda rotação nem escala.
+       *
+       * Ela é irmã da mão, e não filha, exatamente por isso: dentro de
+       * `.mao` o nome giraria com o pulso e encolheria para 0,8 — ilegível
+       * justo no quadro em que a mão está sobre a tecla, que é quando ele
+       * precisa ser lido. Aqui ele é posicionado à mão, mas desenhado no
+       * tamanho da transmissão.
+       *
+       * A etiqueta fica AO LADO da mão, na altura do dedo — não acima dele.
+       *
+       * Acima foi a primeira tentativa, e a captura de tela mostrou o
+       * defeito: o dedo digita a cerca de 950 de altura, e 140 acima disso
+       * cai dentro da faixa do placar. Como o placar é uma camada mais alta
+       * (z 60 contra 40), a etiqueta era desenhada ATRÁS dos cartões e
+       * aparecia cortada ao meio entre um e outro. Não havia erro nenhum no
+       * DOM: a etiqueta estava lá, com o nome certo e a classe de visível —
+       * só não dava para ler.
+       *
+       * Do lado esquerdo, ela não disputa com o placar nem com o teclado: a
+       * mão desenhada ocupa a partir de 94 unidades à esquerda da ponta
+       * (a escala de 0,8 sobre a âncora), então 110 é o primeiro ponto livre
+       * depois do dedo. O `translate(-100%)` no CSS pendura a etiqueta pela
+       * borda direita, de modo que ela cresce para a esquerda conforme o
+       * nome, sem nunca encostar na mão.
+       *
+       * O limite existe para dois casos reais: a mão da urna da ESQUERDA
+       * digita perto da borda, e um apelido longo empurraria a etiqueta para
+       * fora do enquadramento. Presa dentro do palco, ela desliza o
+       * necessário — e a cor da urna continua dizendo de quem é.
+       */
+      const margem = 24;
+      const bruto = x - 110;
+      const bx = larguraDoPalco
+        ? Math.min(Math.max(bruto, margem + largura), larguraDoPalco - margem)
+        : bruto;
+      badgeEl.style.setProperty('--bx', `${bx}px`);
+      badgeEl.style.setProperty('--by', `${y + 30}px`);
     },
   };
 }

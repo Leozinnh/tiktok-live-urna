@@ -441,6 +441,17 @@ export function criarPlacar(camada, linhas, {
 
     if (mudanca.tipo === 'nada') {
       pintarFaixa();
+      /*
+       * Rodada zerada devolve os cartões à ordem de casa.
+       *
+       * Sem isto, uma rodada nova começaria com o cartão que liderou a
+       * anterior ainda na esquerda — e, como o primeiro voto de uma rodada
+       * não é ultrapassagem, quem abrisse o placar ficaria com o voto na
+       * coluna da direita sem nada explicando por quê. Zerar é o único
+       * momento em que não há líder nenhum para respeitar, então é o momento
+       * de voltar ao começo.
+       */
+      if (placar.total === 0) trocarDeLugar();
     } else {
       // O aviso entra ANTES da troca de lugar: quem escuta o evento já pode
       // tocar o som no mesmo quadro em que os cartões começam a andar.

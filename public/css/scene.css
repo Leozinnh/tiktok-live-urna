@@ -260,3 +260,15 @@
 .camada--urnas   { z-index: var(--z-urna); }
 .camada--mao     { z-index: var(--z-mao); }
 .camada--efeitos { z-index: var(--z-efeitos); }
+
+/*
+ * A tela de fim de rodada fica ACIMA de tudo, placar incluído.
+ *
+ * Não é por vaidade de empilhamento: ela mostra as duas contagens finais, e
+ * deixar o placar aparecendo atrás dela seria a mesma tela dizendo a mesma
+ * coisa duas vezes, com o risco de discordarem no quadro em que a rodada
+ * fecha. Uma camada própria e um z-index com nome dizem isso em uma linha —
+ * dentro da camada do placar, a ordem dependeria de quem foi anexado por
+ * último, que é o tipo de detalhe que ninguém lembra de conferir depois.
+ */
+.camada--resultado { z-index: var(--z-resultado); }

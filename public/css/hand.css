@@ -152,3 +152,74 @@
     filter: blur(8px);
   }
 }
+
+/*
+ * A etiqueta com o nome de quem está votando.
+ *
+ * Ela é irmã da mão, e não filha, por um motivo só: dentro de `.mao` o nome
+ * herdaria a rotação do pulso e a escala de 0,8 — giraria junto com o
+ * movimento e encolheria, ficando ilegível exatamente no quadro em que a mão
+ * pousa sobre a tecla, que é quando alguém olha para ela.
+ *
+ * A cor é a da urna que está recebendo o voto, e não uma cor fixa: com duas
+ * etiquetas na tela ao mesmo tempo, a cor é o que diz de qual urna é cada
+ * mão antes de alguém ler o nome.
+ */
+.mao__badge {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: calc(var(--z-mao) + 1);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 24px;
+  border-radius: 999px;
+  border: 3px solid var(--cor-urna, #39435c);
+  background: linear-gradient(180deg, rgba(16, 20, 32, 0.94) 0%, rgba(8, 10, 18, 0.96) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 10px 24px rgba(0, 0, 0, 0.55),
+    0 0 34px -8px var(--cor-urna, transparent);
+  /*
+   * Pendurada pela borda DIREITA e centrada na altura do dedo: o `--bx` é o
+   * ponto onde a etiqueta termina, e não onde ela começa. É o que faz o nome
+   * crescer para a esquerda, para longe da mão, em vez de para cima dela.
+   */
+  transform:
+    translate3d(var(--bx, 0px), var(--by, 0px), 0)
+    translate(-100%, -50%);
+  opacity: 0;
+  transition: opacity var(--transicao-curta) linear;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
+/*
+ * A pastilha da cor da urna antes do nome: a etiqueta inteira tem borda na
+ * cor, mas a borda é fina e some quando a mão está por cima dela.
+ */
+.mao__badge::before {
+  content: "";
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--cor-urna, #39435c);
+  box-shadow: 0 0 14px var(--cor-urna, transparent);
+}
+
+.mao__badge-nome {
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  color: #eef3ff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* Um apelido de TikTok cabe em 24 caracteres; o teto existe para um nome
+     absurdo não atravessar o enquadramento inteiro numa faixa preta. */
+  max-width: 420px;
+}
+
+.mao__badge--visivel { opacity: 1; }

@@ -11,10 +11,10 @@ import { criarUrna } from './urna.js';
 import { criarPlacar } from './placar.js';
 import { criarPainel } from './painel.js';
 import { criarSom } from './som.js';
+import { criarResultado, resultadoDaRodada } from './resultado.js';
 import { criarCronometro } from './cronometro.js';
 import { criarPresentes, PRESENTES_PADRAO } from './presentes.js';
-import { criarMaoSvg } from './hand/hand-svg.js';
-import { AtorDaMao } from './hand-actor.js';
+import { criarEquipeDeMaos } from './hand-team.js';
 import { carregarConfig, aplicarConfig, aplicarConfigDoPlacar } from './config.js';
 
 const cenario = montarCenario(document.getElementById('cena'));
@@ -129,9 +129,23 @@ const placar = criarPlacar(camadaPlacar, CONFIG_URNAS.map((c) => ({
 const DURACAO_RODADA = 300;
 let rodadaAberta = true;
 
+/*
+ * O fim da rodada acontece em DOIS tempos, e a diferença entre eles importa.
+ *
+ * O relógio zerando FECHA a rodada: nenhum voto novo entra a partir daí. O
+ * resultado, não — ele espera a fila acabar de passar. A spec é explícita em
+ * que nenhum voto se perde por animação em andamento, e quem presenteou no
+ * último segundo tem o direito de ver a mão dele depositar a cédula antes de
+ * a tela dizer quem ganhou. Enquanto a fila anda, o placar ainda está subindo.
+ */
+let esperandoResultado = false;
+
 const cronometro = criarCronometro(camadaPlacar, {
   duracao: DURACAO_RODADA,
-  aoTerminar: () => { rodadaAberta = false; },
+  aoTerminar: () => {
+    rodadaAberta = false;
+    esperandoResultado = true;
+  },
 });
 cronometro.comecar();
 
@@ -141,10 +155,21 @@ function atualizarPlacar() {
   })));
 }
 
-const mao = criarMaoSvg();
-const ator = new AtorDaMao({
-  renderizador: mao,
+/*
+ * DUAS mãos, e não uma.
+ *
+ * Com uma só, dois presentes no mesmo segundo viram espera: o segundo
+ * espectador assiste ao voto do primeiro antes de o dele começar. Numa live
+ * com movimento isso é uma fila que cresce mais rápido do que anda — e o
+ * problema não é a espera em si, é que quem mandou o presente olha para a
+ * tela naquele instante e não vê nada acontecer com o nome dele.
+ *
+ * Cada voto sai na mão que estiver livre, e os dois podem estar no ar ao
+ * mesmo tempo, uma em cada urna, sem um esperar pelo outro.
+ */
+const equipe = criarEquipeDeMaos({
   camada: camadaMao,
+  quantidade: 2,
   opcoes: {
     aoContarVoto: ({ urnaId, votos }) => {
       contagem[urnaId] = (contagem[urnaId] ?? 0) + votos;
@@ -152,7 +177,17 @@ const ator = new AtorDaMao({
     },
   },
 });
-ator.iniciar();
+equipe.iniciar();
+
+/*
+ * `ator` continua sendo a PRIMEIRA mão, e não uma abstração da equipe.
+ *
+ * É por onde o painel, o relógio e as sondas alcançam a fila e o ticker — que
+ * são compartilhados — sem precisarem saber que existem duas mãos. Quem
+ * precisa das duas olha para `equipe.atores`.
+ */
+const ator = equipe.atores[0];
+const mao = ator.render;
 
 // ---- O painel do rodapé: a fila e o ranking ---------------------------
 
@@ -210,17 +245,66 @@ function atualizarPainel() {
 ator.ticker.registrarPasso(atualizarPainel);
 atualizarPainel();
 
+// ---- O desfecho da rodada ---------------------------------------------
+
+const resultado = criarResultado(cenario.camadaResultado);
+
+/*
+ * O segundo tempo do fim da rodada: quando é que a fila acabou de passar.
+ *
+ * No ticker da mão, junto com o painel, e não num `setInterval` próprio: é o
+ * mesmo laço que esvazia a fila que decide que ela esvaziou, então não existe
+ * o quadro em que a fila está vazia e o vigia ainda não sabe.
+ */
+function verificarFimDaRodada() {
+  if (!esperandoResultado) return;
+  if (ator.fila.pendentes > 0 || ator.fila.ocupada) return;
+
+  esperandoResultado = false;
+  resultado.mostrar(resultadoDaRodada(placar.estado, { modelos: MENSAGENS }));
+  som.tocarVitoria();
+}
+
+ator.ticker.registrarPasso(verificarFimDaRodada);
+
+/**
+ * Começa uma rodada nova: zera o placar, esconde o resultado e reabre.
+ *
+ * O ranking de quem mais presenteou NÃO é zerado junto, de propósito. Ele é
+ * da live inteira, e não da rodada: a pessoa que mandou presente na primeira
+ * rodada não deixa de ter mandado porque a segunda começou, e é justamente
+ * por atravessar a live toda que ele faz alguém voltar no dia seguinte.
+ *
+ * A ordem importa: o placar é zerado ANTES de a tela sair do ar, para que os
+ * cartões voltando ao lugar aconteçam atrás dela. Zerar com a tela já fora
+ * faria a audiência ver os dois cartões deslizando de volta para a esquerda
+ * sem motivo aparente.
+ */
+function novaRodada() {
+  for (const cfg of CONFIG_URNAS) contagem[cfg.id] = 0;
+  atualizarPlacar();
+  resultado.esconder();
+  rodadaAberta = true;
+  esperandoResultado = false;
+  cronometro.comecar(DURACAO_RODADA);
+}
+
 // ---- Controles de demonstração ----------------------------------------
 // Substituídos pelo modo de teste real na Etapa 6. Servem para validar
 // visualmente as Etapas 1-3 antes de construir o motor de votação.
-// Os mesmos dois presentes da vitrine: o que a barra enfileira é o que a
-// legenda embaixo da mesa está anunciando.
-const PRESENTES_DEMO = presentes.map((p) => ({ nome: p.nome, urnaId: p.urnaId }));
+//
+// TODOS os presentes contra TODAS as urnas, e não um presente casado com uma
+// urna. O par "esta rosa vale um voto no 22" é uma sugestão da vitrine para
+// quem está chegando no meio da live — não é uma regra do sistema. Quem
+// manda o presente escolhe onde ele vale, e um mesmo presente pode estar
+// valendo nas duas urnas ao mesmo tempo.
+const PRESENTES_DEMO = presentes.flatMap((p) =>
+  CONFIG_URNAS.map((c) => ({ presente: p.nome, urnaId: c.id, numero: c.numero })));
 
 const barra = document.createElement('div');
 barra.className = 'demo-barra';
 barra.innerHTML = PRESENTES_DEMO
-  .map((p) => `<button data-presente="${p.nome}" data-votar="${p.urnaId}">${p.nome} → ${urnas[p.urnaId].config.nome}</button>`)
+  .map((p) => `<button data-presente="${p.presente}" data-votar="${p.urnaId}">${p.presente} → ${p.numero}</button>`)
   .join('')
   + '<button data-rajada="1">Rajada de 12</button>'
   /*
@@ -317,8 +401,7 @@ barra.addEventListener('click', (evento) => {
     return;
   }
   if (btn.dataset.novaRodada) {
-    rodadaAberta = true;
-    cronometro.comecar(DURACAO_RODADA);
+    novaRodada();
     return;
   }
   if (btn.dataset.rajada) {
@@ -346,4 +429,4 @@ barra.addEventListener('click', (evento) => {
  * conferir que os cartões trocam de lugar e conferir que os cartões DESTA
  * página trocam de lugar.
  */
-export { urnas, mao, ator, enfileirar, placar, cronometro };
+export { urnas, mao, ator, equipe, enfileirar, placar, cronometro, resultado, novaRodada };

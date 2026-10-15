@@ -146,9 +146,16 @@ export function markupPresente({ nome = '', numero = '', cor = '#8a8f98', desenh
 /**
  * Os dois presentes que a cena mostra por padrão.
  *
- * Um por urna, e a lista é o que o resto do sistema consulta: é daqui que
- * sai a ligação "este presente vale um voto naquela urna", que a Etapa 7
- * usa para transformar presente em voto.
+ * O `urnaId` de cada um é uma SUGESTÃO da vitrine, e não uma regra do
+ * sistema: é a legenda que responde "o que eu mando para votar no 22?" para
+ * quem chega no meio da live, e é por isso que ela aparece embaixo do
+ * desenho. Quem manda o presente escolhe onde ele vale, e o mesmo presente
+ * pode estar valendo nas duas urnas — quem decide é a configuração do
+ * adaptador, não esta lista.
+ *
+ * Ela chegou a ser o casamento "este presente vale um voto naquela urna", e
+ * não é mais: com dois espectadores presentes ao mesmo tempo, prender cada
+ * presente a uma urna só transformava a escolha do espectador em espera.
  */
 export const PRESENTES_PADRAO = Object.freeze([
   { id: 'p1', nome: 'Joinha', desenho: 'joinha', urnaId: 'u1' },

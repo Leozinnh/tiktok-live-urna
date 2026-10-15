@@ -80,7 +80,18 @@ export class AtorDaMao {
     // realmente pode travar uma live — ficaria sem teste.
     this.ticker = opcoes.ticker ?? new Ticker();
     this.pool = new PoolDeTimelines({ max: 8 });
-    this.fila = new FilaDeAnimacao(opcoes.fila ?? {});
+    /*
+     * A fila pode chegar pronta ou em opções, e a diferença importa.
+     *
+     * Numa equipe de mãos ela chega PRONTA e é a mesma para todas — é ela que
+     * guarda "quantos votos faltam", e duas filas dariam dois números para o
+     * mesmo fato, com a tela mostrando um e a mão obedecendo ao outro. Uma
+     * mão sozinha continua podendo passar só as opções, que é como o
+     * construtor nasceu.
+     */
+    this.fila = opcoes.fila instanceof FilaDeAnimacao
+      ? opcoes.fila
+      : new FilaDeAnimacao(opcoes.fila ?? {});
     /*
      * Quem quiser saber que um voto foi contado se inscreve aqui.
      *
@@ -91,6 +102,16 @@ export class AtorDaMao {
      * aviso, e o placar pararia de contar sem nada quebrar.
      */
     this.aoContarVoto = opcoes.aoContarVoto ?? (() => {});
+    /*
+     * Numa equipe de mãos a fila é uma só, e quem a faz andar é a equipe.
+     *
+     * O watchdog da fila acumula TEMPO VIRTUAL contra um limite fixo: dois
+     * atores chamando `tick` no mesmo quadro contariam o dobro, a fila se
+     * daria por travada na metade do prazo e um voto ainda em animação seria
+     * dado por concluído — a mão continuaria mexendo, mas a vaga já estaria
+     * livre e uma terceira mão começaria um voto por cima.
+     */
+    this.tickDaFila = opcoes.tickDaFila ?? true;
     this.posicao = { ...MAO_FORA_DE_CENA };
     this.poseAtual = POSES.repouso;
     this.timelineAtual = null;
@@ -99,6 +120,9 @@ export class AtorDaMao {
     this._contadorPercurso = 0;
 
     camada.append(renderizador.sombra, renderizador.el);
+    // A etiqueta é irmã da mão, e não filha: ver o comentário do
+    // `posicionar` em hand-svg.js.
+    if (renderizador.badge) camada.append(renderizador.badge);
     // Recolher é o estado inicial, e é a mesma operação do fim de cada
     // voto: uma segunda forma de escrever "mão fora de cena" só serviria
     // para as duas divergirem.
@@ -207,6 +231,16 @@ export class AtorDaMao {
       const timeline = this.pool.obter();
       const geometria = this.geometriaDe(urna);
 
+      /*
+       * A etiqueta entra junto com a mão, no primeiro quadro do voto — e não
+       * quando a cédula sai, que é quando o nome de quem mandou costuma
+       * aparecer. Aqui não: quem olha precisa saber de quem é a mão ENQUANTO
+       * ela digita, senão o nome chega depois de o voto já ter sido dado e
+       * não explica mais nada.
+       */
+      tentar('mostrar a etiqueta', () =>
+        this.render.mostrarBadge?.(usuario, urna.config?.corPrimaria));
+
       construirSequenciaDeVoto({
         geometria,
         numero,
@@ -255,6 +289,7 @@ export class AtorDaMao {
       timeline.aoTerminar(() => {
         tentar('devolver a urna ao repouso', () => urna.restaurarAoRepouso());
         tentar('recolher a mão', () => this.recolher());
+        tentar('esconder a etiqueta', () => this.render.esconderBadge?.());
         tentar('devolver a timeline ao pool', () => this.pool.devolver(timeline));
         resolve();
       });
@@ -287,7 +322,7 @@ export class AtorDaMao {
    */
   iniciar() {
     this.ticker.registrarPasso((delta) => {
-      this.fila.tick(delta);
+      if (this.tickDaFila) this.fila.tick(delta);
       if (this.ocupado) return;
 
       const item = this.fila.proximo();

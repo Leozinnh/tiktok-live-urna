@@ -73,6 +73,7 @@ export function montarCenario(raiz) {
       <div class="camada camada--urnas"   id="camada-urnas"></div>
       <div class="camada camada--mao"     id="camada-mao"></div>
       <div class="camada camada--efeitos" id="camada-efeitos"></div>
+      <div class="camada camada--resultado" id="camada-resultado"></div>
     </div>
   `;
 
@@ -104,6 +105,7 @@ export function montarCenario(raiz) {
     camadaUrnas: raiz.querySelector('#camada-urnas'),
     camadaMao: raiz.querySelector('#camada-mao'),
     camadaEfeitos: raiz.querySelector('#camada-efeitos'),
+    camadaResultado: raiz.querySelector('#camada-resultado'),
     /**
      * Liga e desliga o tamanho real. É o que o botão da barra de demonstração
      * usa: sem ele, ver a urna de perto exigiria saber de cor o `?zoom=1`.

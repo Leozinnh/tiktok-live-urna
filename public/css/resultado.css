@@ -1,0 +1,191 @@
+/*
+ * A tela de fim de rodada.
+ *
+ * Ela vive na camada de efeitos, que é a de cima — por cima das urnas, da mão
+ * e do placar. Quando a rodada fecha, a cena inteira sai de trás dela: a
+ * disputa acabou, e deixar a urna aparecendo atrás de um resultado é convidar
+ * a audiência a continuar olhando para um placar que não anda mais.
+ *
+ * A cor vem de `--cor-campeao`, escrita pelo resultado.js. Quando não há
+ * campeão — empate, ou rodada sem voto — a variável não existe e tudo cai no
+ * cinza: nem a borda nem o brilho acendem uma cor que não é de ninguém.
+ */
+
+.resultado {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 76px;
+  background: linear-gradient(180deg, rgba(7, 11, 21, 0.95) 0%, rgba(4, 6, 13, 0.98) 100%);
+  font-family: "Segoe UI", "Inter", system-ui, sans-serif;
+  color: #ffffff;
+  animation: resultado-fundo 300ms ease both;
+}
+
+/*
+ * Sem esta linha, a tela de resultado ficaria no ar desde o primeiro segundo.
+ *
+ * `[hidden]` é uma regra do navegador, e regra do navegador perde para regra
+ * do autor: o `display: flex` logo acima venceria o `display: none` que o
+ * atributo pede, e o `hidden` não esconderia nada. É o tropeço clássico de
+ * esconder um elemento flex.
+ */
+.resultado[hidden] { display: none; }
+
+@keyframes resultado-fundo {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.resultado__caixa {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 28px;
+  padding: 54px 46px 46px;
+  border-radius: 46px;
+  border: 6px solid var(--cor-campeao, #39435c);
+  background: linear-gradient(180deg, #16203a 0%, #0c1322 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    0 0 80px var(--cor-campeao, rgba(0, 0, 0, 0)),
+    0 30px 70px rgba(0, 0, 0, 0.55);
+  animation: resultado-entra 520ms var(--ease-padrao) both;
+}
+
+/*
+ * A caixa chega de baixo, um pouco menor. É o que separa "a tela mudou" de
+ * "a rodada acabou": um corte seco lê como falha de transmissão, e a
+ * audiência precisa sentir que aquilo é um acontecimento.
+ */
+@keyframes resultado-entra {
+  from { opacity: 0; transform: translateY(38px) scale(0.94); }
+  to   { opacity: 1; transform: none; }
+}
+
+.resultado__rotulo {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: 0.24em;
+  text-indent: 0.24em;
+  text-transform: uppercase;
+  color: #8fa3c8;
+}
+
+.resultado__manchete {
+  margin: 0;
+  font-size: 68px;
+  font-weight: 900;
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+  text-align: center;
+  text-transform: uppercase;
+  color: var(--cor-campeao, #e6ecfa);
+  text-shadow: 0 4px 0 rgba(0, 0, 0, 0.35);
+}
+
+/* ---- A contagem final: os dois lados, frente a frente ---- */
+
+.resultado__contagens {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+}
+
+.resultado__vezes {
+  flex: none;
+  font-size: 54px;
+  font-weight: 800;
+  color: #55658a;
+}
+
+.resultado__lado {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 24px 16px 22px;
+  border-radius: 30px;
+  border: 5px solid var(--cor-urna, #666);
+  background: rgba(255, 255, 255, 0.04);
+
+  /* Quem perdeu fica atrás, sem sumir: a contagem final é dos dois, e
+     apagar o derrotado esconderia por quanto foi. */
+  opacity: 0.62;
+}
+
+/*
+ * E o campeão fica na frente — maior, opaco e brilhando na cor dele.
+ *
+ * Só um lado recebe esta classe, e é isso que faz a tela responder "quem
+ * ganhou?" antes de qualquer número ser lido.
+ */
+.resultado__lado--campeao {
+  opacity: 1;
+  transform: scale(1.05);
+  background: rgba(255, 255, 255, 0.09);
+  box-shadow: 0 0 46px var(--cor-urna, #666);
+}
+
+.resultado__numero {
+  font-size: 82px;
+  font-weight: 900;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--cor-urna, #ffffff);
+  filter: brightness(1.4);
+  text-shadow: 0 3px 0 rgba(0, 0, 0, 0.4);
+}
+
+.resultado__nome {
+  font-size: 25px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  text-align: center;
+  opacity: 0.85;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.resultado__votos {
+  margin-top: 6px;
+  font-size: 128px;
+  font-weight: 900;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.04em;
+  text-shadow: 0 5px 0 rgba(0, 0, 0, 0.35);
+}
+
+.resultado__percentual {
+  font-size: 30px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.8;
+}
+
+.resultado__total {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-indent: 0.14em;
+  text-transform: uppercase;
+  color: #8fa3c8;
+}
+
+.resultado__total b {
+  font-size: 42px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  color: #ffffff;
+}
