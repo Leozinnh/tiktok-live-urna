@@ -7,6 +7,11 @@
  * e apagar um arquivo é mais seguro do que caçar um bloco no meio de outro.
  */
 
+/*
+ * Invisível por padrão. O OBS não manda evento de ponteiro para a página,
+ * então a classe `mostrando-demo` — que só o `mousemove` adiciona — nunca
+ * entra na captura, e a barra não aparece na transmissão.
+ */
 .demo-barra {
   position: fixed;
   bottom: 16px;
@@ -15,6 +20,14 @@
   display: flex;
   gap: 10px;
   z-index: 999;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms var(--ease-padrao);
+}
+
+body.mostrando-demo .demo-barra {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .demo-barra button {
