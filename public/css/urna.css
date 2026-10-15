@@ -985,13 +985,17 @@
   position: relative;
   transform: rotate(-2deg);
 }
-
-.cedula__titulo   { font-size: 9px;  letter-spacing: 0.3em; color: #8a8578; }
+.cedula__titulo {
+    margin-top: 10px;
+    font-size: 20px;
+    letter-spacing: 0.3em;
+    color: #8a8578;
+}
 .cedula__urna     { font-size: 34px; font-weight: 700; line-height: 1; color: var(--cor-urna); }
-.cedula__linha    { height: 1px; margin: 5px 0; background: repeating-linear-gradient(90deg, #bbb 0 4px, transparent 4px 7px); }
-.cedula__quem     { font-size: 11px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cedula__presente { font-size: 10px; color: #6a6558; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cedula__votos    { font-size: 11px; font-weight: 700; color: var(--cor-urna); margin-top: 3px; }
+.cedula__linha    { height: 2px; margin: 5px 0; background: repeating-linear-gradient(90deg, #555 0 4px, transparent 4px 7px); }
+.cedula__quem     { font-size: 18px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cedula__presente { font-size: 17px; color: #6a6558; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cedula__votos    { font-size: 14px; font-weight: 700; color: var(--cor-urna); margin-top: 3px; }
 
 /* Borda picotada — detalhe de fabricação que faz ler como papel impresso */
 .cedula__picotado {
