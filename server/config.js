@@ -87,7 +87,18 @@ export const PADRAO = Object.freeze({
     mensagemVitoria: '{urna} VENCEU!',
     mensagemEmpate: 'EMPATE NA DISPUTA!',
   }),
-  integracao: Object.freeze({ modo: 'simulador', usuario: '' }),
+  integracao: Object.freeze({
+    modo: 'simulador',
+    usuario: '',
+    /*
+     * Quanto se espera pelo número no chat antes de a voz cobrá-lo.
+     *
+     * Fica aqui, e não em `espera.js`, porque o painel mostra o campo — e um
+     * prazo que o operador não consegue mudar no meio de uma live de chat
+     * lento é um prazo que ele vai querer mudar justamente ali.
+     */
+    esperaNumeroSegundos: 15,
+  }),
   narracao: Object.freeze({
     ativa: true,
     // Vazio escolhe a primeira voz pt-BR instalada. Um nome de voz errado no
@@ -333,6 +344,15 @@ export function normalizar(bruto = {}) {
     modo: conferirEscolha(base.integracao?.modo, MODOS_DE_INTEGRACAO,
       PADRAO.integracao.modo, 'integracao.modo', avisos),
     usuario: texto(base.integracao?.usuario),
+    /*
+     * Prazo zero ou negativo vence no mesmo instante em que o presente chega:
+     * a voz cobraria o número antes de a pessoa ter chance de escrever. Não é
+     * um valor legítimo, é um campo apagado — e cai no padrão.
+     */
+    esperaNumeroSegundos: Math.max(1,
+      numeroFinito(base.integracao?.esperaNumeroSegundos) && base.integracao.esperaNumeroSegundos > 0
+        ? base.integracao.esperaNumeroSegundos
+        : PADRAO.integracao.esperaNumeroSegundos),
   };
 
   const narracao = {

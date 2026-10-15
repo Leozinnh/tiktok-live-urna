@@ -57,11 +57,16 @@ export function criarSimulador() {
     /**
      * Um presente do painel. `combo` é quantos votos ele vale — um só, por
      * padrão — e pede UMA animação, como manda a seção 4.5.
+     *
+     * O `giftNome` atravessa porque é ele que a etiqueta da fila escreve
+     * quando o presente não está no painel: sem o nome, o presente órfão
+     * resgatado no chat apareceria na tela como "Presente", e o painel de
+     * teste estaria mentindo sobre o que a live vai mostrar.
      */
-    enviar({ giftId, userId = 'painel', userName = 'Painel', combo = 1, em } = {}) {
+    enviar({ giftId, giftNome, userId = 'painel', userName = 'Painel', combo = 1, em } = {}) {
       if (!fonte.conectada) return false;
       return fonte.emitir(normalizarEvento({
-        giftId, userId, userName, combo,
+        giftId, giftNome, userId, userName, combo,
         comboIndex: proximoIndice(userId, String(giftId)),
         em,
       }, 'simulador'));
@@ -82,6 +87,21 @@ export function criarSimulador() {
       if (!fonte.conectada) return false;
       return fonte.emitir(normalizarEvento({
         tipo, userId, userName, quantidade, em,
+      }, 'simulador'));
+    },
+
+    /**
+     * O que alguém ESCREVEU no chat.
+     *
+     * Ele não é um evento social e não vira fala: é a resposta que decide a
+     * urna de um presente que o painel não mapeia. Existe aqui pelo mesmo
+     * motivo que os outros botões — testar a espera do número sem depender de
+     * alguém escrever de verdade na live.
+     */
+    comentario({ userId = 'painel', userName = 'Painel', texto = '', em } = {}) {
+      if (!fonte.conectada) return false;
+      return fonte.emitir(normalizarEvento({
+        tipo: 'comentario', userId, userName, texto, em,
       }, 'simulador'));
     },
 

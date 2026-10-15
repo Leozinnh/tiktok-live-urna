@@ -282,3 +282,30 @@ test('o padrão da narração é congelado como o resto', () => {
   // envenenaria todas as leituras seguintes do processo.
   assert.throws(() => { 'use strict'; PADRAO.config.narracao.ativa = false; }, TypeError);
 });
+
+test('a espera do número no chat tem prazo, e o prazo é quinze segundos', () => {
+  /*
+   * O prazo do pedido do Leonardo: "se demorar mais de 15s, avisar por voz".
+   * Ele entra na configuração porque o painel mostra o campo, e o painel só
+   * mostra o que existe — um número solto no código seria um prazo que o
+   * operador não consegue mudar no meio de uma live em que o chat é lento.
+   */
+  const { config } = normalizar({});
+  assert.equal(config.integracao.esperaNumeroSegundos, 15);
+});
+
+test('um prazo absurdo não deixa a espera sem prazo', () => {
+  // Prazo zero ou negativo venceria no mesmo instante em que o presente
+  // chegou: a voz cobraria o número antes de a pessoa ter chance de escrever,
+  // e o presente caro pareceria quebrado. Texto ou ausente cai no padrão pelo
+  // mesmo motivo.
+  assert.equal(normalizar({ integracao: { esperaNumeroSegundos: 0 } }).config.integracao.esperaNumeroSegundos, 15);
+  assert.equal(normalizar({ integracao: { esperaNumeroSegundos: -3 } }).config.integracao.esperaNumeroSegundos, 15);
+  assert.equal(normalizar({ integracao: { esperaNumeroSegundos: 'logo' } }).config.integracao.esperaNumeroSegundos, 15);
+  assert.equal(normalizar({ integracao: {} }).config.integracao.esperaNumeroSegundos, 15);
+});
+
+test('um prazo escolhido no painel vale', () => {
+  const { config } = normalizar({ integracao: { esperaNumeroSegundos: 30 } });
+  assert.equal(config.integracao.esperaNumeroSegundos, 30);
+});

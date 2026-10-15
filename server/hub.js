@@ -32,6 +32,7 @@
 import { basename } from 'node:path';
 import { mesclar, normalizar } from './config.js';
 import { criarNarrador } from './narracao.js';
+import { criarEspera } from './espera.js';
 
 export function criarHub({
   tally,
@@ -90,6 +91,23 @@ export function criarHub({
    * teria como saber por quê.
    */
   const narrador = criarNarrador({ falas: () => cfg.narracao?.falas, agora });
+
+  /*
+   * A espera do número no chat.
+   *
+   * O presente que não está no painel não conta sozinho, mas também não pode
+   * sumir: quem pagou por ele merece que o voto aconteça. Ele abre uma janela,
+   * o número que o espectador escrever decide a urna, e o silêncio é
+   * respondido com uma cobrança falada.
+   *
+   * A janela é lida da CONFIGURAÇÃO a cada consulta, e não no dia em que o
+   * hub nasceu: o Leonardo pode querer vinte segundos numa live calma, e ele
+   * muda isso no painel com a rodada no ar.
+   */
+  const espera = criarEspera({
+    janelaMs: () => Number(cfg.integracao?.esperaNumeroSegundos) * 1000,
+    agora,
+  });
 
   /**
    * O placar, no formato do `tally.update` da especificação.
@@ -164,6 +182,15 @@ export function criarHub({
    */
   function fecharRodada(motivo) {
     terminaEm = null;
+    /*
+     * Rodada fechada, esperas esquecidas.
+     *
+     * Um número que chegue depois daqui não conta — o placar já foi mostrado
+     * como final. Manter a espera de pé só renderia uma cobrança falada por um
+     * voto que não pode mais acontecer: a voz pedindo um número para uma urna
+     * que já encerrou.
+     */
+    esquecerEsperas();
     if (!tally.aberta) return;
     tally.fecharRodada({ em: agora(), motivo });
     const e = tally.estado();
@@ -211,6 +238,9 @@ export function criarHub({
       case 'sim.gift':
         fonte.enviar?.({
           giftId: msg.giftId,
+          // O nome viaja para a etiqueta da fila — é ele que aparece na tela
+          // quando o presente não está no painel e o voto sai pelo chat.
+          giftNome: msg.giftNome,
           userId: msg.userId ?? 'painel',
           userName: msg.userName ?? 'Painel',
           combo: msg.combo ?? 1,
@@ -235,6 +265,17 @@ export function criarHub({
           userId: msg.userId ?? 'painel',
           userName: msg.userName ?? 'Painel',
           quantidade: msg.quantidade,
+        });
+        break;
+
+      case 'sim.comment':
+        // O chat do teste. O `userId` é o que importa: é ele que liga o
+        // comentário ao presente de quem escreveu, e um comentário de outra
+        // pessoa não pode resgatar nada.
+        fonte.comentario?.({
+          userId: msg.userId ?? 'painel',
+          userName: msg.userName ?? 'Painel',
+          texto: msg.texto ?? '',
         });
         break;
 
@@ -343,6 +384,50 @@ export function criarHub({
       .catch(() => {});
   }
 
+  /**
+   * O retrato da espera, para o painel.
+   *
+   * O painel mostra quem está esperando e há quanto tempo — é o que permite ao
+   * operador entender, no meio da live, por que um presente caro não virou
+   * voto: alguém mandou e não escreveu o número.
+   */
+  function avisarEspera() {
+    enviarAosAdmins('espera.updated', {
+      pendentes: espera.pendentes,
+      janelaMs: espera.janelaMs,
+      esperas: espera.lista().map((e) => ({ ...e, esperandoHa: Math.max(0, agora() - e.desde) })),
+    });
+  }
+
+  /**
+   * A cobrança falada de quem mandou presente e não escreveu o número.
+   *
+   * Uma por espera vencida, e uma só: o `vencidas` já as consome, e é isso que
+   * impede a voz de repetir a cobrança a cada segundo até alguém reiniciar o
+   * servidor.
+   */
+  function cobrarEsperas() {
+    const vencidas = espera.vencidas();
+    if (vencidas.length === 0) return;
+    for (const vencida of vencidas) {
+      narrar({
+        tipo: 'espera',
+        userId: vencida.userId,
+        usuario: vencida.usuario,
+        quantidade: vencida.combo,
+        em: agora(),
+      });
+    }
+    avisarEspera();
+  }
+
+  /** Esquece as esperas em aberto. É o que a virada de rodada faz. */
+  function esquecerEsperas() {
+    if (espera.pendentes === 0) return;
+    espera.limpar();
+    avisarEspera();
+  }
+
   async function anunciarNaTela(evento, texto) {
     let wav = null;
     try {
@@ -376,19 +461,77 @@ export function criarHub({
    * onde ele existe.
    */
   fonte.aoEvento((evento) => {
+    /*
+     * O comentário não é evento: é RESPOSTA.
+     *
+     * Ele não conta voto sozinho, não merece fala e não aparece em lugar
+     * nenhum da tela. O que ele pode fazer é resgatar o presente órfão de
+     * quem o escreveu — e quem garante que é do autor certo é a espera, que é
+     * indexada por pessoa.
+     */
+    if (evento.tipo === 'comentario') {
+      const resgate = espera.resgatar({ userId: evento.userId, texto: evento.texto, urnas: urnasAtivas() });
+      if (!resgate) return;   // a imensa maioria dos comentários morre aqui
+      const r = tally.contarPeloNumero(
+        { ...evento, giftId: resgate.giftId, giftNome: resgate.presente, combo: resgate.combo },
+        { numero: resgate.numero },
+      );
+      if (r.contado) {
+        anunciarVoto(r, { ...evento, usuario: resgate.usuario, giftId: resgate.giftId });
+        avisarEspera();
+      }
+      return;
+    }
+
     const r = tally.processar(evento);
     if (!r.contado) {
+      /*
+       * O presente que não está no painel abre uma espera pelo número.
+       *
+       * Só o `sem-mapeamento` abre. Um presente DESLIGADO no painel, ou
+       * apontando para uma urna apagada, é uma decisão do operador — abrir
+       * uma janela para ele seria desfazer, pelo chat, o que ele acabou de
+       * decidir na tela.
+       */
+      if (r.motivo === 'sem-mapeamento') {
+        espera.abrir({
+          userId: evento.userId,
+          usuario: evento.usuario,
+          giftId: evento.giftId,
+          presente: evento.giftNome || 'Presente',
+          combo: evento.combo,
+          em: evento.em,
+        });
+        avisarEspera();
+      }
       /*
        * Não contou voto: ou é um evento social — chegada, follow, curtida —,
        * ou é um presente sem urna no mapeamento. Quem separa os dois é o
        * narrador, que só conhece os tipos sociais: um presente órfão não tem
-       * frase nenhuma e sai daqui em silêncio, que é o certo, porque quem
-       * avisa o Leonardo do mapeamento que falta é a aba Integração.
+       * frase nenhuma e sai daqui em silêncio. Quem fala por ele é a espera,
+       * quinze segundos depois, quando o número não vem.
        */
       narrar(evento);
       return;
     }
 
+    anunciarVoto(r, evento);
+  });
+
+  /** As urnas que um número escrito no chat pode escolher. */
+  function urnasAtivas() {
+    return Object.values(cfg.urnas ?? {}).filter((u) => u?.ativo !== false);
+  }
+
+  /**
+   * O voto aconteceu: conta para todos, pede a animação e sobe o placar.
+   *
+   * Ele existe como função por causa do segundo caminho até o voto — o
+   * presente órfão resgatado no chat. Os dois têm que terminar no MESMO
+   * anúncio; um voto que subisse por um caminho e não pelo outro seria um
+   * voto que o placar não vê, e o defeito só apareceria na live.
+   */
+  function anunciarVoto(r, evento) {
     enviarATodos('vote.counted', {
       id: r.chave,
       urnaId: r.urnaId,
@@ -439,7 +582,7 @@ export function criarHub({
         empate: r.lideranca.tipo === 'empate',
       });
     }
-  });
+  }
 
   fonte.aoStatus((s) => enviarAosAdmins('source.status', s));
 
@@ -476,6 +619,15 @@ export function criarHub({
 
     /** O relógio da rodada, chamado de segundo em segundo pelo servidor. */
     tick() {
+      /*
+       * A espera é conferida ANTES da saída rápida de propósito.
+       *
+       * A rodada sem prazo (`terminaEm == null`) sai daqui na linha seguinte,
+       * e uma rodada assim é justamente uma em que o presente órfão continua
+       * chegando — a cobrança falada ficaria muda na única situação em que ela
+       * é a única coisa acontecendo.
+       */
+      cobrarEsperas();
       if (terminaEm == null) return;
       if (agora() >= terminaEm) { fecharRodada('tempo'); return; }
       enviarATodos('round.update', atualizacaoDeRodada());

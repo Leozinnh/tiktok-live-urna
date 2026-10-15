@@ -24,12 +24,26 @@
  * e inventar um evento a partir dele faria o narrador narrar coisa nenhuma,
  * com o nome do usuário no meio.
  *
- * `comentario` não está aqui e não é esquecimento: comentário é o canal de
- * comando do outro projeto, chega dezenas por minuto, e narrar cada um
- * transformaria o narrador num leitor de chat. Se um dia fizer falta, entra
- * aqui e ganha uma frase.
+ * `comentario` não está aqui e não é esquecimento: chega dezenas por minuto,
+ * e narrar cada um transformaria o narrador num leitor de chat. Ele existe
+ * no sistema como CANAL DE COMANDO — ver `TIPOS_DE_TEXTO` logo abaixo —, e
+ * por isso vive numa lista separada desta.
  */
 export const TIPOS_SOCIAIS = ['seguidor', 'curtida', 'entrada', 'compartilhou', 'assinatura'];
+
+/**
+ * O que a live manda ESCRITO.
+ *
+ * O comentário é o único, e ele não é um evento social: não merece fala, não
+ * conta voto sozinho, e não aparece em lugar nenhum da tela. O que ele é, é o
+ * caminho pelo qual o espectador RESPONDE — desde que existe a espera do
+ * número, é o chat que decide a urna de um presente que o painel não mapeia.
+ *
+ * A lista é separada da de cima de propósito. Narrar comentário deixaria o
+ * narrador lendo o chat inteiro em voz alta, que é o defeito que a lista
+ * fechada da seção anterior existe para impedir.
+ */
+export const TIPOS_DE_TEXTO = ['comentario'];
 
 /**
  * O evento comum.
@@ -99,6 +113,18 @@ export function normalizarEvento(bruto, plataforma = 'simulador') {
         ? Math.max(0, Math.floor(Number(bruto.comboIndex)))
         : 0,
     };
+  }
+
+  if (TIPOS_DE_TEXTO.includes(tipo)) {
+    /*
+     * Sem texto não há comentário. Um comentário vazio seria um evento que
+     * existe só para ocupar espaço na fila do hub — e a espera do número
+     * ficaria olhando para uma string em branco.
+     */
+    // `conteudo`, e não `texto`: o nome `texto` já é o ajudante de limpeza
+    // logo acima, e reusá-lo aqui dentro seria um erro de sintaxe.
+    const conteudo = String(bruto.texto ?? bruto.comment ?? bruto.content ?? '').trim();
+    return conteudo ? { ...comum, texto: conteudo } : null;
   }
 
   if (TIPOS_SOCIAIS.includes(tipo)) {

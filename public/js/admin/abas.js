@@ -83,7 +83,44 @@ const ROTULO_DA_FALA = Object.freeze({
   entrada: 'Quando alguém entra',
   compartilhou: 'Quando alguém compartilha',
   assinatura: 'Quando alguém assina',
+  // A única que não responde a um evento, e sim a um SILÊNCIO: o presente
+  // chegou, não achou urna, e a pessoa não escreveu o número. O rótulo diz
+  // isso, porque "quando alguém manda presente e não escreve o número" é a
+  // situação inteira, e "espera" não é nada.
+  espera: 'Quando alguém manda presente e não escreve o número',
 });
+
+/**
+ * Um `giftId` que não está em nenhum mapeamento — o presente órfão do teste.
+ *
+ * O botão de teste precisa de um presente DESCONHECIDO: é ele que abre a
+ * espera pelo número. Um id que estivesse cadastrado contaria o voto na hora,
+ * e o botão estaria testando o caminho de sempre enquanto o Leonardo conclui
+ * que o caminho do chat funciona.
+ *
+ * O 9999 é o chute inicial, e não uma promessa: se ele estiver cadastrado, o
+ * número sobe até achar um livre. Um id fixo viraria um falso positivo no dia
+ * em que ele cadastrasse justamente esse.
+ */
+export function giftIdSemUrna(presentes = []) {
+  const usados = new Set((presentes ?? []).map((p) => String(p?.giftId ?? '')));
+  let n = 9999;
+  while (usados.has(String(n))) n++;
+  return String(n);
+}
+
+/**
+ * O número que o campo do chat abre preenchido.
+ *
+ * A primeira urna cadastrada, que é a resposta na imensa maioria dos testes:
+ * o operador aperta o botão e vê o voto acontecer. Um campo vazio faria o
+ * botão não fazer nada, e um botão que não faz nada é indistinguível de um
+ * caminho quebrado.
+ */
+export function numeroDeTeste(urnas = {}) {
+  const primeira = Object.values(urnas ?? {})[0];
+  return String(primeira?.numero ?? '').trim();
+}
 
 /*
  * As frases de cada tipo, uma caixa por tipo.
@@ -259,6 +296,15 @@ export const ABAS = [
           rotulo: 'Usuário da live',
           tipo: 'texto',
           dica: 'sem o @',
+        },
+        {
+          caminho: 'integracao.esperaNumeroSegundos',
+          rotulo: 'Esperar o número no chat',
+          tipo: 'numero',
+          min: 1,
+          max: 600,
+          passo: 1,
+          dica: 'segundos; passando disso, a voz cobra o número de quem mandou o presente',
         },
       ],
     }],

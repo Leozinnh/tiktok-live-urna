@@ -49,6 +49,24 @@ export const FALAS_PADRAO = Object.freeze({
     '{nome} virou assinante! Que isso!',
     'Assinante novo: {nome}! Muito obrigado!',
   ]),
+  /*
+   * A cobrança de quem mandou um presente que não está no painel.
+   *
+   * Ela não é um cumprimento: é a resposta a um SILÊNCIO. O presente chegou,
+   * não achou urna, e o espectador ficou olhando para uma tela que não fez
+   * nada — do lado dele, o presente caro simplesmente não funcionou. A fala
+   * existe para transformar isso numa instrução que ele consegue seguir.
+   *
+   * Por isso a frase diz o que FAZER, e não o que faltou: "escreve o número
+   * no chat" resolve; "este presente não está cadastrado" não resolve nada
+   * para quem está do outro lado.
+   */
+  espera: Object.freeze([
+    '{nome}, escreve o número da urna no chat!',
+    '{nome}, faltou o número! Escreve no chat qual urna.',
+    'Não entendi seu voto, {nome}! Escreve o número da urna no chat.',
+    '{nome}, manda o número da urna no chat para o voto valer!',
+  ]),
 });
 
 /**
@@ -65,6 +83,15 @@ const COOLDOWN_MS = Object.freeze({
   compartilhou: 60_000,
   assinatura: 60_000,
   curtida: 60_000,
+  /*
+   * O da cobrança é CURTO, e de propósito: ele não protege contra repetição —
+   * quem protege é a própria espera, que só vence uma vez por presente. Ele
+   * está aqui só para um caso patológico, o de alguém mandando presentes
+   * órfãos em sequência rápida e sem escrever nada. Com um minuto, a segunda
+   * cobrança legítima da noite ficaria muda; quinze segundos é o mesmo prazo
+   * da janela, e nunca cala uma cobrança que ainda faz sentido.
+   */
+  espera: 15_000,
 });
 
 /**

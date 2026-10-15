@@ -423,7 +423,7 @@
   top: var(--painel-topo);
   width: var(--teclado-largura);
   border-radius: 8px;
-  background: linear-gradient(180deg, #1e1f24 0%, #121316 60%, #0d0e10 100%);
+  background: linear-gradient(180deg, #1e1f24 0%, #1d1f25 60%, #363a43 100%);
   box-shadow:
     /* o painel é rebaixado em relação ao corpo: sombra no alto, luz no pé */
     inset 0 3px 7px rgba(0, 0, 0, 0.85),

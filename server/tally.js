@@ -194,56 +194,48 @@ export function criarTally({ db, config }) {
         return negar('urna-inativa');
       }
 
-      const combo = evento.combo ?? 1;
-      const pontos = pontosDoPresente(presente, urna, combo);
-      /*
-       * Grava ANTES de contar, e o resultado da gravação não decide a
-       * contagem. Um `false` aqui significa "já estava gravado" (a chave é
-       * única no banco) e um erro de disco devolve `false` também — nos dois
-       * casos o voto vale, porque quem decide se ele é repetido é o
-       * `jaContado` acima, consultado na mesma transação lógica.
-       */
-      const gravou = db.registrarVoto({
-        rodadaId: rodada.id, chave, urnaId: urna.id,
-        usuario: evento.usuario ?? '', presente: presente.nome,
-        votos: pontos, em: evento.em ?? Date.now(),
-      });
-      if (!gravou && !db.jaContado(chave)) {
-        avisar(`o banco não gravou o voto de ${evento.usuario ?? 'alguém'}; a contagem segue em memória`);
+      return contar(evento, chave, presente, urna);
+    },
+
+    /**
+     * O voto que o CHAT resgatou.
+     *
+     * Um presente sem urna no painel não conta sozinho — mas também não pode
+     * sumir: quem pagou por ele merece que o voto aconteça. Quem decide a
+     * urna é o número que a pessoa escreveu no chat, e daqui para baixo o
+     * caminho é o MESMO do presente mapeado: deduplicar, gravar, somar,
+     * conferir a liderança. O que muda é só de onde veio o número da urna.
+     *
+     * A chave de deduplicação continua sendo a do PRESENTE, e não a do
+     * comentário: é o presente que vale uma vez só. Um espectador que escreve
+     * "22" duas vezes, ou uma reconexão que reentrega o comentário, não podem
+     * contar duas vezes o mesmo diamante.
+     */
+    contarPeloNumero(evento, { numero } = {}) {
+      const negar = (motivo) => ({ contado: false, motivo, chave: null, animar: false, lideranca: null });
+
+      if (!evento || evento.giftId == null || evento.giftId === '') {
+        avisar('presente resgatado sem giftId, ignorado');
+        return negar('evento-invalido');
       }
+      if (!tally.aberta) return negar('rodada-fechada');
 
-      const antes = lider;
-      const antesEmpate = empatadas.size > 0;
+      const procurado = Number(numero);
+      const urna = Object.values(cfg.urnas).find(
+        (u) => Number.isFinite(procurado) && Number(u.numero) === procurado && u.ativo !== false,
+      );
+      if (!urna) return negar('numero-sem-urna');
 
-      votos[urna.id] = (votos[urna.id] ?? 0) + pontos;
-      ultimoVoto[urna.id] = {
-        usuario: evento.usuario ?? '', presente: presente.nome, votos: pontos, em: evento.em ?? Date.now(),
-      };
-      recentes.push({
-        chave, urnaId: urna.id, usuario: evento.usuario ?? '',
-        presente: presente.nome, votos: pontos, em: evento.em ?? Date.now(),
-      });
-      if (recentes.length > LIMITE_DE_RECENTES) recentes.shift();
+      const chave = chaveDoEvento(evento);
+      if (db.jaContado(chave)) return negar('duplicado');
 
-      const agora = calcularLideranca();
-      lider = agora.lider;
-      empatadas = agora.empatadas;
-
-      return {
-        contado: true,
-        motivo: null,
-        chave,
-        urnaId: urna.id,
-        // O número que a mão vai digitar e a ficha que a urna vai mostrar
-        // saem daqui: quem anima não consulta a configuração.
-        numero: urna.numero,
-        candidato: urna.candidato,
-        usuario: evento.usuario ?? '',
-        presente: presente.nome,
-        votos: pontos,
-        animar: true,
-        lideranca: descreverVirada(antes, antesEmpate, agora),
-      };
+      /*
+       * O nome do presente é o que a LIVE deu a ele. Um presente sem
+       * mapeamento não tem nome no painel, e a etiqueta da fila escreve este
+       * nome — sem o fallback, ela mostraria "undefined" no ar.
+       */
+      const nome = String(evento.giftNome ?? '').trim() || 'Presente';
+      return contar(evento, chave, { nome, votos: 1, ativo: true }, urna);
     },
 
     /** O retrato completo, para `state.full` e para o painel. */
@@ -320,6 +312,74 @@ export function criarTally({ db, config }) {
     if (!agora.lider || agora.lider === antes) return null;
     if (antes == null) return null;
     return { tipo: 'virada', urnaId: agora.lider, anterior: antes };
+  }
+
+  /**
+   * A conta em si: o presente já resolvido e a urna já decidida.
+   *
+   * Ela existe separada porque há DOIS caminhos até aqui — o presente que o
+   * painel já mapeia, e o presente órfão que o chat resgatou —, e os dois têm
+   * que terminar no mesmo lugar: gravados no banco, somados na memória,
+   * entrando no ranking de apoiadores, e conferindo a liderança. Duplicar
+   * esta metade significaria que um dos dois caminhos esqueceria um desses
+   * passos, e o voto que decide a rodada seria justamente o que não move o
+   * placar.
+   *
+   * O `presente` daqui é o mínimo que a conta precisa: um nome para a
+   * etiqueta e quantos votos ele vale. O da configuração passa direto; o
+   * resgatado no chat chega montado aqui.
+   */
+  function contar(evento, chave, presente, urna) {
+    const combo = evento.combo ?? 1;
+    const pontos = pontosDoPresente({ votos: presente.votos, ativo: presente.ativo !== false }, urna, combo);
+    const em = evento.em ?? Date.now();
+
+    /*
+     * Grava ANTES de contar, e o resultado da gravação não decide a
+     * contagem. Um `false` aqui significa "já estava gravado" (a chave é
+     * única no banco) e um erro de disco devolve `false` também — nos dois
+     * casos o voto vale, porque quem decide se ele é repetido é o
+     * `jaContado` de quem chamou, consultado na mesma transação lógica.
+     */
+    const gravou = db.registrarVoto({
+      rodadaId: rodada.id, chave, urnaId: urna.id,
+      usuario: evento.usuario ?? '', presente: presente.nome,
+      votos: pontos, em,
+    });
+    if (!gravou && !db.jaContado(chave)) {
+      avisar(`o banco não gravou o voto de ${evento.usuario ?? 'alguém'}; a contagem segue em memória`);
+    }
+
+    const antes = lider;
+    const antesEmpate = empatadas.size > 0;
+
+    votos[urna.id] = (votos[urna.id] ?? 0) + pontos;
+    ultimoVoto[urna.id] = { usuario: evento.usuario ?? '', presente: presente.nome, votos: pontos, em };
+    recentes.push({
+      chave, urnaId: urna.id, usuario: evento.usuario ?? '',
+      presente: presente.nome, votos: pontos, em,
+    });
+    if (recentes.length > LIMITE_DE_RECENTES) recentes.shift();
+
+    const agora = calcularLideranca();
+    lider = agora.lider;
+    empatadas = agora.empatadas;
+
+    return {
+      contado: true,
+      motivo: null,
+      chave,
+      urnaId: urna.id,
+      // O número que a mão vai digitar e a ficha que a urna vai mostrar
+      // saem daqui: quem anima não consulta a configuração.
+      numero: urna.numero,
+      candidato: urna.candidato,
+      usuario: evento.usuario ?? '',
+      presente: presente.nome,
+      votos: pontos,
+      animar: true,
+      lideranca: descreverVirada(antes, antesEmpate, agora),
+    };
   }
 
   zerar();

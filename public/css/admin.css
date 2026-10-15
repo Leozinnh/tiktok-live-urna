@@ -7,22 +7,35 @@
  * porque a mão está ocupada, e o estado da conexão sempre visível no topo —
  * um painel silencioso não se distingue de um painel que perdeu o servidor.
  *
+ * A primeira versão era sóbria demais e o Leonardo resumiu assim: "painel
+ * admin ficou muito sei la". Ele estava certo: o painel tinha tudo o que ele
+ * precisa e nada do que ele quer olhar — cada resposta exigia abrir uma aba e
+ * ler uma frase. A referência que ele apontou é o painel do projeto dos
+ * cavalos, e o que se copiou de lá não foram as cores: foi a IDEIA de que o
+ * número grande vem antes do texto, e que a cor responde antes da leitura.
+ *
  * Sem `color-mix()`: o Chromium que o OBS embarca é o 103, e ele não conhece
- * a função. Todas as cores daqui saem de hex e de `rgba()`.
+ * a função. Todas as cores daqui saem de hex e de `rgba()`. O painel não passa
+ * pelo OBS, mas a regra fica de pé — é mais fácil não ter a exceção do que
+ * lembrar dela na próxima vez.
  */
 
 :root {
-  --fundo: #101216;
-  --fundo-alto: #171a20;
-  --fundo-campo: #0b0d11;
-  --borda: #2a2f38;
-  --borda-forte: #3b424e;
-  --texto: #e8eaee;
-  --texto-fraco: #98a0ad;
-  --acento: #3d8bfd;
-  --ok: #37c07a;
-  --alerta: #e0a020;
-  --erro: #e05a5a;
+  --fundo: #0f172a;
+  --fundo-alto: #1e293b;
+  --fundo-campo: #334155;
+  --fundo-console: #090d16;
+  --borda: #475569;
+  --borda-fraca: #334155;
+  --texto: #f8fafc;
+  --texto-fraco: #94a3b8;
+  --acento: #3b82f6;
+  --acento-claro: #60a5fa;
+  --azul-claro: #38bdf8;
+  --ok: #10b981;
+  --alerta: #f59e0b;
+  --erro: #ef4444;
+  --raio: 12px;
 }
 
 * { box-sizing: border-box; }
@@ -31,147 +44,195 @@ body.admin {
   margin: 0;
   background: var(--fundo);
   color: var(--texto);
-  font: 14px/1.45 system-ui, "Segoe UI", Roboto, sans-serif;
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
 /* ------------------------------------------------------------- o topo */
 
-.admin__topo {
+.topo {
   display: flex;
   align-items: center;
-  gap: 20px;
+  justify-content: space-between;
   flex-wrap: wrap;
-  padding: 14px 20px;
+  gap: 14px;
+  padding: 16px 22px;
   background: var(--fundo-alto);
   border-bottom: 1px solid var(--borda);
   position: sticky;
   top: 0;
-  z-index: 3;
+  z-index: 4;
 }
 
-.admin__titulo {
+.topo__marca { display: flex; align-items: center; gap: 12px; }
+.topo__icone { font-size: 26px; line-height: 1; }
+
+.topo__titulo {
   margin: 0;
-  font-size: 16px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
 }
 
-.admin__estado,
-.admin__rodada {
-  margin: 0;
-  display: flex;
+.topo__sub { margin: 2px 0 0; color: var(--texto-fraco); font-size: 12px; }
+.topo__acoes { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+/* A pílula de conexão. A cor é a resposta inteira: verde é de pé, vermelho
+   é sem servidor — e o texto só confirma o que a cor já disse. */
+.farol {
+  display: inline-flex;
   align-items: center;
   gap: 8px;
-  color: var(--texto-fraco);
+  margin: 0;
+  padding: 7px 15px;
+  border-radius: 9999px;
+  font-size: 13px;
+  font-weight: 700;
+  background: rgba(16, 185, 129, 0.18);
+  color: #34d399;
+  border: 1px solid #059669;
 }
 
-/* De onde vêm os eventos. Fica ao lado do estado da conexão porque responde à
-   mesma pergunta — o sistema está de pé? —, e a cor é o que se lê de longe. */
-.admin__fonte {
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--texto-fraco);
+.farol__luz {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+
+.farol[data-estado="conectando"] {
+  background: rgba(245, 158, 11, 0.18);
+  color: #fbbf24;
+  border-color: #b45309;
+}
+
+.farol[data-estado="off"] {
+  background: rgba(239, 68, 68, 0.18);
+  color: #f87171;
+  border-color: #dc2626;
+}
+
+/* -------------------------------------------------------- os medidores */
+
+.medidores {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 14px;
+  padding: 18px 22px 4px;
+}
+
+.medidor {
+  background: var(--fundo-alto);
+  border: 1px solid var(--borda-fraca);
+  border-radius: var(--raio);
+  padding: 14px 16px;
   min-width: 0;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
 }
 
-.admin__fonte strong {
-  color: var(--texto);
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.admin__fonte span {
+.medidor__valor {
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1.15;
+  color: var(--azul-claro);
+  font-variant-numeric: tabular-nums;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.admin__fonte[data-fonte-estado="ligada"] strong { color: var(--ok); }
-.admin__fonte[data-fonte-estado="ligada"] span { color: var(--texto-fraco); }
-
-.admin__rodada { margin-left: auto; }
-.admin__rodada strong { color: var(--texto); font-variant-numeric: tabular-nums; font-size: 16px; }
-
-.farol {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--alerta);
-  flex: none;
+.medidor__rotulo {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--texto-fraco);
+  margin-top: 4px;
 }
 
-.admin__estado[data-estado="conectado"] .farol { background: var(--ok); }
-.admin__estado[data-estado="conectado"] #estado-texto { color: var(--ok); }
-.admin__estado[data-estado="off"] .farol { background: var(--erro); }
-.admin__estado[data-estado="off"] #estado-texto { color: var(--erro); }
+/* O motivo, quando a fonte não conecta. Corta em duas linhas em vez de
+   empurrar a caixa: o texto de erro é longo ("não existe usuário @fulano no
+   TikTok") e a caixa não pode crescer e desalinhar as outras três. */
+.medidor__nota {
+  margin-top: 6px;
+  font-size: 11.5px;
+  color: var(--texto-fraco);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
 
-.admin__link { color: var(--acento); text-decoration: none; }
-.admin__link:hover { text-decoration: underline; }
+.medidor[data-tom="ok"] .medidor__valor { color: var(--ok); }
+.medidor[data-tom="off"] .medidor__valor { color: var(--erro); }
+.medidor[data-tom="off"] .medidor__nota { color: #fca5a5; }
 
 /* ------------------------------------------------------------- as abas */
 
 .abas {
   display: flex;
-  gap: 2px;
-  padding: 0 20px;
-  background: var(--fundo-alto);
-  border-bottom: 1px solid var(--borda);
-  overflow-x: auto;
-  position: sticky;
-  top: 57px;
-  z-index: 2;
+  gap: 6px;
+  padding: 16px 22px 0;
+  flex-wrap: wrap;
 }
 
 .aba {
   appearance: none;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  background: none;
-  color: var(--texto-fraco);
   font: inherit;
-  font-weight: 600;
-  padding: 12px 16px;
+  font-weight: 700;
+  font-size: 13px;
+  padding: 9px 16px;
+  border-radius: 9999px;
+  border: 1px solid var(--borda-fraca);
+  background: var(--fundo-alto);
+  color: var(--texto-fraco);
   cursor: pointer;
   white-space: nowrap;
 }
 
-.aba:hover { color: var(--texto); }
-.aba[aria-selected="true"] { color: var(--texto); border-bottom-color: var(--acento); }
+.aba:hover { color: var(--texto); border-color: var(--borda); }
+
+.aba[aria-selected="true"] {
+  background: var(--acento);
+  border-color: var(--acento-claro);
+  color: #fff;
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.45);
+}
 
 /* --------------------------------------------------------- o conteúdo */
 
-.admin__conteudo { padding: 20px; max-width: 1180px; }
+.admin__conteudo { padding: 16px 22px 40px; max-width: 1240px; }
 
-.ajuda { margin: 0 0 18px; color: var(--texto-fraco); max-width: 70ch; }
+.ajuda { margin: 0 0 16px; color: var(--texto-fraco); max-width: 80ch; }
 
 .grupo {
-  border: 1px solid var(--borda);
-  border-radius: 10px;
+  border: 1px solid var(--borda-fraca);
+  border-radius: var(--raio);
   background: var(--fundo-alto);
-  padding: 16px;
+  padding: 18px;
   margin-bottom: 16px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
 }
 
 .grupo__titulo {
-  margin: 0 0 14px;
-  font-size: 13px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--texto-fraco);
+  margin: 0 0 16px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #e2e8f0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .grade {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
   gap: 14px 18px;
 }
 
 .campo { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .campo--largo { grid-column: 1 / -1; }
 
-.campo__rotulo { color: var(--texto-fraco); font-size: 12px; }
+.campo__rotulo { color: var(--texto-fraco); font-size: 12.5px; }
 .campo__dica { color: var(--texto-fraco); font-size: 11px; opacity: 0.75; }
 
 .campo input[type="text"],
@@ -179,29 +240,30 @@ body.admin {
 .campo select,
 .campo textarea {
   width: 100%;
-  padding: 9px 10px;
-  border: 1px solid var(--borda-forte);
-  border-radius: 7px;
+  padding: 10px 12px;
+  border: 1px solid var(--borda);
+  border-radius: 8px;
   background: var(--fundo-campo);
   color: var(--texto);
   font: inherit;
+  outline: none;
 }
 
 .campo input:focus,
 .campo select:focus,
-.campo textarea:focus { outline: 2px solid var(--acento); outline-offset: 1px; }
+.campo textarea:focus { border-color: var(--acento); }
 
 /* A caixa das frases cresce para baixo, e só para baixo: ela ocupa a linha
    inteira da grade, e uma alça na horizontal empurraria o campo para fora do
    painel. */
-.campo textarea { resize: vertical; line-height: 1.45; }
+.campo textarea { resize: vertical; line-height: 1.5; }
 
 .campo input[type="color"] {
   width: 100%;
-  height: 38px;
+  height: 40px;
   padding: 2px;
-  border: 1px solid var(--borda-forte);
-  border-radius: 7px;
+  border: 1px solid var(--borda);
+  border-radius: 8px;
   background: var(--fundo-campo);
 }
 
@@ -219,19 +281,50 @@ body.admin {
 
 .botao {
   appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   font: inherit;
-  font-weight: 600;
-  padding: 10px 16px;
+  font-weight: 700;
+  font-size: 13.5px;
+  padding: 11px 18px;
   border-radius: 8px;
-  border: 1px solid var(--borda-forte);
+  border: 1px solid var(--borda);
   background: var(--fundo-campo);
   color: var(--texto);
   cursor: pointer;
+  text-decoration: none;
 }
 
-.botao:hover { border-color: var(--acento); }
+.botao:hover { border-color: var(--acento-claro); }
+
 .botao--principal { background: var(--acento); border-color: var(--acento); color: #fff; }
-.botao--perigo:hover { border-color: var(--erro); color: var(--erro); }
+.botao--principal:hover { background: #2563eb; }
+
+/* A cor diz a que veio o botão. No meio da live ninguém lê o rótulo inteiro:
+   o que se vê é "o verde" e "o vermelho". */
+.botao--ouro { background: #d97706; border-color: #d97706; color: #fff; }
+.botao--ouro:hover { background: #b45309; }
+
+.botao--verde { background: #059669; border-color: #059669; color: #fff; }
+.botao--verde:hover { background: #047857; }
+
+.botao--perigo { background: transparent; border-color: #7f1d1d; color: #f87171; }
+.botao--perigo:hover { background: #7f1d1d; border-color: var(--erro); color: #fff; }
+
+.botao--discreto { background: transparent; color: var(--texto-fraco); }
+.botao--discreto:hover { color: var(--texto); }
+
+.botao--fantasma {
+  background: transparent;
+  border-color: var(--borda);
+  color: var(--texto-fraco);
+  font-size: 12.5px;
+  padding: 8px 14px;
+}
+.botao--fantasma:hover { color: var(--texto); }
+
 .botao[disabled] { opacity: 0.45; cursor: not-allowed; }
 
 .barra {
@@ -239,8 +332,8 @@ body.admin {
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
-  padding-top: 6px;
-  border-top: 1px solid var(--borda);
+  padding: 14px 0 0;
+  border-top: 1px solid var(--borda-fraca);
   margin-top: 4px;
 }
 
@@ -249,18 +342,52 @@ body.admin {
 .barra__recado[data-tom="erro"] { color: var(--erro); }
 .barra__recado[data-tom="alerta"] { color: var(--alerta); }
 
-/* ------------------------------------------------------------- o log */
+/* -------------------------------------------------------- o console */
+
+.grupo__contagem {
+  margin-left: auto;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--azul-claro);
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  border-radius: 9999px;
+  padding: 3px 10px;
+}
 
 .log {
   margin: 0;
-  padding: 0;
+  padding: 12px;
   list-style: none;
-  max-height: 260px;
+  max-height: 320px;
   overflow-y: auto;
-  font-family: ui-monospace, Consolas, monospace;
-  font-size: 12px;
+  background: var(--fundo-console);
+  border: 1px solid var(--fundo-alto);
+  border-radius: 8px;
+  font-family: ui-monospace, Consolas, "Cascadia Mono", monospace;
+  font-size: 12.5px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
 }
 
-.log li { padding: 4px 0; border-bottom: 1px solid var(--borda); color: var(--texto-fraco); }
-.log li strong { color: var(--texto); font-weight: 600; }
+.log li {
+  padding: 4px 7px;
+  border-radius: 4px;
+  background: rgba(15, 23, 42, 0.5);
+  border-bottom: 1px solid rgba(30, 41, 59, 0.4);
+  color: var(--azul-claro);
+  overflow-wrap: anywhere;
+}
+
+.log li strong { color: var(--texto); font-weight: 700; }
 .log__hora { color: var(--texto-fraco); opacity: 0.6; margin-right: 8px; }
+
+/* A cor por assunto, e não por enfeite: numa lista que rola sozinha, é a cor
+   que faz o olho achar o voto no meio de vinte linhas de "retrato recebido". */
+.log li[data-tipo="voto"] { color: #86efac; }
+.log li[data-tipo="animacao"] { color: #c4b5fd; }
+.log li[data-tipo="aviso"] { color: #fcd34d; }
+.log li[data-tipo="erro"] { color: #fca5a5; }
+.log li[data-tipo="fonte"] { color: #7dd3fc; }
+.log li[data-tipo="nada"] { color: var(--texto-fraco); }

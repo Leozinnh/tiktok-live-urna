@@ -21,6 +21,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 import { criarFonteTiktok } from '../server/sources/tiktok.js';
 import { criarTrocaDeFontes } from '../server/sources/troca.js';
@@ -492,4 +494,52 @@ test('salvar de novo o mesmo nome não derruba a conexão que está de pé', () 
 
   assert.equal(criadas.length, 2,
     'salvar sem mudar nada derrubou a conexão — e o Leonardo salva o tempo todo');
+});
+
+/* ------------------------------------------------------ o chat da ponte */
+
+/*
+ * O comentário, que é o caminho pelo qual o espectador RESPONDE.
+ *
+ * Um presente que o painel não mapeia não conta sozinho: ele abre uma espera
+ * pelo número, e quem escreve o número no chat decide a urna. A ponte é o
+ * começo desse caminho, e o `tipo` é a única coisa que o servidor tem para
+ * saber que aquela linha é uma resposta e não mais um evento social.
+ *
+ * O JSON abaixo é o que `ponte/tiktok.py` escreve, campo por campo. É o
+ * contrato entre as duas linguagens, e é a metade dele que dá para rodar
+ * aqui: do lado de lá, o que existe é um `@cliente.on(CommentEvent)` que só
+ * se exercita numa live de verdade.
+ */
+test('o comentário do chat chega como comentário, e não como evento social', async () => {
+  const p = montarPonte();
+  p.fonte.iniciar();
+  falar(p.atual(), '{"tipo":"comentario","plataforma":"tiktok","userId":"u1",'
+    + '"usuario":"Ana","texto":"22","em":1700000000000}\n');
+  await respirar();
+
+  assert.equal(p.eventos.length, 1, 'o comentário não chegou');
+  assert.equal(p.eventos[0].tipo, 'comentario');
+  assert.equal(p.eventos[0].texto, '22');
+  assert.equal(p.eventos[0].userId, 'u1', 'sem o autor, ninguém sabe de quem é o presente');
+});
+
+test('a ponte declara o ouvinte do chat, e com o conteúdo do comentário', () => {
+  /*
+   * O outro lado do contrato, que não roda: o ouvinte dentro da ponte.
+   *
+   * Ele é lido do ARQUIVO, e não executado — descobrir que o `CommentEvent`
+   * não estava registrado só aconteceria numa live de verdade, com alguém
+   * mandando um presente que o painel não mapeia e escrevendo o número para
+   * uma tela que não reage. É o mesmo tipo de conferência que os testes de
+   * CSS fazem: o arquivo é o artefato, e ele é conferível por leitura.
+   */
+  const ponte = readFileSync(fileURLToPath(new URL('../ponte/tiktok.py', import.meta.url)), 'utf8');
+  assert.match(ponte, /@cliente\.on\(CommentEvent\)/, 'a ponte não ouve o chat');
+  assert.match(ponte, /"tipo": "comentario"/, 'a ponte não emite o tipo que o servidor conhece');
+  // O texto do comentário vem de `content`: é o nome do campo na biblioteca
+  // do TikTok, e uma troca por engano o deixaria vazio — o evento chegaria,
+  // o resgate não acharia número nenhum, e a espera venceria em silêncio.
+  assert.match(ponte, /getattr\(evento, "content"/, 'a ponte não lê o texto do comentário');
+  assert.match(ponte, /CommentEvent,\n/, 'o CommentEvent não foi importado');
 });

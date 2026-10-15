@@ -21,7 +21,8 @@
  */
 import { criarRede, urlDoSocket } from './net.js';
 import { montarCampos, patchDe, pendenciasDe, escapar } from './admin/campos.js';
-import { ABAS, acharAba, gruposDaAba, camposDaAba, ACOES_SOCIAIS } from './admin/abas.js';
+import { ABAS, acharAba, gruposDaAba, camposDaAba, ACOES_SOCIAIS, giftIdSemUrna, numeroDeTeste } from './admin/abas.js';
+import { medidores, markupMedidores } from './admin/medidores.js';
 
 const el = (id) => document.getElementById(id);
 const abasEl = el('abas');
@@ -30,16 +31,9 @@ const ajudaEl = el('ajuda');
 const barraEl = el('barra');
 const recadoEl = el('recado');
 const salvarEl = el('salvar');
+const medidoresEl = el('medidores');
 const estadoEl = el('estado');
 const estadoTextoEl = el('estado-texto');
-const rodadaEstadoEl = el('rodada-estado');
-const rodadaRelogioEl = el('rodada-relogio');
-const fonteEl = el('fonte');
-const fonteModoEl = el('fonte-modo');
-const fonteDetalheEl = el('fonte-detalhe');
-
-/** Como cada modo se chama na tela do operador. */
-const NOME_DO_MODO = { simulador: 'Simulador', tiktok: 'TikTok ao vivo' };
 
 /** A configuração que está valendo AGORA no servidor. */
 let config = null;
@@ -49,6 +43,19 @@ let abaAtual = 'urnas';
 const log = [];
 /** Quantos testes de narração já saíram — cada um é uma pessoa diferente. */
 let pessoasDeTeste = 0;
+/*
+ * O último retrato de cada coisa, para os medidores do topo.
+ *
+ * Eles chegam em mensagens diferentes — o placar a cada voto, a fonte quando
+ * ela muda, a rodada a cada segundo —, e o topo mostra os três juntos. Guardar
+ * cada um é o que permite redesenhar a faixa inteira sem apagar o que a
+ * mensagem de agora não trouxe.
+ */
+let ultimoPlacar = null;
+let ultimaFonte = null;
+let ultimaRodada = null;
+/** Quantos votos e quantos presentes já passaram por esta sessão do painel. */
+const contagem = { votos: 0, presentes: 0 };
 
 /* --------------------------------------------------------------- recados */
 
@@ -63,14 +70,13 @@ function recado(texto, tom = '') {
   recadoEl.dataset.tom = tom;
 }
 
-function anotar(texto) {
+function anotar(texto, tipo = '') {
   const agora = new Date();
   const hora = `${String(agora.getHours()).padStart(2, '0')}:${String(agora.getMinutes()).padStart(2, '0')}:${String(agora.getSeconds()).padStart(2, '0')}`;
-  log.unshift({ hora, texto });
-  // Vinte linhas é o que cabe sem rolar numa tela de operador. O log serve
-  // para conferir o que ACABOU de chegar, não para auditar a live — quem
-  // audita é o banco.
-  if (log.length > 20) log.length = 20;
+  log.unshift({ hora, texto, tipo });
+  // Cinquenta linhas: a lista rola, e o que o operador quer é poder voltar
+  // um pouco para conferir o que ACABOU de chegar. Auditar a live é o banco.
+  if (log.length > 50) log.length = 50;
   if (abaAtual === 'integracao') desenharLog();
 }
 
@@ -85,7 +91,7 @@ const rede = criarRede({
     estadoTextoEl.textContent = conectado
       ? 'conectado'
       : `sem servidor — tentativa ${tentativas}`;
-    if (!conectado) anotar('perdi o servidor');
+    if (!conectado) anotar('perdi o servidor', 'erro');
   },
 });
 
@@ -93,13 +99,14 @@ function tratar({ tipo, payload }) {
   switch (tipo) {
     case 'state.full':
       if (payload?.config) aplicarConfig(payload.config);
-      if (payload?.rodada) mostrarRodada(payload.rodada);
-      if (payload?.fonte) mostrarFonte(payload.fonte);
+      if (payload?.rodada) atualizarRodada(payload.rodada);
+      if (payload?.tally) atualizarPlacar(payload.tally);
+      if (payload?.fonte) atualizarFonte(payload.fonte);
       anotar('retrato do servidor recebido');
       break;
     case 'source.status':
-      mostrarFonte(payload);
-      anotar(`fonte: ${payload?.detalhe ?? payload?.modo ?? '?'}`);
+      atualizarFonte(payload);
+      anotar(`fonte: ${payload?.detalhe ?? payload?.modo ?? '?'}`, 'fonte');
       break;
     case 'config.changed':
       if (payload?.config) aplicarConfig(payload.config);
@@ -109,27 +116,53 @@ function tratar({ tipo, payload }) {
       // operador veria "salvo" para uma gravação que não aconteceu.
       if (payload?.avisos?.length) {
         recado(payload.avisos.map((a) => a.texto).join(' · '), 'alerta');
-        for (const a of payload.avisos) anotar(`aviso: ${a.texto}`);
+        for (const a of payload.avisos) anotar(`aviso: ${a.texto}`, 'aviso');
       }
       break;
     case 'tally.update':
-      if (payload) anotar(`placar: ${(payload.urnas ?? []).map((u) => `${u.id} ${u.votos}`).join(' · ')}`);
+      atualizarPlacar(payload);
       break;
     case 'vote.counted':
-      anotar(`voto de ${payload?.usuario ?? '?'} (${payload?.presente ?? '?'}) → ${payload?.urnaId ?? '?'}`);
+      contagem.votos += 1;
+      contagem.presentes += 1;
+      atualizarContagem();
+      anotar(`voto de ${payload?.usuario ?? '?'} (${payload?.presente ?? '?'}) → ${payload?.urnaId ?? '?'}`, 'voto');
       break;
     case 'round.update':
-      mostrarRodada(payload);
+      atualizarRodada(payload);
       break;
     case 'round.finished':
-      mostrarRodada({ ...payload, estado: 'encerrada' });
-      anotar(`rodada encerrada (${payload?.motivo ?? '?'})`);
+      atualizarRodada({ ...payload, estado: 'encerrada' });
+      anotar(`rodada encerrada (${payload?.motivo ?? '?'})`, 'aviso');
       break;
     case 'vote.animate':
-      anotar(`animação na fila: ${payload?.usuario ?? '?'} → ${payload?.urnaId ?? '?'}`);
+      anotar(`animação na fila: ${payload?.usuario ?? '?'} → ${payload?.urnaId ?? '?'}`, 'animacao');
       break;
     default:
   }
+}
+
+/**
+ * Os quatro números do topo, redesenhados juntos.
+ *
+ * A faixa inteira é redesenhada a cada mensagem em vez de cada número ser
+ * atualizado no seu lugar: são quatro caixas sem campo de digitação dentro, e
+ * uma volta só é mais barata de ler do que quatro caminhos que precisam
+ * concordar. Quem sabe montar cada um é o `admin/medidores.js`, que é puro e
+ * tem teste.
+ */
+function desenharMedidores() {
+  medidoresEl.innerHTML = markupMedidores(medidores({
+    tally: ultimoPlacar,
+    fonte: ultimaFonte,
+    rodada: ultimaRodada,
+  }));
+}
+
+function atualizarPlacar(t) {
+  if (!t) return;
+  ultimoPlacar = t;
+  desenharMedidores();
 }
 
 function aplicarConfig(nova) {
@@ -144,29 +177,34 @@ function aplicarConfig(nova) {
  * De onde os eventos estão vindo, e o que está acontecendo com a fonte.
  *
  * Isto fica no topo, junto do estado da conexão, porque é a mesma pergunta: o
- * operador olha uma vez e sabe se o sistema está de pé. Sem esta linha, a
- * fonte da live pode estar caída há dez minutos com o painel inteiro verde —
- * e a única pista seria a ausência de votos, que é indistinguível de uma live
- * parada.
+ * operador olha uma vez e sabe se o sistema está de pé. Sem ele, a fonte da
+ * live pode estar caída há dez minutos com o painel inteiro verde — e a única
+ * pista seria a ausência de votos, que é indistinguível de uma live parada.
  *
  * O detalhe é o que o servidor mandou, escrito por quem sabe: "não existe
  * usuário @fulano no TikTok", "a live está offline", "conectando…". Inventar
  * um texto aqui seria trocar a única informação útil por uma palavra bonita.
  */
-function mostrarFonte(f) {
+function atualizarFonte(f) {
   if (!f) return;
-  fonteEl.dataset.fonteEstado = f.conectado ? 'ligada' : 'off';
-  fonteModoEl.textContent = NOME_DO_MODO[f.modo] ?? f.modo ?? '—';
-  fonteDetalheEl.textContent = f.detalhe || (f.conectado ? 'conectada' : 'sem conexão');
+  ultimaFonte = f;
+  desenharMedidores();
 }
 
-function mostrarRodada(r) {
+function atualizarRodada(r) {
   if (!r) return;
-  rodadaEstadoEl.textContent = r.estado === 'encerrada' ? 'rodada encerrada' : 'rodada aberta';
-  const segundos = Number(r.restante) > 0 ? Math.ceil(Number(r.restante) / 1000) : null;
-  rodadaRelogioEl.textContent = segundos === null
-    ? '--:--'
-    : `${String(Math.floor(segundos / 60)).padStart(2, '0')}:${String(segundos % 60).padStart(2, '0')}`;
+  // A mensagem de rodada traz o placar junto (`atualizacaoDeRodada` no hub),
+  // e é por isso que ela também mexe nos números de voto.
+  if (r.tally) ultimoPlacar = r.tally;
+  ultimaRodada = r;
+  desenharMedidores();
+}
+
+/** A contagem do cabeçalho do console: o que passou desde que o painel abriu. */
+function atualizarContagem() {
+  const alvo = el('log-contagem');
+  if (!alvo) return;
+  alvo.textContent = `🎁 ${contagem.presentes} presentes · 🗳️ ${contagem.votos} votos`;
 }
 
 /* --------------------------------------------------------- desenhar a tela */
@@ -202,11 +240,11 @@ function markupAcoes() {
     .map(([id, u]) => `<option value="${escapar(id)}">${escapar(u?.nome ?? id)}</option>`).join('');
 
   const botoes = presentes.length
-    ? presentes.map((p) => `<button type="button" class="botao" data-disparar="${escapar(p.giftId)}">`
-      + `${escapar(p.nome ?? p.giftId)}</button>`).join('')
+    ? presentes.map((p) => `<button type="button" class="botao botao--ouro" data-disparar="${escapar(p.giftId)}">`
+      + `🎁 ${escapar(p.nome ?? p.giftId)}</button>`).join('')
     : '<p class="ajuda">Nenhum presente ativo para disparar. Cadastre um na aba Presentes.</p>';
 
-  return '<section class="grupo"><h2 class="grupo__titulo">Disparar presente</h2>'
+  return '<section class="grupo"><h2 class="grupo__titulo">🎁 Disparar presente</h2>'
     + '<div class="acoes">'
     + '<label class="campo"><span class="campo__rotulo">Quem presenteia</span>'
     + '<input type="text" id="quem" value="Painel"></label>'
@@ -215,14 +253,46 @@ function markupAcoes() {
     + '</div>'
     + `<div class="acoes" style="margin-top:12px">${botoes}</div>`
     + '</section>'
+    + markupChat()
     + markupNarracao()
-    + '<section class="grupo"><h2 class="grupo__titulo">Rodada</h2><div class="acoes">'
-    + '<button type="button" class="botao botao--principal" data-round="start">Iniciar rodada</button>'
-    + '<button type="button" class="botao" data-round="stop">Encerrar</button>'
-    + '<button type="button" class="botao botao--perigo" data-round="reset">Zerar e reabrir</button>'
-    + '<button type="button" class="botao" data-rajada>Rajada de 12</button>'
+    + '<section class="grupo"><h2 class="grupo__titulo">⏱️ Rodada</h2><div class="acoes">'
+    + '<button type="button" class="botao botao--verde" data-round="start">▶ Iniciar rodada</button>'
+    + '<button type="button" class="botao" data-round="stop">⏹ Encerrar</button>'
+    + '<button type="button" class="botao botao--perigo" data-round="reset">🧨 Zerar e reabrir</button>'
+    + '<button type="button" class="botao botao--ouro" data-rajada>🔥 Rajada de 12</button>'
     + `<label class="campo"><span class="campo__rotulo">Urna da rajada</span>`
     + `<select id="urna-rajada">${urnas}</select></label>`
+    + '</div></section>';
+}
+
+/**
+ * O teste do voto pelo chat.
+ *
+ * É o caminho do presente que o painel não mapeia: ele chega, não acha urna, e
+ * fica esperando o número que a pessoa escreve no chat. Sem estes dois botões,
+ * a única maneira de exercitá-lo seria alguém mandar um presente de verdade na
+ * live e escrever o número — e descobrir no ar que ele não funcionava.
+ *
+ * Os dois usam o MESMO "quem presenteia": é o `userId` que liga o comentário
+ * ao presente, e um comentário de outra pessoa não resgata nada. É de
+ * propósito que os dois campos fiquem na mesma caixa, um embaixo do outro.
+ */
+function markupChat() {
+  const presente = giftIdSemUrna(config?.presentes);
+  const numero = numeroDeTeste(config?.urnas);
+  return '<section class="grupo"><h2 class="grupo__titulo">🗳️ Testar o voto pelo chat</h2>'
+    + '<p class="ajuda">O presente que não está na aba Presentes não conta sozinho: '
+    + 'ele espera o número no chat e, se ninguém escrever, a voz cobra. Um presente '
+    + 'de teste e depois o número — nesta ordem, com o mesmo "quem presenteia".</p>'
+    + '<div class="acoes">'
+    + '<label class="campo"><span class="campo__rotulo">Presente desconhecido</span>'
+    + `<input type="text" id="gift-orfao" value="${escapar(presente)}"></label>`
+    + '<button type="button" class="botao botao--ouro" data-orfao>🎁 Mandar presente sem urna</button>'
+    + '</div>'
+    + '<div class="acoes" style="margin-top:12px">'
+    + '<label class="campo"><span class="campo__rotulo">Número escrito no chat</span>'
+    + `<input type="text" id="numero-chat" value="${escapar(numero)}"></label>`
+    + '<button type="button" class="botao botao--verde" data-comentar>💬 Escrever o número</button>'
     + '</div></section>';
 }
 
@@ -239,9 +309,9 @@ function markupAcoes() {
  * aqui é o que vai acontecer lá, com o mesmo tempo e o mesmo arquivo.
  */
 function markupNarracao() {
-  const botoes = ACOES_SOCIAIS.map((a) => '<button type="button" class="botao"'
+  const botoes = ACOES_SOCIAIS.map((a) => '<button type="button" class="botao botao--verde"'
     + ` data-social="${escapar(a.tipo)}">${escapar(a.rotulo)}</button>`).join('');
-  return '<section class="grupo"><h2 class="grupo__titulo">Testar a narração</h2>'
+  return '<section class="grupo"><h2 class="grupo__titulo">🔊 Testar a narração</h2>'
     + '<p class="ajuda">Fala e mostra na tela o que um evento desses faria agora, '
     + 'com o nome do campo "quem presenteia" acima. A voz sai no computador, não '
     + 'na página — se ela não tocar, o problema está no Windows ou no volume, e '
@@ -250,16 +320,27 @@ function markupNarracao() {
     + '</section>';
 }
 
+/** Uma linha do console. O `data-tipo` é o que o CSS pinta. */
+function markupLinha(l) {
+  return `<li${l.tipo ? ` data-tipo="${escapar(l.tipo)}"` : ''}>`
+    + `<span class="log__hora">${escapar(l.hora)}</span>${escapar(l.texto)}</li>`;
+}
+
 /** O log ao vivo da aba Integração. */
 function markupIntegracao() {
-  const itens = log.map((l) => `<li><span class="log__hora">${escapar(l.hora)}</span>${escapar(l.texto)}</li>`).join('');
-  return '<section class="grupo"><h2 class="grupo__titulo">Eventos ao vivo</h2>'
-    + `<ul class="log" id="log">${itens || '<li>nada ainda</li>'}</ul></section>`;
+  const itens = log.map(markupLinha).join('');
+  const total = `🎁 ${contagem.presentes} presentes · 🗳️ ${contagem.votos} votos`;
+  return '<section class="grupo"><h2 class="grupo__titulo">📜 Eventos ao vivo'
+    + `<span class="grupo__contagem" id="log-contagem">${escapar(total)}</span></h2>`
+    + `<ul class="log" id="log">${itens || '<li data-tipo="nada">nada ainda</li>'}</ul></section>`;
 }
 
 function desenharLog() {
   const lista = el('log');
-  if (lista) lista.innerHTML = log.map((l) => `<li><span class="log__hora">${escapar(l.hora)}</span>${escapar(l.texto)}</li>`).join('') || '<li>nada ainda</li>';
+  if (lista) {
+    lista.innerHTML = log.map(markupLinha).join('') || '<li data-tipo="nada">nada ainda</li>';
+  }
+  atualizarContagem();
 }
 
 function desenhar() {
@@ -392,6 +473,47 @@ secoesEl.addEventListener('click', (ev) => {
     return;
   }
 
+  if (ev.target.closest('[data-orfao]')) {
+    /*
+     * O presente que o painel não conhece. Ele NÃO conta voto: ele abre a
+     * espera pelo número, que é o que este botão existe para exercitar.
+     *
+     * O `userId` é o mesmo do botão de escrever o número, e é ele — e só ele —
+     * que liga as duas coisas: o comentário resgata o presente do próprio
+     * autor, e um comentário de outra pessoa não resgata nada.
+     */
+    const giftId = el('gift-orfao')?.value?.trim();
+    if (!giftId) {
+      recado('escreva o id de um presente que não esteja na aba Presentes', 'erro');
+      return;
+    }
+    rede.enviar({
+      tipo: 'sim.gift',
+      giftId,
+      userId: 'painel',
+      userName: el('quem')?.value || 'Painel',
+      combo: 1,
+    });
+    anotar(`mandei um presente sem urna (${giftId}) — agora escreva o número`);
+    return;
+  }
+
+  if (ev.target.closest('[data-comentar]')) {
+    const texto = el('numero-chat')?.value?.trim();
+    if (!texto) {
+      recado('escreva o número da urna que o chat vai mandar', 'erro');
+      return;
+    }
+    rede.enviar({
+      tipo: 'sim.comment',
+      userId: 'painel',
+      userName: el('quem')?.value || 'Painel',
+      texto,
+    });
+    anotar(`escrevi "${texto}" no chat`);
+    return;
+  }
+
   if (ev.target.closest('[data-rajada]')) {
     const quantidade = 12;
     const quem = el('quem')?.value || 'Painel';
@@ -436,4 +558,8 @@ secoesEl.addEventListener('change', (ev) => {
 });
 
 desenhar();
+// Os medidores nascem desenhados, com os zeros: o painel que abre com a faixa
+// do topo vazia parece quebrado, e é justamente enquanto o servidor não
+// respondeu que o operador mais olha para ela.
+desenharMedidores();
 rede.abrir();

@@ -826,3 +826,211 @@ test('todo botão de teste do painel faz o narrador falar', () => {
       `o botão de curtida manda ${curtida.quantidade}, e o narrador só fala a partir de ${LIMIAR_DA_CURTIDA}`);
   });
 });
+
+/* ------------------------------------ a espera do número escrito no chat */
+
+/*
+ * O pedido do Leonardo, literal: "quando alguém enviar outro presente que não
+ * seja rosa ou joinha, esperar ele escrever o número no chat; se demorar mais
+ * de 15s, avisar por voz".
+ *
+ * Estes testes são do CAMINHO INTEIRO, e não da regra. A regra — quem pode
+ * resgatar, o que conta como número, quando a janela vence — já está presa em
+ * espera.test.js. O que se prende aqui é a LIGAÇÃO, que é onde um sistema
+ * deste tamanho costuma perder um pedaço: o presente que entra pela fonte de
+ * verdade, o comentário que chega pela mesma porta que a TikTok vai usar, e o
+ * que sai no socket por causa disso.
+ *
+ * O `em` vai explícito em cada evento, e não é preciosismo: a espera mede
+ * TEMPO, e o relógio do hub aqui é o do teste. Um evento carimbado com o
+ * relógio de verdade nasceria já vencido neste mundo de mentira — ou nunca
+ * venceria, que foi o que aconteceu na primeira versão destes testes.
+ */
+
+/** O presente que o painel não mapeia — o caso que abre a espera. */
+const orfao = (extra = {}) => ({ giftId: '777', userId: 'ana', userName: 'Ana', combo: 1, ...extra });
+
+test('o presente sem urna não conta na hora, e não some', () => {
+  /*
+   * Antes disto o presente órfão simplesmente não existia: sem voto, sem
+   * fala, sem nada. Quem mandou ficava sem entender por que o presente caro
+   * não fez nada — e do lado dele o presente não funcionou.
+   *
+   * Agora ele fica guardado, esperando o número, e o painel mostra a espera:
+   * é o que permite ao operador entender, no meio da live, de quem é o
+   * presente que não virou voto.
+   */
+  const { fonte, hub, tally, relogio } = montar();
+  const painel = hub.conectar(cliente('admin'));
+
+  fonte.enviar(orfao({ em: relogio.t }));
+
+  assert.equal(tally.estado().total, 0, 'o presente órfão contou sozinho');
+  const aviso = painel.de('espera.updated').at(-1);
+  assert.ok(aviso, 'o painel não viu a espera abrir');
+  assert.equal(aviso.payload.pendentes, 1);
+  assert.equal(aviso.payload.esperas[0].usuario, 'Ana', 'a espera não diz de quem é o presente');
+  assert.equal(aviso.payload.esperas[0].presente, 'Presente', 'a etiqueta ficou sem nome');
+});
+
+test('o número escrito no chat transforma o presente em voto', () => {
+  // O caminho feliz do pedido, inteiro: o presente entra, a pessoa escreve
+  // "22", e o voto sai com a MESMA cara de um presente mapeado — contado,
+  // animado e com o placar subindo.
+  const { fonte, hub, relogio } = montar();
+  const tela = hub.conectar(cliente('broadcast'));
+
+  fonte.enviar(orfao({ em: relogio.t }));
+  tela.recebidas.length = 0;
+  fonte.comentario({ userId: 'ana', userName: 'Ana', texto: '22', em: relogio.t });
+
+  const contado = tela.de('vote.counted')[0];
+  assert.ok(contado, 'o número no chat não virou voto');
+  assert.equal(contado.payload.urnaId, 'u1');
+  const animado = tela.de('vote.animate')[0];
+  assert.ok(animado, 'o voto não pediu animação');
+  assert.equal(animado.payload.numero, '22', 'a mão não sabe que número digitar');
+  assert.equal(animado.payload.presente, 'Presente', 'a etiqueta da fila ficou sem nome');
+  assert.equal(tela.de('tally.update').length, 1, 'o placar não subiu');
+});
+
+test('o presente resgatado leva o nome que a live deu a ele', () => {
+  // O painel não conhece este presente, então o único nome que existe para a
+  // etiqueta da fila é o que veio da TikTok.
+  const { fonte, hub, relogio } = montar();
+  const tela = hub.conectar(cliente('broadcast'));
+  fonte.enviar(orfao({ giftNome: 'Diamante', em: relogio.t }));
+  tela.recebidas.length = 0;
+  fonte.comentario({ userId: 'ana', userName: 'Ana', texto: '13', em: relogio.t });
+  assert.equal(tela.de('vote.animate')[0]?.payload.presente, 'Diamante');
+});
+
+test('o comentário de outra pessoa não resgata o presente', () => {
+  /*
+   * O chat é público. Se qualquer um resgatasse, um espectador levaria o
+   * presente caro de outro para a urna que quisesse — e o defeito seria
+   * invisível, porque o voto contaria normalmente e o placar subiria.
+   */
+  const { fonte, hub, relogio } = montar();
+  const tela = hub.conectar(cliente('broadcast'));
+  fonte.enviar(orfao({ em: relogio.t }));
+  tela.recebidas.length = 0;
+  fonte.comentario({ userId: 'zeca', userName: 'Zeca', texto: '22', em: relogio.t });
+  assert.equal(tela.de('vote.counted').length, 0, 'o presente da Ana foi para a urna do Zeca');
+});
+
+test('o comentário comum do chat não vira fala nem voto', () => {
+  // A live tem dezenas de comentários por minuto. Se cada um falasse, o
+  // narrador viraria um leitor de chat — e ninguém mais ouviria os votos.
+  const { fonte, hub, relogio } = montar();
+  const tela = hub.conectar(cliente('broadcast'));
+  fonte.comentario({ userId: 'zeca', userName: 'Zeca', texto: 'boa noite galera!', em: relogio.t });
+  return respirar().then(() => {
+    assert.equal(tela.recebidas.length, 0, 'o comentário virou evento na tela');
+  });
+});
+
+test('quinze segundos sem número: a voz cobra o número', () => {
+  /*
+   * É o "se demorar mais de 15s, avisar por voz" do pedido. O que sai é uma
+   * fala com o nome de quem mandou: sem o nome, a cobrança não serve para
+   * nada, porque ninguém sabe que é com ele.
+   */
+  const { fonte, hub, relogio } = montar();
+  const tela = hub.conectar(cliente('broadcast'));
+  fonte.enviar(orfao({ em: relogio.t }));
+
+  relogio.t += 14_000;
+  hub.tick();
+  return respirar().then(() => {
+    assert.equal(tela.de('narrate').length, 0, 'a voz cobrou antes dos quinze segundos');
+
+    relogio.t += 1_000;
+    hub.tick();
+    return respirar();
+  }).then(() => {
+    const fala = tela.de('narrate')[0];
+    assert.ok(fala, 'os quinze segundos passaram em silêncio');
+    assert.match(fala.payload.texto, /Ana/, 'a cobrança não diz de quem é o presente');
+    assert.equal(fala.payload.tipo, 'espera');
+  });
+});
+
+test('a cobrança sai uma vez só, e não a cada segundo', () => {
+  // O relógio do servidor bate de segundo em segundo. Sem a marca da
+  // cobrança, a voz repetiria a mesma frase até alguém reiniciar o servidor —
+  // e a live ficaria inaudível por causa de um presente.
+  const { fonte, hub, relogio } = montar();
+  const tela = hub.conectar(cliente('broadcast'));
+  fonte.enviar(orfao({ em: relogio.t }));
+  relogio.t += 20_000;
+  hub.tick();
+  hub.tick();
+  hub.tick();
+  return respirar().then(() => {
+    assert.equal(tela.de('narrate').length, 1, 'a cobrança repetiu');
+  });
+});
+
+test('quem escreve o número depois da cobrança ainda vota', () => {
+  /*
+   * A espera vence e COBRA, mas o presente não é jogado fora: ela continua de
+   * pé, e o número que chega atrasado ainda decide a urna. Descartar o voto
+   * seria punir a lentidão de quem já tinha pagado — e logo depois de a voz
+   * ter pedido exatamente o número que a pessoa escreveu.
+   */
+  const { fonte, hub, relogio } = montar();
+  const tela = hub.conectar(cliente('broadcast'));
+  fonte.enviar(orfao({ em: relogio.t }));
+  relogio.t += 20_000;
+  hub.tick();
+  return respirar().then(() => {
+    assert.equal(tela.de('narrate').length, 1, 'a cobrança não saiu');
+    tela.recebidas.length = 0;
+    fonte.comentario({ userId: 'ana', userName: 'Ana', texto: '13', em: relogio.t });
+    assert.equal(tela.de('vote.counted').length, 1, 'o voto tardio foi perdido');
+  });
+});
+
+test('a rodada fechada esquece as esperas abertas', () => {
+  /*
+   * Um número que chegue depois do fim não conta — o placar já foi mostrado
+   * como final. Manter a espera de pé só renderia uma cobrança falada por um
+   * voto que não pode mais acontecer: a voz pedindo um número para uma urna
+   * que já encerrou.
+   */
+  const { fonte, hub, relogio } = montar();
+  const tela = hub.conectar(cliente('broadcast'));
+  const painel = hub.conectar(cliente('admin'));
+  fonte.enviar(orfao({ em: relogio.t }));
+  falar(painel, { tipo: 'round.stop' });
+
+  tela.recebidas.length = 0;
+  relogio.t += 60_000;
+  hub.tick();
+  return respirar().then(() => {
+    assert.equal(tela.de('narrate').length, 0, 'a voz cobrou um número para uma rodada encerrada');
+    fonte.comentario({ userId: 'ana', userName: 'Ana', texto: '22', em: relogio.t });
+    assert.equal(tela.de('vote.counted').length, 0, 'um voto entrou depois do fim da rodada');
+  });
+});
+
+test('o painel tem como disparar o presente órfão e o número do chat', () => {
+  /*
+   * Sem esta porta, a espera do número só se testaria com alguém mandando um
+   * presente de verdade e escrevendo no chat de uma live — que é exatamente o
+   * que a aba de teste existe para evitar.
+   *
+   * O caminho é o mesmo da live, e não um atalho que chamasse o voto direto:
+   * o presente passa pela normalização e pela contagem como qualquer outro.
+   */
+  const { hub, tally } = montar();
+  const tela = hub.conectar(cliente('broadcast'));
+  const painel = hub.conectar(cliente('admin'));
+  falar(painel, { tipo: 'sim.gift', giftId: '777', userId: 'ana', userName: 'Ana' });
+  assert.equal(tally.estado().total, 0, 'o presente de teste contou antes do número');
+  falar(painel, { tipo: 'sim.comment', userId: 'ana', userName: 'Ana', texto: '22' });
+  assert.equal(tela.de('vote.counted').length, 1, 'o caminho do painel não conta voto');
+  // 22 é a urna de multiplicador 2, então um voto vale dois pontos.
+  assert.equal(tally.estado().total, 2);
+});

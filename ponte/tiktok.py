@@ -48,6 +48,7 @@ from TikTokLive.client.errors import (
     WebcastBlockedError,
 )
 from TikTokLive.events import (
+    CommentEvent,
     ConnectEvent,
     DisconnectEvent,
     FollowEvent,
@@ -176,6 +177,32 @@ async def correr(usuario: str) -> None:
                 emitir({
                     "tipo": "entrada", "plataforma": "tiktok",
                     "userId": bruto, "usuario": apelido, "em": agora_ms(),
+                })
+
+            @cliente.on(CommentEvent)
+            async def ao_comentar(evento: CommentEvent) -> None:
+                """
+                O que alguém ESCREVEU no chat.
+
+                Ele não é um evento social: não merece fala, não conta voto
+                sozinho e não aparece em lugar nenhum da tela. O que ele é, é a
+                RESPOSTA — é por aqui que o espectador decide a urna de um
+                presente que o painel não mapeia, quando o presente não achou
+                urna e ficou esperando o número.
+
+                Vai tudo o que chega, sem filtro: quem decide se aquele texto
+                interessa é o servidor, que é quem sabe quais presentes estão
+                esperando e de quem. Filtrar aqui por "parece um número" seria
+                duplicar a regra em dois lugares — e o dia em que as duas
+                discordassem, o voto sumiria no meio do caminho sem erro
+                nenhum.
+                """
+                bruto, apelido = identidade(evento)
+                emitir({
+                    "tipo": "comentario", "plataforma": "tiktok",
+                    "userId": bruto, "usuario": apelido,
+                    "texto": str(getattr(evento, "content", "") or ""),
+                    "em": agora_ms(),
                 })
 
             @cliente.on(LikeEvent)

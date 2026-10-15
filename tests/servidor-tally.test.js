@@ -252,3 +252,96 @@ test('o combate a lixo: um evento sem giftId não conta', () => {
   assert.equal(r.contado, false);
   assert.equal(r.motivo, 'evento-invalido');
 });
+
+/*
+ * O voto que o chat resgatou.
+ *
+ * O presente que não tem urna no painel não conta sozinho — mas também não
+ * pode sumir: quem pagou por ele merece que o voto aconteça. Quem decide a
+ * urna é o número que a pessoa escreve no chat, e o caminho daqui para baixo
+ * é o MESMO do presente mapeado: deduplicar, gravar, somar, conferir a
+ * liderança. O que muda é só de onde veio o número da urna.
+ */
+
+test('o número do chat conta o voto na urna daquele número', () => {
+  const { tally } = montar();
+  // O giftId '999' não existe na configuração: é o presente que a TikTok
+  // inventou ontem e o painel ainda não conhece.
+  const r = tally.contarPeloNumero(evento({ giftId: '999', giftNome: 'Diamante' }), { numero: '22' });
+  assert.equal(r.contado, true);
+  assert.equal(r.urnaId, 'u1');
+  assert.equal(r.numero, '22', 'a mão não sabe que número digitar');
+  assert.equal(tally.estado().total, 2, 'o multiplicador da urna não foi aplicado');
+});
+
+test('o presente resgatado sai com o nome que a TikTok deu a ele', () => {
+  /*
+   * A etiqueta da fila escreve o nome do presente, e um presente sem
+   * mapeamento não tem nome no painel — o único nome que existe é o que veio
+   * da live. Sem isto, a fila mostraria "undefined" no lugar do presente.
+   */
+  const { tally } = montar();
+  const r = tally.contarPeloNumero(evento({ giftId: '999', giftNome: 'Diamante' }), { numero: '22' });
+  assert.equal(r.presente, 'Diamante');
+});
+
+test('o presente resgatado sem nome conhecido não vira etiqueta vazia', () => {
+  const { tally } = montar();
+  const r = tally.contarPeloNumero(evento({ giftId: '999' }), { numero: '22' });
+  assert.equal(r.contado, true);
+  assert.ok(r.presente.trim(), 'a etiqueta da fila ficaria em branco');
+});
+
+test('o combo do presente resgatado vale os votos que ele pagou', () => {
+  // Quem mandou cinco diamantes mandou cinco presentes, e o resgate não pode
+  // transformar cinco em um.
+  const { tally } = montar();
+  const r = tally.contarPeloNumero(evento({ giftId: '999', combo: 5 }), { numero: '13' });
+  assert.equal(r.votos, 5);
+  assert.equal(tally.estado().total, 5);
+});
+
+test('o número errado, ou de urna desligada, não conta nada', () => {
+  const { tally } = montar();
+  assert.equal(tally.contarPeloNumero(evento({ giftId: '999' }), { numero: '99' }).contado, false);
+  assert.equal(tally.contarPeloNumero(evento({ giftId: '999' }), { numero: '99' }).motivo, 'numero-sem-urna');
+  assert.equal(tally.estado().total, 0);
+});
+
+test('o voto resgatado não conta duas vezes', () => {
+  /*
+   * O chat reentrega, e a mão do espectador treme: a mesma pessoa pode
+   * escrever "22" duas vezes, ou a reconexão pode reenviar o comentário. A
+   * chave do voto é a do PRESENTE — é ele que vale uma vez só, e não o
+   * comentário.
+   */
+  const { tally } = montar();
+  const e = evento({ giftId: '999', comboIndex: 7 });
+  assert.equal(tally.contarPeloNumero(e, { numero: '22' }).contado, true);
+  const depoisDoPrimeiro = tally.estado().total;   // 2: a urna u1 multiplica por 2
+  const segundo = tally.contarPeloNumero(e, { numero: '22' });
+  assert.equal(segundo.contado, false);
+  assert.equal(segundo.motivo, 'duplicado');
+  assert.equal(tally.estado().total, depoisDoPrimeiro, 'o mesmo presente contou duas vezes');
+});
+
+test('o voto resgatado com a rodada fechada não conta', () => {
+  // O número chega depois de a rodada encerrar. Contar aqui seria mexer num
+  // placar que já foi mostrado como final.
+  const { tally } = montar();
+  tally.fecharRodada({ em: 2000 });
+  const r = tally.contarPeloNumero(evento({ giftId: '999' }), { numero: '22' });
+  assert.equal(r.contado, false);
+  assert.equal(r.motivo, 'rodada-fechada');
+});
+
+test('o voto resgatado também move a liderança', () => {
+  // Se ele não passasse pelo mesmo caminho do voto normal, a tela não
+  // anunciaria a virada — e o voto que decidiu a rodada seria o único mudo.
+  const { tally } = montar();
+  tally.processar(evento({ usuario: 'ana' }));                       // u2 = 1
+  const r = tally.contarPeloNumero(evento({ giftId: '999', em: 42 }), { numero: '22' });
+  assert.equal(r.contado, true);
+  assert.equal(r.lideranca?.tipo, 'virada', 'a virada não foi detectada');
+  assert.equal(r.lideranca?.urnaId, 'u1');
+});

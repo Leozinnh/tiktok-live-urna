@@ -14,7 +14,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { ABAS, acharAba, gruposDaAba, camposDaAba, ACOES_SOCIAIS } from '../public/js/admin/abas.js';
+import { ABAS, acharAba, gruposDaAba, camposDaAba, ACOES_SOCIAIS, giftIdSemUrna, numeroDeTeste } from '../public/js/admin/abas.js';
 import { PADRAO } from '../server/config.js';
 import { TIPOS_SOCIAIS } from '../server/sources/base.js';
 
@@ -207,4 +207,47 @@ test('o painel tem um botão de teste para cada tipo social', () => {
   for (const a of ACOES_SOCIAIS) {
     assert.match(a.rotulo ?? '', /\S/, `o botão de ${a.tipo} ficou sem rótulo`);
   }
+});
+
+/* ------------------------------------------------- os botões do chat */
+
+test('todo tipo de fala tem um rótulo humano no painel', () => {
+  /*
+   * A aba Textos monta uma caixa por tipo de fala que o servidor conhece, e
+   * tira o rótulo de um mapa. Um tipo que nasça no servidor sem entrada nesse
+   * mapa aparece no painel com o nome técnico — "espera" em vez de "quando
+   * alguém manda presente e não escreve o número". A caixa existe, o operador
+   * pode até editá-la, e ele não faz ideia de para que serve.
+   */
+  const campos = camposDaAba('textos', PADRAO);
+  const semRotulo = Object.keys(PADRAO.narracao.falas).filter((tipo) => {
+    const campo = campos.find((c) => c.caminho === `narracao.falas.${tipo}`);
+    return campo?.rotulo === tipo;
+  });
+  assert.deepEqual(semRotulo, [], `falas sem rótulo no painel: ${semRotulo.join(', ')}`);
+});
+
+test('o presente de teste não colide com nenhum presente mapeado', () => {
+  /*
+   * O botão "presente sem urna" precisa de um id que NÃO esteja no
+   * mapeamento: é justamente o presente desconhecido que abre a espera pelo
+   * número. Se o id escolhido estivesse cadastrado, o voto contaria na hora e
+   * a espera nunca abriria — o Leonardo apertaria o botão, veria o voto
+   * acontecer, e concluiria que o caminho do chat está pronto quando ele nem
+   * chegou a ser exercitado.
+   */
+  assert.equal(giftIdSemUrna([{ giftId: '1' }, { giftId: '2' }]), '9999');
+  // E se o Leonardo cadastrar justamente o 9999, o botão anda sozinho em vez
+  // de virar um falso positivo.
+  assert.equal(giftIdSemUrna([{ giftId: '9999' }]), '10000');
+  assert.equal(giftIdSemUrna([]), '9999');
+  assert.equal(giftIdSemUrna(null), '9999');
+});
+
+test('o campo do número abre preenchido com uma urna que existe', () => {
+  // Um campo vazio faria o botão "escreveu o número" não fazer nada — e um
+  // botão que não faz nada é indistinguível de um caminho quebrado.
+  assert.equal(numeroDeTeste({ u1: { numero: '22' }, u2: { numero: '13' } }), '22');
+  assert.equal(numeroDeTeste({}), '');
+  assert.equal(numeroDeTeste(null), '');
 });
