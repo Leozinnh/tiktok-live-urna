@@ -50,6 +50,8 @@ barra.addEventListener('click', (evento) => {
     urnaId: id,
     numero: id === 'u1' ? '22' : '13',
     votos: 1,
+    usuario: 'Espectador',
+    presente: id === 'u1' ? 'Rosa' : 'Heart Me',
     prioridade: 0,
   });
 });

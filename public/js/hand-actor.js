@@ -134,9 +134,13 @@ export class AtorDaMao {
           aoTeclar: (t) => { urna.pressionarTecla(t); urna.acenderLed(t, true); },
           aoSoltarTecla: (t) => { urna.soltarTecla(t); setTimeout(() => urna.acenderLed(t, false), 140); },
           aoMostrarTela: (estado) => urna.definirTela({ numero, nome: urna.config.nome, ...estado }),
-          aoSairCedula: () => urna.el.classList.add('is-cedula-saindo'),
+          aoSairCedula: () => {
+            urna.mostrarCedula({ usuario, presente, votos });
+            urna.el.classList.add('is-cedula-saindo');
+          },
           aoDepositarCedula: () => urna.el.classList.add('is-cedula-entrando'),
           aoContar: () => {
+            urna.esconderCedula();
             urna.el.classList.remove('is-cedula-saindo', 'is-cedula-entrando');
             urna.el.classList.add('is-contando');
           },

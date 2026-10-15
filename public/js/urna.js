@@ -125,6 +125,26 @@ export const LAYOUT_TECLADO = {
   ],
 };
 
+/**
+ * A cédula que sai da impressora depois do CONFIRMA.
+ *
+ * Papel de verdade, com número, quem votou e qual presente valeu o voto.
+ * Todo campo entra escapado: a cédula é montada por concatenação de string
+ * e vai direto para o `innerHTML` da urna.
+ */
+export function markupDaCedula({ usuario = '', presente = '', votos = 1, numero = '' } = {}) {
+  return `
+    <div class="cedula__borda">
+      <div class="cedula__titulo">VOTO</div>
+      <div class="cedula__urna">${esc(numero)}</div>
+      <div class="cedula__linha"></div>
+      <div class="cedula__quem">${esc(usuario)}</div>
+      <div class="cedula__presente">${esc(presente)}</div>
+      ${votos > 1 ? `<div class="cedula__votos">${esc(votos)} votos</div>` : ''}
+      <div class="cedula__picotado"></div>
+    </div>`;
+}
+
 export function todasAsTeclas() {
   return [...LAYOUT_TECLADO.grade, LAYOUT_TECLADO.zero, ...LAYOUT_TECLADO.acoes.map((t) => t.id)];
 }
@@ -188,6 +208,12 @@ export function criarUrna(config) {
     <div class="urna__glow"></div>
   `;
 
+  // O compartimento da cédula fica fora do __corpo para não herdar o
+  // rotateY do gabinete: o papel precisa sair de frente para a câmera.
+  const cedulaEl = document.createElement('div');
+  cedulaEl.className = 'urna__cedula';
+  el.append(cedulaEl);
+
   const telaConteudo = el.querySelector('[data-tela-conteudo]');
 
   function teclaEl(id) {
@@ -230,5 +256,17 @@ export function criarUrna(config) {
       const t = teclaEl(id);
       if (t) t.classList.toggle('is-led', ligado);
     },
+    /** Imprime a cédula e a faz sair do compartimento. */
+    mostrarCedula(dados = {}) {
+      cedulaEl.innerHTML = markupDaCedula({ numero: config.numero ?? '', ...dados });
+      // Remover e forçar um reflow antes de readicionar reinicia a
+      // transição: sem isso, uma cédula já visível não se move na segunda
+      // vez, porque a classe nunca chegou a sair do elemento.
+      cedulaEl.classList.remove('is-visivel');
+      void cedulaEl.offsetWidth;
+      cedulaEl.classList.add('is-visivel');
+    },
+    esconderCedula() { cedulaEl.classList.remove('is-visivel'); },
+    cedulaEl,
   };
 }

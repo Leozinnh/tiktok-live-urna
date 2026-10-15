@@ -499,3 +499,98 @@
     transparent 100%);
   opacity: 0.85;
 }
+
+/* ---------- Cédula e impressora ---------- */
+
+/*
+ * A cédula nasce com altura zero e cresce. `overflow: hidden` no
+ * compartimento é o que faz o papel *sair* de dentro da urna em vez de
+ * aparecer flutuando na frente dela.
+ */
+.urna__cedula {
+  position: absolute;
+  left: 18px;
+  top: 150px;
+  width: 200px;
+  height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(-30px) rotate(-2deg);
+  transition:
+    opacity 180ms linear,
+    transform 520ms var(--ease-padrao),
+    height 520ms var(--ease-padrao);
+  z-index: 5;
+  pointer-events: none;
+}
+
+.urna__cedula.is-visivel {
+  height: 128px;
+  opacity: 1;
+  transform: translateY(0) rotate(-2deg);
+}
+
+/* No CONFIRMA o papel sai mais rápido: é o momento de tensão da cena, e
+   a pressa é o que separa "a urna imprimiu" de "a urna está pensando". */
+.urna.is-cedula-saindo .urna__cedula {
+  transition:
+    opacity 140ms linear,
+    transform 340ms var(--ease-pressao),
+    height 340ms var(--ease-pressao);
+}
+
+.cedula__borda {
+  width: 200px;
+  height: 128px;
+  padding: 8px 10px;
+  border-radius: 3px;
+  background: linear-gradient(174deg, #ffffff 0%, #f6f4ee 62%, #e8e4da 100%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 8px 18px rgba(30, 18, 6, 0.35),
+    0 1px 3px rgba(30, 18, 6, 0.4);
+  font-family: "Consolas", "Courier New", monospace;
+  color: #2a2a2a;
+  position: relative;
+}
+
+.cedula__titulo   { font-size: 9px;  letter-spacing: 0.3em; color: #8a8578; }
+.cedula__urna     { font-size: 34px; font-weight: 700; line-height: 1; color: var(--cor-urna); }
+.cedula__linha    { height: 1px; margin: 5px 0; background: repeating-linear-gradient(90deg, #bbb 0 4px, transparent 4px 7px); }
+.cedula__quem     { font-size: 11px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cedula__presente { font-size: 10px; color: #6a6558; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cedula__votos    { font-size: 11px; font-weight: 700; color: var(--cor-urna); margin-top: 3px; }
+
+/* Borda picotada — detalhe de fabricação que faz ler como papel impresso */
+.cedula__picotado {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 4px;
+  background: repeating-linear-gradient(90deg,
+    transparent 0 3px,
+    rgba(0, 0, 0, 0.18) 3px 4px);
+}
+
+/* A cédula sendo empurrada para dentro da abertura no topo */
+.urna.is-cedula-entrando .urna__cedula {
+  height: 0;
+  opacity: 0;
+  transform: translateY(-190px) scaleY(0.5) rotate(-2deg);
+  transition:
+    opacity 260ms linear 260ms,
+    transform 560ms var(--ease-padrao),
+    height 560ms var(--ease-padrao) 200ms;
+}
+
+/* Pulso da urna ao contabilizar */
+.urna.is-contando .urna__corpo {
+  animation: pulso-contagem 600ms var(--ease-padrao);
+}
+
+@keyframes pulso-contagem {
+  0%   { filter: brightness(1); }
+  22%  { filter: brightness(1.16); }
+  100% { filter: brightness(1); }
+}

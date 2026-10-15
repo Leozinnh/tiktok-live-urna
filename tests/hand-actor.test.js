@@ -62,6 +62,9 @@ function urnaFalsa(geometria = { teclas: {}, slot: null }) {
     soltarTecla() {},
     acenderLed() {},
     definirTela() {},
+    cedulas: [],
+    mostrarCedula(dados) { this.cedulas.push(dados); },
+    esconderCedula() { this.cedulaEscondida = true; },
   };
 }
 
@@ -178,7 +181,7 @@ test('um voto enfileirado é contado na urna certa', async () => {
     return original(item);
   };
 
-  ator.fila.enfileirar({ id: 'x', urna, numero: '2', votos: 1 });
+  ator.fila.enfileirar({ id: 'x', urna, numero: '2', votos: 1, usuario: 'João', presente: 'Rosa' });
   ator.iniciar();
 
   for (let i = 0; i < 300 && contados === 0; i++) {
@@ -193,6 +196,12 @@ test('um voto enfileirado é contado na urna certa', async () => {
   assert.equal(contados, 1);
   assert.deepEqual(urna.teclasPressionadas, ['2', 'CONFIRMA']);
   assert.equal(ator.ocupado, false);
+
+  // O voto que sai na cédula é o voto que foi enfileirado — sem isso a
+  // cédula impressa poderia trazer o presente de outro espectador.
+  assert.deepEqual(urna.cedulas, [{ usuario: 'João', presente: 'Rosa', votos: 1 }],
+    'a cédula não foi impressa com os dados do voto');
+  assert.ok(urna.cedulaEscondida, 'a cédula ficou visível depois de contabilizada');
 });
 
 test('remedir invalida a geometria guardada', () => {
