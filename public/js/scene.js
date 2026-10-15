@@ -107,8 +107,13 @@ export function montarCenario(raiz) {
     camadaEfeitos: raiz.querySelector('#camada-efeitos'),
     camadaResultado: raiz.querySelector('#camada-resultado'),
     /**
-     * Liga e desliga o tamanho real. É o que o botão da barra de demonstração
-     * usa: sem ele, ver a urna de perto exigiria saber de cor o `?zoom=1`.
+     * Liga e desliga o tamanho real do palco.
+     *
+     * Hoje quem entra no modo de conferência é o `?zoom=1` no endereço, e nada
+     * na tela chama este método — ele nasceu para o botão da barra de
+     * demonstração, que saiu junto com a barra. Fica porque é a única porta
+     * para ligar o zoom sem recarregar a página, e porque `data-zoom` é
+     * justamente um dos ganchos que a tela do ar NÃO pode ter.
      */
     alternarZoom() {
       ligado = !ligado;

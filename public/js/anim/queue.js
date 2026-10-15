@@ -122,7 +122,16 @@ export class FilaDeAnimacao {
     }
   }
 
-  /** Esvazia a fila devolvendo os pendentes — usado ao encerrar a rodada. */
+  /**
+   * Esvazia a fila devolvendo os pendentes.
+   *
+   * NÃO é o que se chama ao encerrar a rodada, apesar de já ter sido escrito
+   * assim aqui. Quem encerra a rodada deixa a fila correr até o fim: a seção
+   * 4.5 é explícita em que nenhum voto válido é descartado, e um voto que
+   * entrou antes do fim conta como qualquer outro. Isto aqui TIRA os votos da
+   * fila — serve para carimbá-los de uma vez num caminho de lote, e quem
+   * chamar pensando em "limpar para encerrar" apaga voto de gente de verdade.
+   */
   drenar() {
     const restantes = this.itens.slice();
     this.itens = [];

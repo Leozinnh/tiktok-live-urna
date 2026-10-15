@@ -12,7 +12,7 @@ servidor é Node.js sem nenhuma dependência instalada.
 
 ## Estado atual
 
-O projeto está sendo construído em 8 etapas. **As Etapas 1 a 3 estão
+O projeto está sendo construído em 8 etapas. **As Etapas 1 a 5 estão
 prontas e validadas:**
 
 | Etapa | O que entrega | Situação |
@@ -20,20 +20,37 @@ prontas e validadas:**
 | 1 | Cenário, palco 1080×1920 e escala | ✅ pronta |
 | 2 | A urna eletrônica (gabinete, tela, teclado, cédula) | ✅ pronta |
 | 3 | A mão articulada e a coreografia do voto | ✅ pronta |
-| 4 | Motor de votos, fila e placar | ⏳ a fazer |
-| 5 | Painel administrativo (rota separada) | ⏳ a fazer |
+| 4 | Motor de votos, fila e placar | ✅ pronta |
+| 5 | Painel administrativo (rota separada) | ✅ pronta |
 | 6 | Modo de teste com o mesmo caminho do evento real | ⏳ a fazer |
 | 7 | Integração com os presentes da TikTok LIVE | ⏳ a fazer |
 | 8 | Modo transmissão para OBS e README final | ⏳ a fazer |
 
 **O que já dá para fazer hoje:** abrir a cena, ver as duas urnas e assistir
-a coreografia completa de um voto — a mão aparece, digita, aperta CONFIRMA,
-a cédula sai da boca da impressora e a urna volta ao repouso.
+a coreografia completa de cada voto — a mão aparece, digita, aperta
+CONFIRMA, a cédula cai e o placar sobe. Dois votos ao mesmo tempo viram
+**duas mãos**, uma em cada urna, cada uma com o nome de quem presenteou.
+A rodada tem relógio, e quem o abre e o fecha é o servidor.
 
-**O que ainda não existe:** placar, painel administrativo e a conexão com a
-TikTok. Os votos de hoje são disparados pelos botões de demonstração, e a
-tela **avisa que está em demonstração** — nada aqui finge ser um evento real
-da live.
+**O que o placar faz:** ele é de propósito mais lento que o servidor. O
+número da tela só sobe quando a cédula cai, e não quando o presente chega.
+Assim o público vê o voto acontecer em vez de ver um dígito pular sozinho —
+e a tela se corrige sozinha contra o servidor sempre que não há voto em voo.
+
+**Onde ficam as coisas:** a tela do ar é <http://localhost:3000>, e não tem
+um único botão. O painel é <http://localhost:3000/admin>, numa rota
+separada, em outra aba do navegador — nada que se clica nele pode cair no
+enquadramento do OBS.
+
+**O que ainda não existe:** a conexão com a TikTok LIVE. Até a Etapa 7, os
+votos saem do painel, na aba **Teste** — e ela dispara pelo **mesmo caminho
+de um presente de verdade**: o painel manda um `sim.gift` para o servidor, e
+o servidor o trata como trataria o presente de qualquer pessoa. É por isso
+que o modo de teste serve como teste: ele não é um atalho, é a mesma estrada.
+
+Nada aqui finge ser um evento real da live. O que entra por esse caminho fica
+gravado com a origem `simulador` no banco, ao lado do que um dia vier da
+TikTok — quem olhar os votos depois sabe de onde cada um veio.
 
 ---
 
@@ -63,7 +80,9 @@ npm start
 Vai aparecer uma mensagem parecida com esta:
 
 ```
-Live Vote Arena no ar em http://localhost:3000
+  Live Vote Arena
+  Live:   http://localhost:3000
+  Painel: http://localhost:3000/admin
 ```
 
 **Deixe essa janela aberta.** Ela é o servidor — se você fechar, a cena sai
@@ -71,22 +90,34 @@ do ar.
 
 ### 3. Abrir a cena no navegador
 
-Acesse <http://localhost:3000>. Você vê o palco com as duas urnas e a mão
-recolhida na parte de baixo.
+Acesse <http://localhost:3000>. Você vê o palco com as duas urnas, o placar
+e o relógio da rodada. **Esta é a página que o OBS captura, e ela não tem
+um único botão.**
 
-### 4. Disparar um voto
+### 4. Abrir o painel, em outra aba
 
-**Mexa o mouse na página.** Uma barra aparece no rodapé com os botões:
+Acesse <http://localhost:3000/admin>. O painel tem sete abas:
 
-- **`Rosa → URNA 1`** — um voto na Urna 1
-- **`Heart Me → URNA 2`** — um voto na Urna 2
-- **`Rajada de 12`** — doze votos alternados, para ver a fila em ação
+| Aba | Para quê |
+|---|---|
+| Urnas | Nome, número, partido e cores de cada urna |
+| Presentes | Qual presente vale voto, e em qual urna ele cai |
+| Rodada | **A duração da rodada**, e o que fazer quando ela acaba |
+| Animação | A velocidade da mão |
+| Teste | Disparar um presente e abrir/encerrar/zerar a rodada |
+| Integração | O log ao vivo do que chega do servidor |
+| Textos | Os letreiros da tela |
 
-Clique em um deles e assista. A barra **some sozinha depois de 3 segundos**
-parada, e ela nunca aparece se ninguém mexer o mouse — é assim que ela fica
-fora do enquadramento quando o OBS estiver capturando.
+Salve e o servidor confirma — o painel só diz **"enviado"** até o servidor
+responder, porque quem grava é ele.
 
-### 5. Parar o servidor
+### 5. Disparar um voto de teste
+
+No painel, na aba **Teste**, clique no nome de um presente. O voto entra no
+servidor pelo mesmo caminho de um presente real, e a mão aparece na tela do
+ar. Dá também para abrir a rodada, encerrá-la ou zerar e reabrir.
+
+### 6. Parar o servidor
 
 Volte à janela do PowerShell e aperte **Ctrl+C**.
 
@@ -98,9 +129,17 @@ Volte à janela do PowerShell e aperte **Ctrl+C**.
 npm test
 ```
 
-São **174 testes** cobrindo a geometria da cena, a matemática da animação, a
-fila, as poses da mão e a tela da urna. A suíte roda em menos de meio segundo
-e não precisa de navegador.
+São **506 testes** cobrindo a geometria da cena, a matemática da animação, a
+fila, as poses da mão, a tela da urna, o placar, o protocolo do servidor e os
+campos do painel. A suíte roda em cerca de um segundo e não precisa de
+navegador.
+
+O que a suíte **não** cobre sozinha é o que só existe dentro de um navegador
+de verdade — se a mão aparece, se o placar sobe na hora certa, se o que o
+painel salva chega à tela do ar. Para isso existem as sondas em
+`.superpowers/sonda/`, que abrem o Chrome e medem a página por dentro do
+protocolo de depuração. Elas não fazem parte do `npm test` porque precisam de
+um navegador instalado.
 
 ---
 
@@ -109,18 +148,37 @@ e não precisa de navegador.
 ```
 public/
   broadcast.html        A página que o OBS captura (nada de painel aqui)
+  admin.html            O painel do operador, em rota separada
   css/
     tokens.css          Cores, medidas e camadas de toda a cena
     scene.css           O cenário: parede, mesa, piso
     urna.css            A urna eletrônica inteira
     hand.css            A mão e a sombra dela
-    demo.css            A barra de demonstração (sai na Etapa 6)
+    placar.css          O placar e o resultado
+    cronometro.css      O relógio da rodada
+    presentes.css       Os avisos de presente que entram na tela
+    painel.css          A moldura da cena do ar
+    resultado.css       O cartão de fim de rodada
+    admin.css           O painel — só ele usa este arquivo
   js/
+    ao-vivo.js          Ponto de entrada da TELA DO AR
     scene.js            Monta o palco e escala para o tamanho da janela
     urna.js             A urna: gabinete, tela, teclado e cédula
+    urnas-livres.js     Qual urna está livre para receber a próxima mão
     hand-actor.js       A mão em cena: recebe um voto e o encena
-    demo.js             Ponto de entrada + os botões de demonstração
+    hand-team.js        As duas mãos: quem pega o próximo voto da fila
     vote-sequence.js    A coreografia de um voto, em passos
+    placar.js           O placar — sobe quando a cédula cai
+    resultado.js        O cartão de fim de rodada
+    cronometro.js       O relógio, que obedece ao servidor
+    presentes.js        O aviso de presente que entra na tela
+    som.js              Os sons da urna
+    config.js           A configuração que chega do servidor
+    net.js              O canal WebSocket, dos dois lados
+    admin.js            Ponto de entrada do PAINEL
+    admin/
+      campos.js         Os campos do painel: puro, testado sem navegador
+      abas.js           As sete abas, montadas a partir da configuração
     anim/
       timeline.js       Linha do tempo com tweens nomeados
       easing.js         Curvas de aceleração
@@ -130,12 +188,21 @@ public/
       hand-svg.js       O desenho do SVG, gerado do esqueleto
       poses.js          As poses nomeadas (apontar, pressionar, segurar…)
 server/
-  index.js              Servidor estático, sem dependências
-tests/                  174 testes, rodando no `node --test`
+  index.js              Servidor HTTP, sem dependências
+  hub.js                O canal ao vivo: quem recebe o quê
+  tally.js              A contagem e as rodadas
+  db.js                 O banco (SQLite, escrito à mão)
+  config.js             Lê, normaliza e grava a configuração
+  ws.js                 O protocolo WebSocket, escrito à mão
+  sources/              De onde vêm os presentes (hoje, o simulador)
+config/local.json       A configuração do Leonardo (nasce vazia)
+fotos/                  Os retratos dos candidatos
+tests/                  506 testes, rodando no `node --test`
+.superpowers/sonda/     As sondas de navegador (não rodam no `npm test`)
 docs/superpowers/       A spec do produto e o plano de implementação
 ```
 
-### Duas regras que sustentam o código
+### Três regras que sustentam o código
 
 **Nada de coordenada de tecla fixada em código.** A mão mira o que o
 navegador mede (`getBoundingClientRect`), convertido para as coordenadas do
@@ -147,41 +214,63 @@ dos pivôs; o desenho do SVG e as rotações saem os dois de lá. Enquanto os
 pivôs estavam escritos em dois lugares, o desenho e o movimento podiam
 divergir sem erro nenhum no console.
 
+**O placar da tela é de propósito mais lento que o do servidor.** Quem conta
+é o servidor; a tela só **mostra**. O número da tela sobe quando a cédula cai,
+e não quando o presente chega — e ele se corrige sozinho contra o servidor
+sempre que não há voto em voo. Parece um atraso a consertar, e não é: é o que
+faz o público ver o voto acontecer. Quem for mexer nisso precisa saber que a
+diferença entre os dois é intencional, e que `contagem` (a tela) e `verdade`
+(o servidor) são dois números com nomes diferentes justamente para não se
+confundirem.
+
 ---
 
 ## Perguntas que costumam aparecer
 
-**A barra de botões aparece na transmissão?**
-Não. Ela só aparece quando alguém mexe o mouse na página, e o OBS captura
-sem enviar evento nenhum de ponteiro. Mesmo que você mexa, ela se esconde
-sozinha em 3 segundos.
+**O painel aparece na transmissão?**
+Não, e não é por esconder nada. O painel é uma **página separada**, em
+`/admin`, carregada em outra aba. A tela do ar não tem um único botão — há um
+teste que varre os módulos dela para prender isso. Pode deixar o painel
+aberto no segundo monitor durante a live inteira.
 
 **Preciso de internet para rodar?**
-Para as Etapas 1 a 3, não. O servidor é local. A partir da Etapa 7, a conexão
-com a TikTok LIVE vai precisar de internet.
+Até a Etapa 5, não. O servidor é local e nada sai da sua máquina. A partir da
+Etapa 7, a conexão com a TikTok LIVE vai precisar de internet.
 
 **Funciona no OBS?**
 A cena é feita para o formato vertical do celular: **1080×1920**, sem barra de
 rolagem e sem controle administrativo no quadro. O modo de transmissão
-dedicado chega na Etapa 8.
+dedicado, com as instruções de captura, chega na Etapa 8.
+
+**O que acontece se eu fechar o navegador no meio da live?**
+Nada no placar. Quem conta é o servidor, e ele continua contando. Quando a
+tela voltar, ela se corrige sozinha: pede o retrato ao servidor e se alinha.
+Se a rodada acabar com o navegador fechado, ela acabou do mesmo jeito — quem
+fecha a rodada é o relógio do servidor, não o da página.
 
 **Dá para usar mais de duas urnas?**
-A cena de hoje tem duas, que é o pedido. O número de urnas é configuração
-(`CONFIG_URNAS` em `public/js/demo.js`), mas o layout do palco foi desenhado
-para duas.
+A cena de hoje tem duas, que é o pedido. As urnas são configuração (aba
+**Urnas** do painel), mas o layout do palco foi desenhado para duas — e as
+duas mãos atendem as duas ao mesmo tempo.
 
 **Posso mexer nas cores das urnas?**
-Sim — `corPrimaria` e `corSecundaria` de cada urna em `public/js/demo.js`.
-As teclas BRANCO, CORRIGE e CONFIRMA mantêm as cores da urna brasileira de
-propósito.
+Sim — na aba **Urnas** do painel, campo a campo, com o seletor de cor. As
+teclas BRANCO, CORRIGE e CONFIRMA mantêm as cores da urna brasileira de
+propósito: mexer nelas faria a urna deixar de parecer uma urna.
+
+**E se eu salvar uma configuração errada?**
+O painel recusa antes de mandar: campo em branco, número fora da faixa e
+duração impossível são barrados com o motivo escrito ao lado do campo. Se
+ainda assim algo chegar estranho ao servidor, ele **cai para o padrão e
+avisa** — e o aviso aparece no painel, em vez de o operador achar que salvou
+o que não salvou.
 
 ---
 
 ## Próximos passos
 
-As Etapas 4 a 8 estão especificadas em
+As Etapas 6 a 8 estão especificadas em
 `docs/superpowers/specs/2026-10-15-urna-tiktok-live-design.md`. O caminho é:
-motor de votos e placar (4), painel administrativo em rota separada (5),
 modo de teste usando exatamente o mesmo processamento do evento real (6),
 integração com os presentes da TikTok LIVE (7) e o modo transmissão com as
 instruções finais do OBS (8).
