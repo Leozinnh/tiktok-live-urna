@@ -178,7 +178,16 @@ export function criarServidor({ raiz, config, fotos, motor = null }) {
       try {
         const url = new URL(req.url, 'http://localhost');
         let caminho = decodeURIComponent(url.pathname);
+        /*
+         * Os dois endereços da especificação, e os dois são IGUALDADE.
+         *
+         * `/admin` é digitado à mão no meio de uma live, e cair em 404
+         * deixaria o operador procurando o painel enquanto a votação corre.
+         * Um `startsWith` no lugar da igualdade transformaria a rota do
+         * painel numa varredura da pasta.
+         */
         if (caminho === '/') caminho = '/broadcast.html';
+        else if (caminho === '/admin') caminho = '/admin.html';
 
         if (caminho === '/config/local.json') {
           await servirConfig(res, caminhoDaConfig);
@@ -321,7 +330,7 @@ if (executadoDireto()) {
     console.log('');
     console.log('  Live Vote Arena');
     console.log(`  Live:   http://localhost:${porta}`);
-    console.log(`  Painel: http://localhost:${porta}/admin.html`);
+    console.log(`  Painel: http://localhost:${porta}/admin`);
     console.log('');
   });
 }

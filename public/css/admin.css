@@ -1,0 +1,234 @@
+/*
+ * O painel é ferramenta de operador, e não cenário.
+ *
+ * Ele fica na segunda tela, muitas vezes num monitor menor que o do OBS, e é
+ * lido de relance no meio de uma live. Daí as três decisões que governam este
+ * arquivo: fundo escuro para não ofuscar ao lado do telão, alvos grandes
+ * porque a mão está ocupada, e o estado da conexão sempre visível no topo —
+ * um painel silencioso não se distingue de um painel que perdeu o servidor.
+ *
+ * Sem `color-mix()`: o Chromium que o OBS embarca é o 103, e ele não conhece
+ * a função. Todas as cores daqui saem de hex e de `rgba()`.
+ */
+
+:root {
+  --fundo: #101216;
+  --fundo-alto: #171a20;
+  --fundo-campo: #0b0d11;
+  --borda: #2a2f38;
+  --borda-forte: #3b424e;
+  --texto: #e8eaee;
+  --texto-fraco: #98a0ad;
+  --acento: #3d8bfd;
+  --ok: #37c07a;
+  --alerta: #e0a020;
+  --erro: #e05a5a;
+}
+
+* { box-sizing: border-box; }
+
+body.admin {
+  margin: 0;
+  background: var(--fundo);
+  color: var(--texto);
+  font: 14px/1.45 system-ui, "Segoe UI", Roboto, sans-serif;
+}
+
+/* ------------------------------------------------------------- o topo */
+
+.admin__topo {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding: 14px 20px;
+  background: var(--fundo-alto);
+  border-bottom: 1px solid var(--borda);
+  position: sticky;
+  top: 0;
+  z-index: 3;
+}
+
+.admin__titulo {
+  margin: 0;
+  font-size: 16px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.admin__estado,
+.admin__rodada {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--texto-fraco);
+}
+
+.admin__rodada { margin-left: auto; }
+.admin__rodada strong { color: var(--texto); font-variant-numeric: tabular-nums; font-size: 16px; }
+
+.farol {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--alerta);
+  flex: none;
+}
+
+.admin__estado[data-estado="conectado"] .farol { background: var(--ok); }
+.admin__estado[data-estado="conectado"] #estado-texto { color: var(--ok); }
+.admin__estado[data-estado="off"] .farol { background: var(--erro); }
+.admin__estado[data-estado="off"] #estado-texto { color: var(--erro); }
+
+.admin__link { color: var(--acento); text-decoration: none; }
+.admin__link:hover { text-decoration: underline; }
+
+/* ------------------------------------------------------------- as abas */
+
+.abas {
+  display: flex;
+  gap: 2px;
+  padding: 0 20px;
+  background: var(--fundo-alto);
+  border-bottom: 1px solid var(--borda);
+  overflow-x: auto;
+  position: sticky;
+  top: 57px;
+  z-index: 2;
+}
+
+.aba {
+  appearance: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--texto-fraco);
+  font: inherit;
+  font-weight: 600;
+  padding: 12px 16px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.aba:hover { color: var(--texto); }
+.aba[aria-selected="true"] { color: var(--texto); border-bottom-color: var(--acento); }
+
+/* --------------------------------------------------------- o conteúdo */
+
+.admin__conteudo { padding: 20px; max-width: 1180px; }
+
+.ajuda { margin: 0 0 18px; color: var(--texto-fraco); max-width: 70ch; }
+
+.grupo {
+  border: 1px solid var(--borda);
+  border-radius: 10px;
+  background: var(--fundo-alto);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.grupo__titulo {
+  margin: 0 0 14px;
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--texto-fraco);
+}
+
+.grade {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px 18px;
+}
+
+.campo { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.campo--largo { grid-column: 1 / -1; }
+
+.campo__rotulo { color: var(--texto-fraco); font-size: 12px; }
+.campo__dica { color: var(--texto-fraco); font-size: 11px; opacity: 0.75; }
+
+.campo input[type="text"],
+.campo input[type="number"],
+.campo select,
+.campo textarea {
+  width: 100%;
+  padding: 9px 10px;
+  border: 1px solid var(--borda-forte);
+  border-radius: 7px;
+  background: var(--fundo-campo);
+  color: var(--texto);
+  font: inherit;
+}
+
+.campo input:focus,
+.campo select:focus { outline: 2px solid var(--acento); outline-offset: 1px; }
+
+.campo input[type="color"] {
+  width: 100%;
+  height: 38px;
+  padding: 2px;
+  border: 1px solid var(--borda-forte);
+  border-radius: 7px;
+  background: var(--fundo-campo);
+}
+
+/* O campo que o operador precisa corrigir antes de salvar. */
+.campo[data-pendente] input,
+.campo[data-pendente] select { border-color: var(--erro); }
+.campo[data-pendente] .campo__rotulo { color: var(--erro); }
+
+.campo--interruptor { flex-direction: row; align-items: center; gap: 10px; }
+.campo--interruptor input { width: 18px; height: 18px; accent-color: var(--acento); }
+
+/* ------------------------------------------------------- ações e rodada */
+
+.acoes { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; }
+
+.botao {
+  appearance: none;
+  font: inherit;
+  font-weight: 600;
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--borda-forte);
+  background: var(--fundo-campo);
+  color: var(--texto);
+  cursor: pointer;
+}
+
+.botao:hover { border-color: var(--acento); }
+.botao--principal { background: var(--acento); border-color: var(--acento); color: #fff; }
+.botao--perigo:hover { border-color: var(--erro); color: var(--erro); }
+.botao[disabled] { opacity: 0.45; cursor: not-allowed; }
+
+.barra {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-top: 6px;
+  border-top: 1px solid var(--borda);
+  margin-top: 4px;
+}
+
+.barra__recado { margin: 0; margin-right: auto; color: var(--texto-fraco); min-height: 1.4em; }
+.barra__recado[data-tom="ok"] { color: var(--ok); }
+.barra__recado[data-tom="erro"] { color: var(--erro); }
+.barra__recado[data-tom="alerta"] { color: var(--alerta); }
+
+/* ------------------------------------------------------------- o log */
+
+.log {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 260px;
+  overflow-y: auto;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12px;
+}
+
+.log li { padding: 4px 0; border-bottom: 1px solid var(--borda); color: var(--texto-fraco); }
+.log li strong { color: var(--texto); font-weight: 600; }
+.log__hora { color: var(--texto-fraco); opacity: 0.6; margin-right: 8px; }

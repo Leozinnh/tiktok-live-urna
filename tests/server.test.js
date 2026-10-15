@@ -47,6 +47,25 @@ test('serve broadcast.html na raiz', async () => {
   assert.match(await r.text(), /id="cena"/);
 });
 
+test('/admin é o painel, na rota que a especificação promete', async () => {
+  /*
+   * A seção 8 dá os dois endereços — `http://localhost:3000/` para o OBS e
+   * `http://localhost:3000/admin` para o operador —, e o segundo é digitado à
+   * mão no meio de uma live. Sem o apelido, ele cai em 404 e o operador fica
+   * procurando o painel enquanto a votação corre.
+   */
+  const r = await fetch(`${base}/admin`);
+  assert.equal(r.status, 200);
+  assert.match(await r.text(), /id="abas"/);
+});
+
+test('servir /admin não abre a pasta: só o painel', async () => {
+  // O apelido é uma IGUALDADE, e não um prefixo. Um `startsWith('/admin')`
+  // transformaria a rota do painel numa varredura de diretório.
+  const r = await fetch(`${base}/admin.js`);
+  assert.equal(r.status, 404);
+});
+
 test('serve CSS com o content-type correto', async () => {
   const r = await fetch(`${base}/css/tokens.css`);
   assert.equal(r.status, 200);

@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Live Vote Arena — Painel</title>
+  <link rel="stylesheet" href="/css/admin.css">
+</head>
+<body class="admin">
+  <header class="admin__topo">
+    <h1 class="admin__titulo">Painel</h1>
+    <p class="admin__estado" id="estado" data-estado="conectando">
+      <span class="farol" aria-hidden="true"></span>
+      <span id="estado-texto">conectando…</span>
+    </p>
+    <p class="admin__rodada" id="rodada">
+      <span id="rodada-estado">—</span>
+      <strong id="rodada-relogio">--:--</strong>
+    </p>
+    <a class="admin__link" href="/" target="_blank" rel="noopener">abrir a tela do ar</a>
+  </header>
+
+  <nav class="abas" id="abas" aria-label="Seções do painel"></nav>
+
+  <main class="admin__conteudo">
+    <p class="ajuda" id="ajuda"></p>
+    <div id="secoes"></div>
+    <section class="barra" id="barra">
+      <p class="barra__recado" id="recado" role="status"></p>
+      <button type="button" class="botao botao--principal" id="salvar">Salvar</button>
+      <button type="button" class="botao" id="recarregar">Descartar e recarregar</button>
+    </section>
+  </main>
+
+  <script type="module" src="/js/admin.js"></script>
+</body>
+</html>
