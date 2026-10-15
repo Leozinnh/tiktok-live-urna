@@ -7,6 +7,7 @@ import { abrirBanco } from './db.js';
 import { criarTally } from './tally.js';
 import { criarHub } from './hub.js';
 import { criarSimulador } from './sources/simulator.js';
+import { criarVoz } from './voz.js';
 import { carregar, salvar, caminhoDaConfig } from './config.js';
 import { descobrirPidDaPorta, mensagemDePortaOcupada } from './porta.js';
 import { chaveDeAceite, codificarFrame, decodificarFrames } from './ws.js';
@@ -27,6 +28,10 @@ const TIPOS = {
   '.webp': 'image/webp',
   '.gif': 'image/gif',
   '.woff2': 'font/woff2',
+  // A fala do narrador. Sem esta linha o arquivo sai como binário genérico e
+  // o elemento de áudio da página fica mudo — sem erro, sem aviso, e sem
+  // ninguém entendendo por quê.
+  '.wav': 'audio/wav',
 };
 
 /**
@@ -84,12 +89,13 @@ async function servirConfig(res, caminho) {
 }
 
 /**
- * O retrato de um candidato, servido de `fotos/` na raiz do projeto.
+ * Um arquivo de uma pasta que não é o site — `fotos/` ou `dados/voz/`.
  *
  * O nome chega já decodificado da URL, e é a única parte que o visitante
  * escolhe: por isso a conferência é sobre ELE, e não sobre o caminho montado
- * depois. Duas travas, de propósito — recusar barra e recusar o que escapa da
- * pasta —, porque a primeira sozinha depende de eu ter lembrado de todos os
+ * depois. Duas travas, de propósito — o nome tem que passar pelo crivo de
+ * quem chamou, e o caminho montado tem que continuar dentro da pasta —,
+ * porque a primeira sozinha depende de eu ter lembrado de todos os
  * separadores que o Windows aceita, e ele aceita mais de um.
  *
  * Nome ausente e nome inexistente dão o mesmo 404: não há o que distinguir,
@@ -97,15 +103,28 @@ async function servirConfig(res, caminho) {
  * ligarQuedaDoRetrato em urna.js). Este 404 é para o CONSOLE, não para a
  * tela — o desenho aparece de qualquer jeito.
  */
-async function servirFoto(res, pasta, nome) {
+
+/**
+ * Um nome de arquivo, e não um caminho: `fotos/` não tem subpastas, e aceitar
+ * barra aqui seria abrir a pasta inteira do projeto.
+ */
+const NOME_SIMPLES = (nome) => Boolean(nome) && !nome.includes('/') && !nome.includes('\\');
+
+/**
+ * O nome de um áudio de narração: dezesseis caracteres hexadecimais e `.wav`.
+ *
+ * Estreito de propósito. É o único formato que o servidor gera
+ * (`chaveDoTexto`), então tudo o que não casa é pedido que ele não fez — e
+ * `dados/` é justamente onde mora o banco da votação.
+ */
+const NOME_DE_VOZ = (nome) => /^[0-9a-f]{16}\.wav$/.test(String(nome ?? ''));
+async function servirArquivo(res, pasta, nome, conferirNome) {
   const naoAchou = () => {
     res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
     res.end('Não encontrado');
   };
 
-  // Um nome é um arquivo, não um caminho: `fotos/` não tem subpastas, e
-  // aceitar barra aqui seria abrir a pasta inteira do projeto.
-  if (!nome || nome.includes('/') || nome.includes('\\')) { naoAchou(); return; }
+  if (!conferirNome(nome)) { naoAchou(); return; }
 
   const destino = normalize(join(pasta, nome));
   if (!destino.startsWith(normalize(pasta + sep))) { naoAchou(); return; }
@@ -137,11 +156,11 @@ async function servirFoto(res, pasta, nome) {
  * `caminhoDoBanco` é parâmetro porque a suíte não pode escrever no banco da
  * live: um teste que apaga a rodada do Leonardo é pior do que nenhum teste.
  */
-export function montarMotor({ config, caminhoDoBanco = ':memory:', aoSalvar = null }) {
+export function montarMotor({ config, caminhoDoBanco = ':memory:', aoSalvar = null, voz = null }) {
   const db = abrirBanco(caminhoDoBanco);
   const tally = criarTally({ db, config });
   const fonte = criarSimulador();
-  const hub = criarHub({ tally, fonte, config, aoSalvar });
+  const hub = criarHub({ tally, fonte, config, aoSalvar, voz });
   fonte.iniciar();
   /*
    * A rodada já nasce aberta. Sem ela o motor não tem onde contar — a seção
@@ -162,7 +181,7 @@ function aceitarUpgrade(chave) {
   ].join('\r\n');
 }
 
-export function criarServidor({ raiz, config, fotos, motor = null }) {
+export function criarServidor({ raiz, config, fotos, voz, motor = null }) {
   // Por parâmetro para o teste não depender do config/local.json de verdade
   // de quem roda a suíte — e para a rota poder ser exercitada sem mexer no
   // arquivo do Leonardo.
@@ -171,6 +190,10 @@ export function criarServidor({ raiz, config, fotos, motor = null }) {
   // é material do Leonardo, não do site. Mora ao lado de public/, e não
   // dentro, para não ser varrida junto com o código.
   const pastaDasFotos = fotos ?? join(raiz, '..', 'fotos');
+  // O cache da voz, pelo mesmo motivo das fotos: é material da live, e não
+  // do site. Dentro de `public/` ele viajaria no `git add .` — são centenas
+  // de KB por frase, e cada nome de seguidor vira um arquivo.
+  const pastaDaVoz = voz ?? join(raiz, '..', 'dados', 'voz');
 
   const servidor = createServer((req, res) => {
     // Envolvido à mão em vez de async/await: uma promessa rejeitada aqui
@@ -196,7 +219,12 @@ export function criarServidor({ raiz, config, fotos, motor = null }) {
         }
 
         if (caminho.startsWith('/fotos/')) {
-          await servirFoto(res, pastaDasFotos, caminho.slice('/fotos/'.length));
+          await servirArquivo(res, pastaDasFotos, caminho.slice('/fotos/'.length), NOME_SIMPLES);
+          return;
+        }
+
+        if (caminho.startsWith('/voz/')) {
+          await servirArquivo(res, pastaDaVoz, caminho.slice('/voz/'.length), NOME_DE_VOZ);
           return;
         }
 
@@ -315,19 +343,75 @@ if (executadoDireto()) {
   for (const a of avisos) console.warn(`  aviso: ${a}`);
   if (erro) console.warn(`  aviso: ${erro} — seguindo com a configuração padrão`);
 
+  /*
+   * A voz do narrador.
+   *
+   * A pasta é o cache: a mesma frase nunca é sintetizada duas vezes, e o
+   * cache sobrevive ao processo — o primeiro seguidor da noite seguinte sai
+   * na hora. A voz e a velocidade são FUNÇÕES, e não valores, porque o painel
+   * as troca com a live no ar: o sintetizador é reiniciado na frase seguinte
+   * com o ajuste novo.
+   */
+  const pastaDaVoz = join(projeto, 'dados', 'voz');
+  let cfgAtual = config;
+  const voz = criarVoz({
+    pasta: pastaDaVoz,
+    nome: () => cfgAtual.narracao?.voz,
+    velocidade: () => cfgAtual.narracao?.velocidade,
+    aoAvisar: (texto) => console.warn(`  voz: ${texto}`),
+  });
+
   const motor = montarMotor({
     config,
+    voz,
     caminhoDoBanco: join(projeto, 'dados', 'votos.sqlite'),
     // Gravar é assíncrono e o hub não espera: o painel recebe o
     // `config.changed` com a configuração que JÁ está valendo, e o arquivo
     // alcança o disco um instante depois. Um disco lento não pode segurar o
     // aviso que o painel mostra.
     aoSalvar: (nova) => {
+      cfgAtual = nova;
       salvar(caminhoLocal, nova).catch((e) => console.error(`[config] não gravou: ${e.message}`));
     },
   });
 
-  const servidor = criarServidor({ raiz, motor });
+  /*
+   * O aquecedor. O primeiro `Add-Type` do PowerShell custa quase dois
+   * segundos, e pagá-lo no primeiro seguidor da live seria anunciar o nome
+   * dele dois segundos depois do follow. Aqui ninguém está esperando.
+   *
+   * Sem `await`: um PowerShell que não responda deixaria o servidor sem
+   * subir, e a live não pode depender da voz para existir.
+   */
+  voz.aquecer().then((ok) => {
+    if (ok) console.log(`  Voz:    ${voz.voz || 'a primeira do Windows'}`);
+  });
+
+  const servidor = criarServidor({ raiz, voz: pastaDaVoz, motor });
+
+  /*
+   * O encerramento.
+   *
+   * `parar` fecha o stdin do sintetizador, que é o sinal combinado para ele
+   * terminar sozinho — e é por isso que ele é encerrado ANTES de o processo
+   * sair, e não junto com ele: um filho do Node não morre com o pai, e o
+   * PowerShell ficaria pendurado na máquina. A folga de um segundo é para o
+   * caso de ele estar no meio de uma frase longa: dentro dela, o `parar`
+   * dispara a morte na força que o próprio módulo já tem. Não é `unref`
+   * justamente porque precisa acontecer.
+   *
+   * O Ctrl+C chega mais de uma vez, e a segunda não pode reencontrar tudo
+   * pela metade.
+   */
+  let encerrando = false;
+  const encerrar = () => {
+    if (encerrando) return;
+    encerrando = true;
+    voz.parar();
+    setTimeout(() => process.exit(0), 1200);
+  };
+  process.on('SIGINT', encerrar);
+  process.on('SIGTERM', encerrar);
 
   /*
    * A porta ocupada, explicada — em vez da pilha de chamadas do Node.

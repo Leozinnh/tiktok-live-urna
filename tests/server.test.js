@@ -211,3 +211,70 @@ test('e a rota de fotos não abre o que está fora da pasta', async () => {
     assert.ok(!r.corpo.includes('tiktok-live-urna'), `${caminho} vazou conteúdo`);
   }
 });
+
+/*
+ * O áudio da narração.
+ *
+ * A voz da live não pode ser o `speechSynthesis` do navegador: o OBS embute
+ * um CEF sem motor de fala, e o pouco que ele sintetizasse não sairia no
+ * áudio capturado. O que o OBS captura é um elemento de áudio tocando um
+ * arquivo de verdade — então o servidor sintetiza, guarda em `dados/voz/`, e
+ * manda para a página o caminho. Esta rota é quem entrega o arquivo.
+ */
+test('o áudio da narração é servido de dados/voz, ao lado de public/', async () => {
+  /*
+   * O padrão é o que está sendo testado: `../dados/voz` a partir da raiz do
+   * site. Uma pasta dentro de `public/` seria varrida junto com o código, e
+   * o cache da voz ficaria no repositório — ele é material da live, como as
+   * fotos e o config.
+   */
+  const projeto = await mkdtemp(join(tmpdir(), 'urna-voz-'));
+  const publico = join(projeto, 'public');
+  const voz = join(projeto, 'dados', 'voz');
+  await mkdir(publico);
+  await mkdir(voz, { recursive: true });
+  const bytes = Buffer.from('RIFF....WAVEfmt ', 'ascii');
+  await writeFile(join(voz, 'a1b2c3d4e5f60718.wav'), bytes);
+
+  const s = criarServidor({ raiz: publico });
+  await new Promise((ok) => s.listen(0, '127.0.0.1', ok));
+  const p = s.address().port;
+
+  try {
+    const r = await fetch(`http://127.0.0.1:${p}/voz/a1b2c3d4e5f60718.wav`);
+    assert.equal(r.status, 200, 'o áudio não foi servido de dados/voz');
+    // Sem o tipo certo o navegador não sabe que é som. O `<audio>` de um
+    // arquivo servido como binário genérico fica mudo sem erro nenhum.
+    assert.match(r.headers.get('content-type'), /audio\/wav/);
+    assert.equal(Buffer.from(await r.arrayBuffer()).toString('ascii'), bytes.toString('ascii'));
+
+    const faltando = await fetch(`http://127.0.0.1:${p}/voz/0000000000000000.wav`);
+    assert.equal(faltando.status, 404, 'um áudio que não existe não pode dar 200');
+  } finally {
+    s.close();
+    await rm(projeto, { recursive: true, force: true });
+  }
+});
+
+test('a rota da voz só serve o nome que ela mesma gera', async () => {
+  /*
+   * O nome do arquivo é um SHA-1 de dezesseis caracteres, e nada mais. A
+   * conferência é sobre o NOME, e não sobre o caminho montado depois: é o
+   * nome que o visitante escolhe, e é ele que precisa ser estreito. Aceitar
+   * qualquer coisa aqui abriria a pasta `dados/` inteira — onde mora o banco
+   * da votação.
+   */
+  const tentativas = [
+    '/voz/%2e%2e%2f%2e%2e%2fpackage.json',
+    '/voz/..%2f..%2fpackage.json',
+    '/voz/sub%2fpasta.wav',
+    '/voz/curto.wav',
+    '/voz/a1b2c3d4e5f60718.wav.exe',
+    '/voz/A1B2C3D4E5F60718.wav',
+  ];
+  for (const caminho of tentativas) {
+    const r = await cru(caminho);
+    assert.equal(r.status, 404, `${caminho} não pode ser servido`);
+    assert.ok(!r.corpo.includes('tiktok-live-urna'), `${caminho} vazou conteúdo`);
+  }
+});

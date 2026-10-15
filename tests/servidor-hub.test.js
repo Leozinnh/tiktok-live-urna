@@ -35,9 +35,9 @@ const CONFIG = normalizar({
   rodada: { duracaoSegundos: 300 },
 }).config;
 
-function montar({ agora } = {}) {
+function montar({ agora, voz = null, config = CONFIG } = {}) {
   const db = abrirBanco(':memory:');
-  const tally = criarTally({ db, config: CONFIG });
+  const tally = criarTally({ db, config });
   tally.abrirRodada({ iniciadaEm: 1000 });
   const fonte = criarSimulador();
   const relogio = { t: agora ?? 100000 };
@@ -45,7 +45,8 @@ function montar({ agora } = {}) {
   const hub = criarHub({
     tally,
     fonte,
-    config: CONFIG,
+    config,
+    voz,
     agora: () => relogio.t,
     aoSalvar: (nova) => hubs.push(nova),
   });
@@ -512,4 +513,190 @@ test('o estado da fonte vai para o painel quando a conexão muda', () => {
   fonte.parar();
   assert.equal(painel.ultima().tipo, 'source.status');
   assert.equal(painel.ultima().payload.conectado, false);
+});
+
+/* ------------------------------------------------------------ a narração */
+
+/*
+ * A fala de quem segue, entra, curte, compartilha ou assina.
+ *
+ * O narrador é do servidor, e não da página, por um motivo prático: o OBS não
+ * toca `speechSynthesis` nenhuma — o CEF que ele embute não traz motor de voz,
+ * e o áudio sintetizado no navegador nem seria capturado. O que o OBS captura
+ * é um elemento de áudio com um arquivo de verdade. Então o servidor
+ * sintetiza, guarda, e manda para a tela o CAMINHO do arquivo.
+ *
+ * A regra que estes testes protegem é a de sempre: a faixa da tela não pode
+ * depender do áudio. Voz quebrada, voz desligada, arquivo que não saiu — em
+ * todos os casos o nome de quem chegou aparece. Perder a fala é um detalhe;
+ * perder as boas-vindas é a página parecer morta.
+ */
+
+/** Uma voz de mentira, com o tamanho exato do que o hub usa dela. */
+function vozDeMentira({ arquivo = null, erro = null, atrasos = [] } = {}) {
+  const pedidos = [];
+  let n = 0;
+  return {
+    pedidos,
+    async sintetizar(texto) {
+      pedidos.push(texto);
+      const espera = atrasos[n++] ?? 0;
+      if (espera) await new Promise((ok) => setTimeout(ok, espera));
+      if (erro) throw new Error(erro);
+      return arquivo ? { bytes: null, eco: texto, arquivo } : null;
+    },
+  };
+}
+
+/** O hub não termina de falar no mesmo tick: o `sintetizar` é assíncrono. */
+const respirar = (ms = 60) => new Promise((ok) => setTimeout(ok, ms));
+
+const seguir = (nome, userId = nome) => ({
+  plataforma: 'simulador', tipo: 'seguidor', usuario: nome, userId, em: 7000,
+});
+
+test('um seguidor vira fala na tela, e não voto', () => {
+  /*
+   * As duas metades importam. A primeira é o pedido do Leonardo: quem segue
+   * merece ser anunciado. A segunda é a regra da seção 6: só presente conta
+   * voto, e um seguidor que subisse o placar seria a urna contando o que
+   * ninguém pagou.
+   */
+  const { hub, fonte } = montar();
+  const tela = hub.conectar(cliente('broadcast'));
+  fonte.emitir(seguir('Ana'));
+  return respirar().then(() => {
+    const falas = tela.de('narrate');
+    assert.equal(falas.length, 1, 'o seguidor não foi anunciado');
+    assert.match(falas[0].payload.texto, /Ana/);
+    assert.equal(falas[0].payload.tipo, 'seguidor');
+    assert.equal(falas[0].payload.usuario, 'Ana');
+    assert.equal(falas[0].payload.em, 7000);
+    assert.equal(tela.de('vote.counted').length, 0, 'um seguidor virou voto');
+    assert.equal(tela.de('tally.update').length, 0, 'o placar subiu por um seguidor');
+  });
+});
+
+test('o presente NÃO vira narração', () => {
+  /*
+   * O presente já tem o espetáculo dele: a mão digita, a urna apita, a cédula
+   * cai e o placar sobe. Falar por cima disso seria anunciar de novo o que a
+   * tela inteira acabou de mostrar — e numa live de presentes em sequência a
+   * voz cobriria a própria animação.
+   */
+  const { hub, fonte } = montar();
+  const tela = hub.conectar(cliente('broadcast'));
+  fonte.emitir({ plataforma: 'simulador', userId: 'ana', giftId: '1', em: 5 });
+  return respirar().then(() => {
+    assert.equal(tela.de('vote.counted').length, 1);
+    assert.equal(tela.de('narrate').length, 0, 'o presente virou narração');
+  });
+});
+
+test('sem voz nenhuma, a faixa da tela aparece do mesmo jeito', () => {
+  // É o caso do primeiro boot antes do aquecedor, e de qualquer dia em que o
+  // PowerShell não subir. O nome de quem seguiu é o que não pode faltar.
+  const { hub, fonte } = montar({ voz: null });
+  const tela = hub.conectar(cliente('broadcast'));
+  fonte.emitir(seguir('Ana'));
+  return respirar().then(() => {
+    const f = tela.de('narrate');
+    assert.equal(f.length, 1);
+    assert.equal(f[0].payload.wav, null);
+    assert.match(f[0].payload.texto, /Ana/);
+  });
+});
+
+test('a voz pronta vira o caminho que a página pede', () => {
+  /*
+   * A página nunca vê o disco do servidor — ela recebe uma URL e a busca. O
+   * caminho completo do arquivo vazando para o HTML seria, no melhor caso,
+   * feio; no pior, quebrado, porque o navegador monta a URL a partir da
+   * origem e uma barra invertida do Windows não é um caminho válido em URL.
+   */
+  const voz = vozDeMentira({ arquivo: 'C:\\xampp\\htdocs\\tiktok-live-urna\\dados\\voz\\a1b2c3d4e5f60718.wav' });
+  const { hub, fonte } = montar({ voz });
+  const tela = hub.conectar(cliente('broadcast'));
+  fonte.emitir(seguir('Ana'));
+  return respirar().then(() => {
+    assert.equal(tela.de('narrate')[0].payload.wav, '/voz/a1b2c3d4e5f60718.wav');
+    assert.equal(voz.pedidos.length, 1, 'a voz não foi chamada');
+    assert.match(voz.pedidos[0], /Ana/);
+  });
+});
+
+test('a voz que quebra não cala a faixa', () => {
+  /*
+   * O sintetizador é um processo externo: ele cai, ele trava, ele demora. A
+   * seção 7 é explícita em que a live não para por causa de um erro — e aqui
+   * isso quer dizer que o seguidor da Ana aparece na tela mesmo com o
+   * PowerShell morto.
+   */
+  const { hub, fonte } = montar({ voz: vozDeMentira({ erro: 'o sintetizador caiu' }) });
+  const tela = hub.conectar(cliente('broadcast'));
+  fonte.emitir(seguir('Ana'));
+  return respirar().then(() => {
+    const f = tela.de('narrate');
+    assert.equal(f.length, 1, 'o erro da voz engoliu o anúncio');
+    assert.equal(f[0].payload.wav, null);
+    assert.match(f[0].payload.texto, /Ana/);
+  });
+});
+
+test('a narração desligada não manda nada', () => {
+  const desligada = normalizar({ narracao: { ativa: false } }).config;
+  const { hub, fonte } = montar({ config: desligada, voz: vozDeMentira({ arquivo: 'x.wav' }) });
+  const tela = hub.conectar(cliente('broadcast'));
+  fonte.emitir(seguir('Ana'));
+  return respirar().then(() => {
+    assert.equal(tela.de('narrate').length, 0, 'falou com o narrador desligado');
+  });
+});
+
+test('a frase editada no painel vale para a próxima fala, sem reiniciar', () => {
+  /*
+   * Este é o defeito que o narrador teria se guardasse as frases no dia em
+   * que nasceu: o Leonardo edita no painel com a live no ar, ouve a frase
+   * antiga, e não tem como saber por quê. O hub troca a configuração inteira
+   * a cada salvamento, então o narrador precisa ler a de AGORA.
+   */
+  const antes = normalizar({ narracao: { falas: { seguidor: ['Antes: {nome}'] } } }).config;
+  const { hub, fonte } = montar({ config: antes });
+  const tela = hub.conectar(cliente('broadcast'));
+  fonte.emitir(seguir('Ana'));
+  return respirar()
+    .then(() => {
+      assert.equal(tela.de('narrate')[0].payload.texto, 'Antes: Ana');
+      const painel = hub.conectar(cliente('admin'));
+      falar(painel, { tipo: 'hello', papel: 'admin' });
+      falar(painel, {
+        tipo: 'config.update',
+        config: { narracao: { falas: { seguidor: ['Depois: {nome}'] } } },
+      });
+      fonte.emitir(seguir('Bia', 'bia'));
+      return respirar();
+    })
+    .then(() => {
+      assert.equal(tela.de('narrate')[1].payload.texto, 'Depois: Bia', 'a frase nova não valeu');
+    });
+});
+
+test('duas falas seguidas chegam na ordem em que aconteceram', () => {
+  /*
+   * O `sintetizar` é assíncrono, e a primeira frase de um apelido novo é a
+   * mais lenta — é ela que paga o arranque do PowerShell. Sem uma fila, a
+   * segunda fala, que é rápida, chegaria antes: a live ouviria "bem-vindo,
+   * Bia" e depois "bem-vindo, Ana", com a Ana tendo chegado primeiro.
+   */
+  const voz = vozDeMentira({ arquivo: 'x.wav', atrasos: [80, 0] });
+  const { hub, fonte } = montar({ voz });
+  const tela = hub.conectar(cliente('broadcast'));
+  fonte.emitir(seguir('Ana'));
+  fonte.emitir(seguir('Bia', 'bia'));
+  return respirar(200).then(() => {
+    const textos = tela.de('narrate').map((m) => m.payload.texto);
+    assert.equal(textos.length, 2, `saíram ${textos.length} falas`);
+    assert.match(textos[0], /Ana/);
+    assert.match(textos[1], /Bia/);
+  });
 });

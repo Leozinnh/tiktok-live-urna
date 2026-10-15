@@ -128,6 +128,54 @@ test('a segunda frase não paga a partida de novo', { skip: !soWindows }, async 
   }
 });
 
+test('a chave da fala muda com a voz e com a velocidade', () => {
+  /*
+   * O arquivo em disco é o cache, e a chave dele é o texto. Sem a voz e a
+   * velocidade dentro da chave, o Leonardo trocaria a voz no painel e
+   * continuaria ouvindo a antiga — do cache, para sempre, sem nada acusar
+   * erro. É o mesmo defeito da frase editada que não vale, e é pior, porque
+   * aqui o sintetizador nem chega a ser chamado.
+   *
+   * O padrão NÃO pode mudar a chave: o cache que já está no disco é do
+   * projeto, e uma chave nova para a mesma fala jogaria fora tudo o que já
+   * foi sintetizado.
+   */
+  const texto = 'Bia acabou de seguir a live';
+  assert.equal(chaveDoTexto(texto, {}), chaveDoTexto(texto), 'o ajuste vazio partiu o cache em dois');
+  assert.equal(chaveDoTexto(texto, { nome: '', velocidade: 0 }), chaveDoTexto(texto));
+
+  const maria = chaveDoTexto(texto, { nome: 'Maria', velocidade: 0 });
+  assert.notEqual(maria, chaveDoTexto(texto));
+  assert.notEqual(maria, chaveDoTexto(texto, { nome: 'Daniel', velocidade: 0 }), 'trocar a voz não trocou o arquivo');
+  assert.notEqual(maria, chaveDoTexto(texto, { nome: 'Maria', velocidade: 4 }), 'trocar a velocidade não trocou o arquivo');
+});
+
+test('trocar a voz no painel vale para a frase seguinte', { skip: !soWindows }, async () => {
+  /*
+   * A velocidade e a voz são passadas ao sintetizador na hora em que ele
+   * sobe, e o processo é de vida longa — então mudar o campo no painel não
+   * muda nada no processo que já está de pé. Sem esta conferência, o Leonardo
+   * arrastaria o controle de velocidade, salvaria, e continuaria ouvindo a
+   * voz de antes até reiniciar o servidor.
+   */
+  const pasta = await mkdtemp(join(tmpdir(), 'urna-voz-'));
+  const ajustes = { velocidade: 0 };
+  const voz = criarVoz({ pasta, velocidade: () => ajustes.velocidade });
+  try {
+    const antes = await voz.sintetizar('a mesma frase de sempre');
+    const partidasAntes = voz.partidas;
+
+    ajustes.velocidade = 6;
+    const depois = await voz.sintetizar('a mesma frase de sempre');
+
+    assert.equal(voz.partidas, partidasAntes + 1, 'o sintetizador antigo ficou de pé com a velocidade antiga');
+    assert.notEqual(depois.arquivo, antes.arquivo, 'a fala nova saiu do arquivo da velocidade antiga');
+  } finally {
+    voz.parar();
+    await rm(pasta, { recursive: true, force: true });
+  }
+});
+
 test('texto vazio não vira som nem erro', { skip: !soWindows }, async () => {
   // Um modelo de frase com o nome em branco produz " acabou de seguir". Sem
   // esta guarda o servidor sintetizaria silêncio e a página tocaria um

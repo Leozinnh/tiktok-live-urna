@@ -59,8 +59,22 @@ export function codificarParaOPowerShell(texto) {
  * montado no servidor, e um espaço a mais num deles criaria um segundo arquivo
  * para a mesma fala — o cache deixaria de existir sem ninguém notar.
  */
-export function chaveDoTexto(texto) {
-  return createHash('sha1').update(String(texto ?? '').trim(), 'utf8').digest('hex').slice(0, 16);
+export function chaveDoTexto(texto, ajustes = {}) {
+  const limpo = String(texto ?? '').trim();
+  const nome = String(ajustes?.nome ?? '').trim();
+  const velocidade = Number(ajustes?.velocidade ?? 0) || 0;
+  /*
+   * A voz e a velocidade entram na chave porque o arquivo em disco é o cache,
+   * e a mesma frase dita por outra voz é outro som. Sem elas, trocar a voz no
+   * painel não mudaria nada: o servidor acharia o arquivo antigo e o tocaria
+   * outra vez, para sempre, sem nunca chamar o sintetizador.
+   *
+   * O ajuste PADRÃO não deixa marca, e isso é deliberado: a chave de sempre
+   * tem que continuar valendo, senão toda fala já sintetizada viraria lixo no
+   * dia em que este código subisse.
+   */
+  const marca = nome || velocidade ? `|${nome}|${velocidade}` : '';
+  return createHash('sha1').update(limpo + marca, 'utf8').digest('hex').slice(0, 16);
 }
 
 /**
@@ -89,6 +103,30 @@ export function criarVoz({
   let sinteses = 0;
   let vozEscolhida = null;
   let sobra = '';
+  /** Quantas vezes o sintetizador subiu. Um laço de reinício aparece aqui. */
+  let partidas = 0;
+  /** Com que ajuste o processo de pé foi aberto; `null` quando não há um. */
+  let assinaturaDoProcesso = null;
+
+  /*
+   * A voz e a velocidade podem ser valores ou funções.
+   *
+   * Funções porque o painel as troca com a live no ar: quem as lê no momento
+   * de subir o processo pega o que está valendo AGORA. Um valor fixo aqui
+   * obrigaria a reiniciar o servidor para o campo do painel fazer efeito.
+   */
+  const ajusteDe = (valor, padrao) => {
+    const v = typeof valor === 'function' ? valor() : valor;
+    return v == null || v === '' ? padrao : v;
+  };
+  const ajustesAgora = () => ({
+    nome: String(ajusteDe(nome, '')).trim(),
+    velocidade: Number(ajusteDe(velocidade, 0)) || 0,
+  });
+  // A assinatura é o que compara dois ajustes: `{nome:'', velocidade:0}` e
+  // `{}` são o mesmo pedido, e sem isto o processo morreria e renasceria a
+  // cada frase, pagando a partida de novo toda vez.
+  const assinaturaDe = (a) => `${a.nome}\u0000${a.velocidade}`;
 
   const avisar = (texto) => {
     if (aoAvisar) aoAvisar(texto);
@@ -134,30 +172,55 @@ export function criarVoz({
   let roteiro = null;
   let subindo = null;
   function subir() {
+    const quer = assinaturaDe(ajustesAgora());
+
+    /*
+     * O processo de pé é de uma voz que já não é a do painel.
+     *
+     * A voz e a velocidade entram no processo no momento em que ele sobe, e
+     * ele vive a noite inteira — então trocar o campo no painel não muda nada
+     * no que já está rodando. Derrubar aqui é o que faz a frase SEGUINTE sair
+     * com a voz nova, sem reiniciar o servidor.
+     *
+     * `processo` é zerado antes de matar: o `exit` do morto chega depois, e
+     * ele só mexe no estado se ainda for o processo da vez.
+     */
+    if (processo && assinaturaDoProcesso !== quer) {
+      const velho = processo;
+      processo = null;
+      pronto = null;
+      assinaturaDoProcesso = null;
+      try { velho.stdin.end(); } catch { /* já foi */ }
+      const prazo = setTimeout(() => { try { velho.kill(); } catch { /* já morreu */ } }, 1000);
+      prazo.unref?.();
+    }
+
     if (processo) return pronto ?? Promise.resolve(vozEscolhida);
     if (subindo) return subindo;
 
     subindo = (async () => {
       roteiro ??= await readFile(SCRIPT, 'utf8');
-      return abrirProcesso();
+      return abrirProcesso(ajustesAgora());
     })().finally(() => { subindo = null; });
     return subindo;
   }
 
-  function abrirProcesso() {
+  function abrirProcesso(ajustes) {
     const p = spawn(exe, [
       '-NoProfile', '-NonInteractive', '-EncodedCommand', codificarParaOPowerShell(roteiro),
     ], {
       env: {
         ...process.env,
         URNA_VOZ_PASTA: pasta,
-        ...(nome ? { URNA_VOZ_NOME: nome } : {}),
-        ...(velocidade == null ? {} : { URNA_VOZ_VELOCIDADE: String(velocidade) }),
+        ...(ajustes.nome ? { URNA_VOZ_NOME: ajustes.nome } : {}),
+        ...(ajustes.velocidade ? { URNA_VOZ_VELOCIDADE: String(ajustes.velocidade) } : {}),
       },
       windowsHide: true,
       stdio: ['pipe', 'pipe', 'pipe'],
     });
     processo = p;
+    assinaturaDoProcesso = assinaturaDe(ajustes);
+    partidas += 1;
 
     p.stdout.setEncoding('utf8');
     p.stdout.on('data', (pedaco) => {
@@ -223,6 +286,8 @@ export function criarVoz({
     get sinteses() { return sinteses; },
     get voz() { return vozEscolhida; },
     get viva() { return Boolean(processo); },
+    /** Quantas vezes o sintetizador subiu — um laço de reinício aparece aqui. */
+    get partidas() { return partidas; },
 
     /** Sobe o processo agora, para a primeira frase não pagar a partida. */
     aquecer: () => subir().then(() => true).catch(() => false),
@@ -238,7 +303,10 @@ export function criarVoz({
       const limpo = String(texto ?? '').trim();
       if (!limpo || encerrada) return null;
 
-      const chave = chaveDoTexto(limpo);
+      // Os ajustes entram na chave, e não só no processo: é o arquivo em
+      // disco que decide se a frase precisa ser sintetizada, e a mesma frase
+      // dita por outra voz é outro som.
+      const chave = chaveDoTexto(limpo, ajustesAgora());
       const arquivo = join(pasta, `${chave}.wav`);
 
       // O disco é a memória do narrador: sobrevive ao processo, e por isso o

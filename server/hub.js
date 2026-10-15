@@ -29,12 +29,18 @@
  * na janela que o OBS está capturando não pode encerrar a rodada.
  */
 
+import { basename } from 'node:path';
 import { mesclar, normalizar } from './config.js';
+import { criarNarrador } from './narracao.js';
 
 export function criarHub({
   tally,
   fonte,
   config,
+  // O sintetizador de voz. Opcional de propósito: sem ele a faixa da tela
+  // continua aparecendo, só muda, e é assim que a suíte roda sem subir um
+  // PowerShell por fala.
+  voz = null,
   agora = () => Date.now(),
   // Como gravar `config/local.json`. Injetado para o hub não saber de
   // caminhos de arquivo, e para a suíte não escrever no disco de ninguém.
@@ -74,6 +80,16 @@ export function criarHub({
   const enviarAosAdmins = (tipo, payload) => {
     for (const c of [...clientes]) if (ehAdmin(c)) enviarA(c, tipo, payload);
   };
+
+  /*
+   * O narrador lê as frases de AGORA, e não as do dia em que nasceu.
+   *
+   * `cfg` é trocado inteiro a cada salvamento do painel, então passar
+   * `cfg.narracao.falas` aqui dentro daria ao narrador uma lista congelada: o
+   * Leonardo editaria uma frase com a live no ar, ouviria a antiga, e não
+   * teria como saber por quê.
+   */
+  const narrador = criarNarrador({ falas: () => cfg.narracao?.falas, agora });
 
   /**
    * O placar, no formato do `tally.update` da especificação.
@@ -269,13 +285,79 @@ export function criarHub({
   /* --------------------------------------------------- o que sai sozinho */
 
   /*
+   * A fala de quem chegou.
+   *
+   * Duas decisões que valem o registro:
+   *
+   *   - **a faixa espera a voz.** O `sintetizar` é assíncrono, e o anúncio só
+   *     sai depois dele. Anunciar primeiro e mandar o áudio depois faria a
+   *     faixa aparecer meio segundo antes da voz — e as duas são o MESMO
+   *     aviso, então separadas parecem dois;
+   *   - **uma fala de cada vez.** Numa live movimentada chegam vários eventos
+   *     no mesmo segundo, e cada `sintetizar` demora o que demora. Sem a
+   *     fila, a segunda fala, que é rápida, chegaria antes da primeira: a
+   *     live ouviria "bem-vindo, Bia" antes do "bem-vindo, Ana".
+   */
+  let filaDaFala = Promise.resolve();
+
+  function narrar(evento) {
+    if (cfg.narracao?.ativa === false) return;
+    const texto = narrador.narrar(evento);
+    // `null` é a resposta para quem não merece fala — a curtida solta, o
+    // repetido, o apelido em cooldown. Silêncio é decisão, e não erro.
+    if (!texto) return;
+    filaDaFala = filaDaFala
+      .then(() => anunciarNaTela(evento, texto))
+      // Um erro aqui não pode envenenar a fila pelo resto da noite: a
+      // promessa rejeitada faria toda fala seguinte cair no mesmo buraco.
+      .catch(() => {});
+  }
+
+  async function anunciarNaTela(evento, texto) {
+    let wav = null;
+    try {
+      const pronta = await voz?.sintetizar(texto);
+      // A URL, e não o caminho do arquivo: o navegador monta o pedido a
+      // partir da origem, e uma barra invertida do Windows não é caminho
+      // válido em URL.
+      if (pronta?.arquivo) wav = `/voz/${basename(pronta.arquivo)}`;
+    } catch (erro) {
+      /*
+       * A faixa vai sem áudio. O sintetizador é um processo externo — ele cai,
+       * ele trava, ele demora —, e a seção 7 é explícita em que a live não
+       * para por causa de um erro. Perder a fala é um detalhe; perder o nome
+       * de quem chegou é a página parecer morta.
+       */
+      console.error(`[hub] a voz falhou em "${texto}": ${erro.message}`);
+    }
+    enviarATodos('narrate', {
+      texto,
+      wav,
+      tipo: evento.tipo,
+      usuario: evento.usuario,
+      em: evento.em,
+      ts: agora(),
+    });
+  }
+
+  /*
    * A fonte fala, o motor conta, o hub conta para as páginas. Este é o
    * caminho inteiro de um presente que chega da live, e é o único lugar
    * onde ele existe.
    */
   fonte.aoEvento((evento) => {
     const r = tally.processar(evento);
-    if (!r.contado) return;
+    if (!r.contado) {
+      /*
+       * Não contou voto: ou é um evento social — chegada, follow, curtida —,
+       * ou é um presente sem urna no mapeamento. Quem separa os dois é o
+       * narrador, que só conhece os tipos sociais: um presente órfão não tem
+       * frase nenhuma e sai daqui em silêncio, que é o certo, porque quem
+       * avisa o Leonardo do mapeamento que falta é a aba Integração.
+       */
+      narrar(evento);
+      return;
+    }
 
     enviarATodos('vote.counted', {
       id: r.chave,
