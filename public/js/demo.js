@@ -1,10 +1,18 @@
 /**
  * Ponto de entrada da página de demonstração.
  *
- * Por enquanto só monta o cenário. As urnas, a mão e a coreografia
+ * Por enquanto monta o cenário e as duas urnas. A mão e a coreografia
  * entram nas tarefas seguintes, sempre por cima desta mesma cena.
  */
 
 import { montarCenario } from './scene.js';
+import { criarUrna } from './urna.js';
 
 export const cena = montarCenario(document.getElementById('cena'));
+
+export const urnas = [
+  criarUrna({ id: 'u1', x: 60,  y: 30, rot: -8, corPrimaria: '#1a5fd0' }),
+  criarUrna({ id: 'u2', x: 580, y: 30, rot:  8, corPrimaria: '#e02020' }),
+];
+
+cena.camadaUrnas.append(...urnas.map((u) => u.el));

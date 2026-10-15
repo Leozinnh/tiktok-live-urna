@@ -1,1 +1,112 @@
-/* Urna — construída nas Tasks 3 a 6. */
+/* Gabinete da urna eletrônica: corpo, topo, lateral, base e sombra de contato. */
+
+.urna {
+  position: absolute;
+  width: var(--urna-largura);
+  height: var(--urna-altura);
+  transform-style: preserve-3d;
+  /* Posição e inclinação definidas por JS via --x / --rot */
+  left: var(--x, 0px);
+  bottom: var(--y, 32%);
+  transform: rotateY(var(--rot, 0deg)) rotateX(2deg);
+}
+
+/* ---------- Corpo: face frontal ---------- */
+
+/*
+ * A face frontal é o plano de referência de tudo: a tela, o teclado e a
+ * placa moram nela. O volume vem do topo e da lateral, que giram em
+ * torno dela — por isso preserve-3d fica no pai e não aqui.
+ *
+ * O sombreamento é todo interno (inset): luz forte no topo, sombra
+ * pesada embaixo, luz suave entrando pela esquerda e sombra pela
+ * direita. É o que faz um retângulo cinza virar plástico injetado.
+ */
+.urna__corpo {
+  position: absolute;
+  inset: 0;
+  border-radius: 26px 26px 14px 14px;
+  background:
+    /* grão sutil de plástico */
+    repeating-linear-gradient(101deg,
+      rgba(255, 255, 255, 0.035) 0 1px,
+      rgba(0, 0, 0, 0.025) 1px 3px),
+    /* sombreamento geral: claro em cima, escuro embaixo */
+    linear-gradient(168deg,
+      var(--urna-plastico)    0%,
+      var(--urna-plastico)    34%,
+      var(--urna-plastico-2)  68%,
+      var(--urna-plastico-3) 100%);
+  box-shadow:
+    /* luz de topo */
+    inset 0 3px 0 rgba(255, 255, 255, 0.95),
+    inset 0 -8px 18px rgba(60, 58, 52, 0.42),
+    inset 3px 0 10px rgba(255, 255, 255, 0.35),
+    inset -6px 0 16px rgba(70, 66, 60, 0.30),
+    /* sombra projetada */
+    0 26px 48px rgba(40, 26, 10, 0.45);
+}
+
+/* Topo do gabinete — dá a leitura de volume */
+.urna__topo {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 74px;
+  border-radius: 26px 26px 0 0;
+  transform-origin: top center;
+  transform: rotateX(-72deg) translateZ(6px);
+  background: linear-gradient(180deg,
+    #f6f5f1 0%,
+    var(--urna-plastico) 40%,
+    var(--urna-plastico-3) 100%);
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.9),
+    0 8px 14px rgba(50, 36, 16, 0.30);
+}
+
+/* Lateral direita — o segundo plano que fecha o volume */
+.urna__lado {
+  position: absolute;
+  top: 8px;
+  right: -1px;
+  width: var(--urna-profundidade);
+  height: calc(100% - 16px);
+  transform-origin: right center;
+  transform: rotateY(76deg) translateZ(2px);
+  border-radius: 0 10px 10px 0;
+  background: linear-gradient(90deg,
+    var(--urna-plastico-3) 0%,
+    var(--urna-plastico-2) 55%,
+    #8d8a83 100%);
+  box-shadow: inset 0 0 22px rgba(40, 36, 30, 0.5);
+}
+
+/* Base — pé do gabinete, mais escuro, com pés de borracha */
+.urna__base {
+  position: absolute;
+  left: 4%;
+  right: 4%;
+  bottom: -16px;
+  height: 22px;
+  border-radius: 6px 6px 12px 12px;
+  background: linear-gradient(180deg, #55524c 0%, #2e2c28 100%);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.5);
+}
+
+/* Sombra de contato — o que "cola" a urna na mesa */
+.urna__sombra {
+  position: absolute;
+  left: -8%;
+  right: -8%;
+  bottom: -34px;
+  height: 70px;
+  border-radius: 50%;
+  background: radial-gradient(50% 50% at 50% 50%,
+    rgba(30, 16, 4, 0.62) 0%,
+    rgba(30, 16, 4, 0.30) 45%,
+    rgba(30, 16, 4, 0) 78%);
+  filter: blur(9px);
+  transform: translateZ(-2px);
+}
