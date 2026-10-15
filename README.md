@@ -88,6 +88,37 @@ Vai aparecer uma mensagem parecida com esta:
 **Deixe essa janela aberta.** Ela é o servidor — se você fechar, a cena sai
 do ar.
 
+### 2b. Enquanto estou mexendo no código: `npm run dev`
+
+É o mesmo servidor, com uma diferença: quando um arquivo do servidor é salvo,
+ele se derruba e sobe de novo sozinho. Não precisa `Ctrl+C`, não precisa
+fechar a janela, não precisa matar processo nenhum.
+
+```powershell
+npm run dev
+```
+
+**Se a porta 3000 estiver ocupada**, o servidor diz quem está segurando e o
+comando exato para derrubar — em vez da pilha de chamadas do Node, que não
+responde nem uma coisa nem outra:
+
+```
+  A porta 3000 já está ocupada.
+
+  Quem está segurando é o processo 16408.
+  Na maioria das vezes é outra instância deste servidor que ficou de pé.
+  Para derrubá-la:
+
+      taskkill /PID 16408 /F
+
+  Ou suba em outra porta, sem mexer em nada:
+
+      set PORT=3001 && npm start
+```
+
+O caso mais comum de todos é o servidor da tentativa anterior ter ficado de
+pé. O `npm run dev` resolve isso na prática: ele reaproveita a mesma janela.
+
 ### 3. Abrir a cena no navegador
 
 Acesse <http://localhost:3000>. Você vê o palco com as duas urnas, o placar
@@ -129,10 +160,9 @@ Volte à janela do PowerShell e aperte **Ctrl+C**.
 npm test
 ```
 
-São **506 testes** cobrindo a geometria da cena, a matemática da animação, a
+São **525 testes** cobrindo a geometria da cena, a matemática da animação, a
 fila, as poses da mão, a tela da urna, o placar, o protocolo do servidor e os
-campos do painel. A suíte roda em cerca de um segundo e não precisa de
-navegador.
+campos do painel. A suíte roda em poucos segundos e não precisa de navegador.
 
 O que a suíte **não** cobre sozinha é o que só existe dentro de um navegador
 de verdade — se a mão aparece, se o placar sobe na hora certa, se o que o
@@ -194,10 +224,13 @@ server/
   db.js                 O banco (SQLite, escrito à mão)
   config.js             Lê, normaliza e grava a configuração
   ws.js                 O protocolo WebSocket, escrito à mão
+  porta.js              Porta ocupada: quem está segurando e o que fazer
+  voz.js                A voz do narrador (o lado Node do `voz.ps1`)
+  voz.ps1               O sintetizador do Windows, falado por linhas de texto
   sources/              De onde vêm os presentes (hoje, o simulador)
 config/local.json       A configuração do Leonardo (nasce vazia)
 fotos/                  Os retratos dos candidatos
-tests/                  506 testes, rodando no `node --test`
+tests/                  525 testes, rodando no `node --test`
 .superpowers/sonda/     As sondas de navegador (não rodam no `npm test`)
 docs/superpowers/       A spec do produto e o plano de implementação
 ```

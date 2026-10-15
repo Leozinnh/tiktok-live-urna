@@ -8,6 +8,7 @@ import { criarTally } from './tally.js';
 import { criarHub } from './hub.js';
 import { criarSimulador } from './sources/simulator.js';
 import { carregar, salvar, caminhoDaConfig } from './config.js';
+import { descobrirPidDaPorta, mensagemDePortaOcupada } from './porta.js';
 import { chaveDeAceite, codificarFrame, decodificarFrames } from './ws.js';
 
 const TIPOS = {
@@ -326,7 +327,30 @@ if (executadoDireto()) {
     },
   });
 
-  criarServidor({ raiz, motor }).listen(porta, () => {
+  const servidor = criarServidor({ raiz, motor });
+
+  /*
+   * A porta ocupada, explicada — em vez da pilha de chamadas do Node.
+   *
+   * Sem isto, o tropeço mais comum de todos (o servidor da tentativa anterior
+   * continuou de pé) vira uma parede de `at Object.<anonymous>` que não diz
+   * quem está na porta nem o que fazer. O Leonardo pediu isso com todas as
+   * letras: "nao quero ter q dar taskkill e tal para reiniciar".
+   *
+   * A busca do PID é assíncrona e é a última coisa que este processo faz —
+   * depois dela não há mais nada para salvar.
+   */
+  servidor.on('error', async (erro) => {
+    if (erro.code !== 'EADDRINUSE') {
+      console.error(`\n  Não consegui subir o servidor: ${erro.message}\n`);
+      process.exit(1);
+    }
+    const pid = await descobrirPidDaPorta(porta);
+    console.error(mensagemDePortaOcupada(porta, pid));
+    process.exit(1);
+  });
+
+  servidor.listen(porta, () => {
     console.log('');
     console.log('  Live Vote Arena');
     console.log(`  Live:   http://localhost:${porta}`);
