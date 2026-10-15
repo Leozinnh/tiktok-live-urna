@@ -328,7 +328,24 @@
 .tecla--branco   .tecla__rotulo { color: #2a2a2a; text-shadow: 0 1px 0 rgba(255,255,255,0.8); }
 .tecla--corrige  .tecla__capa { background: linear-gradient(180deg, #ffb154 0%, var(--tecla-corrige) 45%, #c96a0c 100%); }
 .tecla--confirma .tecla__capa { background: linear-gradient(180deg, #4fd177 0%, var(--tecla-confirma) 45%, #167a35 100%); }
-.tecla--acao .tecla__rotulo { font-size: 11px; letter-spacing: 0.06em; }
+/*
+ * O rótulo das teclas de ação é impresso pequeno, como na urna de verdade.
+ *
+ * "CONFIRMA" são oito caracteres numa tecla de 52px. A 11px o texto pedia
+ * 65px e vazava por cima do CORRIGE e do BRANCO, virando uma palavra só;
+ * a 8px ele ocupa ~44px e sobra uma folga de 4px de cada lado. O
+ * `white-space: nowrap` garante que ele encolha em vez de quebrar em duas
+ * linhas dentro da tecla.
+ *
+ * O portão visual mede isto tecla por tecla (capturar.js, seção 1b): uma
+ * fonte que volte a crescer além da tecla quebra o teste em vez de
+ * aparecer borrada na transmissão.
+ */
+.tecla--acao .tecla__rotulo {
+  font-size: 8px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
 
 /* ---------- LED sob cada tecla ---------- */
 .tecla__led {
