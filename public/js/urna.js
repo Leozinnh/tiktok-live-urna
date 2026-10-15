@@ -27,6 +27,49 @@ export function paraCoordenadasDoPalco(rect, palcoRect) {
   };
 }
 
+const ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, (c) => ESCAPES[c]);
+}
+
+/**
+ * Produz o HTML interno da tela. Função pura — recebe o estado, devolve string.
+ * O nome da urna vem da configuração do usuário, então é sempre escapado.
+ */
+export function renderizarTela(estado) {
+  const { tipo } = estado;
+
+  if (tipo === 'digitando') {
+    const digitos = String(estado.numeroDigitado ?? '');
+    const campos = String(estado.numero ?? '  ').split('').map((_, i) => {
+      const d = digitos[i] ?? '';
+      return `<span class="tela__digito${d ? ' is-preenchido' : ''}">${esc(d)}</span>`;
+    }).join('');
+    return `
+      <div class="tela__linha tela__linha--topo">${esc(estado.nome ?? '')}</div>
+      <div class="tela__numeros">${campos}</div>`;
+  }
+
+  if (tipo === 'confirmado') {
+    return `
+      <div class="tela__linha tela__linha--topo">${esc(estado.numero ?? '')}</div>
+      <div class="tela__confirmado">VOTO CONFIRMADO</div>
+      <div class="tela__contagem">${esc(estado.votos ?? 0)}</div>
+      ${estado.votosAdicionados ? `<div class="tela__delta">+${esc(estado.votosAdicionados)}</div>` : ''}`;
+  }
+
+  if (tipo === 'corrija') {
+    return `
+      <div class="tela__linha tela__linha--topo">${esc(estado.numero ?? '')}</div>
+      <div class="tela__corrija">VOTO NULO — CORRIJA</div>`;
+  }
+
+  return `
+    <div class="tela__linha tela__linha--topo">${esc(estado.nome ?? '')}</div>
+    <div class="tela__idle-numero">${esc(estado.numero ?? '')}</div>
+    <div class="tela__idle-votos">${esc(estado.votos ?? 0)} VOTOS</div>`;
+}
+
 const TECLAS_NUMERICAS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
 const TECLAS_ACAO = [
   { id: 'BRANCO',   rotulo: 'BRANCO',   classe: 'tecla--branco' },
@@ -112,7 +155,7 @@ export function criarUrna(config) {
     config,
     teclaEl,
     medirGeometria,
-    definirTela(html) { telaConteudo.innerHTML = html; },
+    definirTela(estado) { telaConteudo.innerHTML = renderizarTela(estado); },
     pressionarTecla(id) {
       const t = teclaEl(id);
       if (t) t.classList.add('is-pressionada');

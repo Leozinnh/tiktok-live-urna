@@ -16,3 +16,8 @@ export const urnas = [
 ];
 
 cena.camadaUrnas.append(...urnas.map((u) => u.el));
+
+// Estado de demonstração enquanto o motor de votos não existe (Etapa 4).
+const [u1, u2] = urnas;
+u1.definirTela({ tipo: 'ocioso', numero: '22', nome: 'URNA 1', votos: 61 });
+u2.definirTela({ tipo: 'digitando', numero: '13', nome: 'URNA 2', numeroDigitado: '1' });

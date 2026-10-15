@@ -110,3 +110,112 @@
   filter: blur(9px);
   transform: translateZ(-2px);
 }
+
+/* ---------- Tela LCD ---------- */
+
+.urna__tela {
+  position: absolute;
+  left: 26px;
+  top: 96px;
+  width: 232px;
+  height: 168px;
+  border-radius: 10px;
+  overflow: hidden;
+  background:
+    radial-gradient(120% 100% at 50% 0%,
+      rgba(180, 255, 200, 0.10) 0%,
+      rgba(0, 0, 0, 0) 60%),
+    linear-gradient(180deg, var(--tela-fundo) 0%, #0d1610 100%);
+  box-shadow:
+    /* moldura plástica ao redor do vidro */
+    inset 0 0 0 7px #b6b3ac,
+    inset 0 0 0 9px #8e8b84,
+    /* brilho interno do LCD */
+    inset 0 0 26px var(--tela-brilho),
+    /* luz que a tela joga no plástico em volta */
+    0 0 26px rgba(150, 255, 170, 0.14),
+    0 10px 20px rgba(0, 0, 0, 0.35);
+  font-family: "Consolas", "SF Mono", monospace;
+  color: var(--tela-texto);
+}
+
+.tela__conteudo {
+  position: absolute;
+  inset: 9px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 10px;
+  text-shadow: 0 0 7px rgba(150, 255, 170, 0.75);
+}
+
+.tela__linha { font-size: 15px; letter-spacing: 0.08em; opacity: 0.85; }
+.tela__linha--topo { text-align: center; }
+
+.tela__idle-numero { font-size: 62px; line-height: 1; text-align: center; letter-spacing: 0.06em; }
+.tela__idle-votos  { font-size: 15px; text-align: center; opacity: 0.8; letter-spacing: 0.12em; }
+
+.tela__numeros { display: flex; justify-content: center; gap: 10px; }
+.tela__digito {
+  width: 52px;
+  height: 68px;
+  display: grid;
+  place-items: center;
+  font-size: 52px;
+  line-height: 1;
+  border-bottom: 3px solid rgba(150, 255, 170, 0.35);
+  opacity: 0.35;
+  transition: opacity 120ms linear;
+}
+.tela__digito.is-preenchido { opacity: 1; }
+
+.tela__confirmado {
+  font-size: 19px;
+  text-align: center;
+  letter-spacing: 0.05em;
+  color: #d6ffdd;
+  animation: tela-pisca 900ms steps(1, end) 2;
+}
+.tela__contagem { font-size: 46px; text-align: center; line-height: 1; }
+.tela__delta {
+  position: absolute;
+  right: 12px;
+  top: 10px;
+  font-size: 20px;
+  color: #eaffb0;
+  animation: delta-sobe 900ms var(--ease-padrao) forwards;
+}
+.tela__corrija { font-size: 18px; text-align: center; color: #ffcf8a; }
+
+@keyframes tela-pisca { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+@keyframes delta-sobe {
+  from { opacity: 0; transform: translateY(10px); }
+  35%  { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(-14px); }
+}
+
+/* Scanlines do LCD — o que faz parecer uma tela, e não uma imagem */
+.tela__scanlines {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(180deg,
+    rgba(0, 0, 0, 0.16) 0 1px,
+    rgba(0, 0, 0, 0) 1px 3px);
+  opacity: 0.55;
+}
+
+/* Reflexo do vidro */
+.tela__vidro {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(147deg,
+    rgba(255, 255, 255, 0.14) 0%,
+    rgba(255, 255, 255, 0.05) 22%,
+    rgba(255, 255, 255, 0) 46%,
+    rgba(255, 255, 255, 0.03) 74%,
+    rgba(255, 255, 255, 0) 100%);
+  mix-blend-mode: screen;
+}
