@@ -121,7 +121,7 @@ const PRESENTES_DEMO = presentes.map((p) => ({ nome: p.nome, urnaId: p.urnaId })
 const barra = document.createElement('div');
 barra.className = 'demo-barra';
 barra.innerHTML = PRESENTES_DEMO
-  .map((p) => `<button data-presente="${p.nome}" data-urna="${p.urnaId}">${p.nome} → ${urnas[p.urnaId].config.nome}</button>`)
+  .map((p) => `<button data-presente="${p.nome}" data-votar="${p.urnaId}">${p.nome} → ${urnas[p.urnaId].config.nome}</button>`)
   .join('')
   + '<button data-rajada="1">Rajada de 12</button>'
   /*
@@ -194,7 +194,14 @@ barra.addEventListener('click', (evento) => {
     }
     return;
   }
-  enfileirar(btn.dataset.urna, btn.dataset.presente);
+  /*
+   * `data-votar`, e não `data-urna`: o cartão do placar já responde por
+   * `data-urna`, e ele vem antes da barra no documento — então um
+   * `document.querySelector('[data-urna="u1"]')`, que é como qualquer script
+   * de fora pede um voto, acertava o CARTÃO e morria em silêncio. Ver
+   * tests/ganchos.test.js.
+   */
+  enfileirar(btn.dataset.votar, btn.dataset.presente);
 });
 
 export { urnas, mao, ator, enfileirar };
