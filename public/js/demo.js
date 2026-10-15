@@ -15,6 +15,7 @@ import { criarResultado, resultadoDaRodada } from './resultado.js';
 import { criarCronometro } from './cronometro.js';
 import { criarPresentes, PRESENTES_PADRAO } from './presentes.js';
 import { criarEquipeDeMaos } from './hand-team.js';
+import { criarReservaDeUrnas } from './urnas-livres.js';
 import { carregarConfig, aplicarConfig, aplicarConfigDoPlacar } from './config.js';
 
 const cenario = montarCenario(document.getElementById('cena'));
@@ -166,11 +167,17 @@ function atualizarPlacar() {
  *
  * Cada voto sai na mão que estiver livre, e os dois podem estar no ar ao
  * mesmo tempo, uma em cada urna, sem um esperar pelo outro.
+ *
+ * A reserva de urnas é quem decide ONDE cada voto vai. Sem ela, os dois
+ * votos do 13 no mesmo segundo escolhiam a mesma urna — a do candidato —, e
+ * a segunda mão ficava sem ter onde digitar enquanto a urna vizinha assistia
+ * parada. Ver urnas-livres.js.
  */
 const equipe = criarEquipeDeMaos({
   camada: camadaMao,
   quantidade: 2,
   opcoes: {
+    reservaDeUrnas: criarReservaDeUrnas(CONFIG_URNAS.map((c) => urnas[c.id])),
     aoContarVoto: ({ urnaId, votos }) => {
       contagem[urnaId] = (contagem[urnaId] ?? 0) + votos;
       atualizarPlacar();
@@ -368,19 +375,31 @@ let contador = 0;
  */
 const PRESENTEADORES_DEMO = 5;
 
-function enfileirar(urnaId, presente) {
+/**
+ * Põe um voto na fila.
+ *
+ * O `destinoId` é a urna do CANDIDATO — quem recebe o voto —, e não a
+ * máquina em que a mão vai digitar. A máquina é escolhida depois, na hora de
+ * trabalhar, por quem sabe quais estão livres (ver urnas-livres.js). Enquanto
+ * as duas coisas eram a mesma, o segundo presente do 13 no mesmo segundo saía
+ * com a mesma urna do primeiro na mão.
+ *
+ * O que vai dentro do item é o CANDIDATO: o número a digitar, a ficha a
+ * mostrar e a contagem que a tela anuncia. A máquina não guarda nada disso —
+ * ela só empresta o teclado.
+ */
+function enfileirar(destinoId, presente) {
   // Rodada fechada recusa voto. Recusar em silêncio, e não enfileirar e
   // ignorar depois: um voto que entra na fila e não é contado é pior do que
   // um voto que nunca entrou.
   if (!rodadaAberta) return false;
-  const u = urnas[urnaId];
+  const destino = urnas[destinoId];
   contador += 1;
   const usuario = `Espectador ${1 + (contador % PRESENTEADORES_DEMO)}`;
   ator.fila.enfileirar({
     id: `demo-${contador}`,
-    urna: u,
-    urnaId,
-    numero: u.config.numero,
+    destino,
+    numero: destino.config.numero,
     votos: 1,
     usuario,
     presente,

@@ -185,3 +185,28 @@ test('esperando devolve cópia: mexer nela não estraga a fila', () => {
 test('fila vazia espera por ninguém', () => {
   assert.deepEqual(new FilaDeAnimacao().esperando(), []);
 });
+
+/*
+ * Espiar é o que permite reservar a urna ANTES de se comprometer com o voto.
+ *
+ * Sem ele, a mão tirava o item da fila e só então descobria que não tinha
+ * onde digitar — e o voto ficava preso na mão de quem não podia executá-lo.
+ */
+test('espiar mostra o próximo sem tirá-lo da fila', () => {
+  const f = new FilaDeAnimacao();
+  f.enfileirar(voto('a'));
+  assert.equal(f.espiar().id, 'a');
+  assert.equal(f.pendentes, 1, 'espiar consumiu o item');
+  assert.equal(f.proximo().id, 'a');
+});
+
+test('espiar não entrega nada na fila vazia nem com a fila ocupada', () => {
+  const f = new FilaDeAnimacao({ maxSimultaneas: 1 });
+  assert.equal(f.espiar(), null);
+  f.enfileirar(voto('a'));
+  f.enfileirar(voto('b'));
+  f.proximo();
+  assert.equal(f.espiar(), null, 'espiou com a vaga já tomada');
+  f.concluir('a');
+  assert.equal(f.espiar().id, 'b');
+});

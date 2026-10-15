@@ -57,6 +57,23 @@ export class FilaDeAnimacao {
     return { aceito: true, modo };
   }
 
+  /**
+   * O próximo item, sem tirá-lo da fila. Null nas mesmas condições de
+   * `proximo()`.
+   *
+   * Existe para a mão poder reservar a urna ANTES de se comprometer com o
+   * voto. Sem ele a ordem era a inversa — tirar o item e só então descobrir
+   * quais urnas estão livres —, e como as duas mãos tiram item no mesmo
+   * quadro, o segundo voto do 13 saía com a urna do Lula na mão de quem já
+   * a tinha. Não devolve cópia: o item espiado é o MESMO objeto que
+   * `proximo()` vai entregar, e é por isso que a reserva feita a partir dele
+   * vale para o voto que vai rodar.
+   */
+  espiar() {
+    if (this.ocupada || this.itens.length === 0) return null;
+    return this.itens[0];
+  }
+
   /** Devolve o próximo item ou null se a fila estiver ocupada ou vazia. */
   proximo() {
     if (this.ocupada || this.itens.length === 0) return null;

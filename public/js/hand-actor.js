@@ -112,6 +112,18 @@ export class AtorDaMao {
      * livre e uma terceira mão começaria um voto por cima.
      */
     this.tickDaFila = opcoes.tickDaFila ?? true;
+    /*
+     * A reserva de urnas é da EQUIPE, e não de cada mão.
+     *
+     * Duas mãos escolhendo ao mesmo tempo precisam de uma resposta só: se
+     * cada ator decidisse por conta própria qual urna pegar, as duas
+     * olhariam para a mesma lista livre no mesmo quadro e as duas escolheriam
+     * a urna do Lula. Ver urnas-livres.js.
+     *
+     * Sem reserva — um ator sozinho, num teste — o voto usa a urna que veio
+     * dentro dele, que é como o projeto funcionava antes das duas mãos.
+     */
+    this.reserva = opcoes.reservaDeUrnas ?? null;
     this.posicao = { ...MAO_FORA_DE_CENA };
     this.poseAtual = POSES.repouso;
     this.timelineAtual = null;
@@ -225,8 +237,22 @@ export class AtorDaMao {
     return t;
   }
 
-  /** Executa um voto completo numa urna. Devolve Promise para a fila. */
-  executarVoto({ urna, numero, votos, usuario = '', presente = '' }) {
+  /**
+   * Executa um voto completo. Devolve Promise para a fila.
+   *
+   * `urna` é a MÁQUINA em que a mão vai digitar, e `destino` é a urna do
+   * CANDIDATO — quem recebe o voto. Os dois deixaram de ser a mesma coisa no
+   * dia em que a urna virou máquina: dois espectadores mandando o presente
+   * do 13 no mesmo segundo precisam de duas urnas para digitar, e só existe
+   * um candidato do 13 para receber os dois votos.
+   *
+   * Sem `destino` — um voto enfileirado à mão, num teste — quem recebe é a
+   * própria máquina, que é como o projeto funcionava antes de existirem as
+   * duas mãos.
+   */
+  executarVoto({ urna, destino, numero, votos, usuario = '', presente = '' }) {
+    // Quem recebe o voto, e quem apenas o digita.
+    const dono = destino ?? urna;
     return new Promise((resolve) => {
       const timeline = this.pool.obter();
       const geometria = this.geometriaDe(urna);
@@ -259,11 +285,31 @@ export class AtorDaMao {
              * CONFIRMADO" com a contagem velha e o placar parado por um
              * segundo inteiro, como se o voto não tivesse entrado.
              */
-            if (t === 'CONFIRMA') this.avisarContagem(urna, numero, votos);
+            if (t === 'CONFIRMA') this.avisarContagem(dono, numero, votos);
           },
           aoSoltarTecla: (t) => { urna.soltarTecla(t); setTimeout(() => urna.acenderLed(t, false), 140); },
-          // A urna completa o estado com a identidade dela mesma.
-          aoMostrarTela: (estado) => urna.definirTela(estado),
+          /*
+           * A máquina completa o estado com a identidade DELA — cor, cargo,
+           * e a identidade dela em repouso —, e o voto entra por cima.
+           *
+           * A ficha que aparece na tela é a do candidato que está sendo
+           * votado, e não a do dono da máquina. Sem isto, a segunda rosa do
+           * 13 — que vai para a urna azul porque a vermelha está ocupada —
+           * digitaria o 13 numa urna que não conhece o 13, e o eleitor
+           * confirmaria o voto na frente de uma ficha vazia.
+           *
+           * O repouso é a exceção, e é de propósito: acabado o voto, a
+           * máquina volta a ser ela mesma. É o que ela é entre um eleitor e
+           * outro.
+           */
+          aoMostrarTela: (estado) => urna.definirTela(estado.tipo === 'ocioso' ? estado : {
+            ...estado,
+            numero,
+            candidato: dono.config?.candidato,
+            // A contagem é a do CANDIDATO, e não a da máquina: a tela
+            // anuncia "VOTO CONFIRMADO" para quem recebeu o voto.
+            votos: dono.config?.contagem?.() ?? votos,
+          }),
           aoSairCedula: () => {
             urna.mostrarCedula({ usuario, presente, votos });
             urna.el.classList.add(CLASSES_DE_ESTADO.cedulaSaindo);
@@ -325,27 +371,52 @@ export class AtorDaMao {
       if (this.tickDaFila) this.fila.tick(delta);
       if (this.ocupado) return;
 
+      /*
+       * A urna é reservada ANTES de o voto sair da fila.
+       *
+       * Enquanto a escolha era feita por quem enfileirava, a decisão saía no
+       * escuro: no instante em que o segundo presente do 13 entrava, a urna
+       * do Lula ainda não estava ocupada, então os dois votos saíam com a
+       * mesma máquina na mão — duas mãos na mesma tecla, e a outra urna
+       * parada no enquadramento.
+       *
+       * `espiar` em vez de `proximo` porque a reserva pode não dar em nada:
+       * com as máquinas todas tomadas, este passo espera o próximo quadro em
+       * vez de tirar um voto da fila e ficar sem onde executá-lo.
+       */
+      const espiado = this.fila.espiar();
+      if (!espiado) return;
+      const urna = this.reserva ? this.reserva.pegar(espiado) : espiado.urna;
+      if (!urna) return;
+
       const item = this.fila.proximo();
-      if (!item) return;
+      if (!item) { this.reserva?.devolver(urna); return; }
 
       this.ocupado = true;
       const executar = item.modo === 'lote'
-        ? this.carimbar(item)
-        : this.executarVoto(item);
+        ? this.carimbar(item, urna)
+        : this.executarVoto({ ...item, urna });
 
       executar
         .catch((erro) => console.error('[ator] falha ao animar voto', erro))
         .finally(() => {
           this.fila.concluir(item.id);
+          this.reserva?.devolver(urna);
           this.ocupado = false;
         });
     });
   }
 
-  /** Avisa quem conta os votos. Um lugar só, para os dois caminhos. */
-  avisarContagem(urna, numero, votos) {
+  /**
+   * Avisa quem conta os votos. Um lugar só, para os dois caminhos.
+   *
+   * O aviso leva a urna do CANDIDATO — a máquina em que a mão digitou não
+   * entra na conta. É esta linha que faz o voto do 13 dado na urna azul
+   * somar para o Lula em vez de somar para o dono do gabinete azul.
+   */
+  avisarContagem(dono, numero, votos) {
     tentar('avisar quem conta os votos', () => this.aoContarVoto({
-      urnaId: urna.config.id, numero, votos,
+      urnaId: dono.config.id, numero, votos,
     }));
   }
 
@@ -354,13 +425,13 @@ export class AtorDaMao {
    * O voto já foi contado — este carimbo é só o registro visual de que
    * ele passou. Precisa ser visível, senão a rajada parece não fazer nada.
    */
-  carimbar(item) {
+  carimbar(item, maquina = item.urna) {
     return new Promise((resolve) => {
-      const urna = item.urna;
+      const urna = maquina;
       // O carimbo não passa pela coreografia, então o aviso sai aqui: sem
       // ele, uma rajada de cem votos movia a mão cem vezes e não somava
       // nenhum no placar.
-      this.avisarContagem(urna, item.numero, item.votos ?? 1);
+      this.avisarContagem(item.destino ?? urna, item.numero, item.votos ?? 1);
       urna.el.classList.add(CLASSES_DE_ESTADO.destacada, CLASSES_DE_ESTADO.contando);
       urna.pressionarTecla('CONFIRMA');
       urna.acenderLed('CONFIRMA', true);
