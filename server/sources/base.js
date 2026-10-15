@@ -17,45 +17,99 @@
  */
 
 /**
+ * O que a live manda além de presente.
+ *
+ * A lista é FECHADA de propósito. Um tipo desconhecido não é um evento
+ * incompleto, é uma versão futura da ponte falando com um servidor antigo —
+ * e inventar um evento a partir dele faria o narrador narrar coisa nenhuma,
+ * com o nome do usuário no meio.
+ *
+ * `comentario` não está aqui e não é esquecimento: comentário é o canal de
+ * comando do outro projeto, chega dezenas por minuto, e narrar cada um
+ * transformaria o narrador num leitor de chat. Se um dia fizer falta, entra
+ * aqui e ganha uma frase.
+ */
+export const TIPOS_SOCIAIS = ['seguidor', 'curtida', 'entrada', 'compartilhou', 'assinatura'];
+
+/**
  * O evento comum.
  *
- *   { plataforma, userId, usuario, giftId, giftNome, combo, comboIndex, em }
+ *   presente  { tipo, plataforma, userId, usuario, giftId, giftNome,
+ *               combo, comboIndex, em }
+ *   social    { tipo, plataforma, userId, usuario, [quantidade], em }
  *
- * Devolve `null` quando não há `giftId`: sem ele não há como mapear o
- * presente para uma urna, e a seção 7 é explícita em que contar para a urna
- * errada é pior do que não contar.
+ * O `tipo` é o discriminador, e é o que separa "isto conta um voto" de "isto
+ * merece uma fala". Sem ele, um seguidor chegando virava `null` e o narrador
+ * ficava mudo sem nada acusar erro.
+ *
+ * Devolve `null` quando não dá para saber o que é. No presente isso é mais
+ * sério do que parece: sem `giftId` não há como mapear o presente para uma
+ * urna, e a seção 7 é explícita em que contar para a urna errada é pior do
+ * que não contar.
  */
 export function normalizarEvento(bruto, plataforma = 'simulador') {
-  if (!bruto || bruto.giftId == null || bruto.giftId === '') return null;
+  if (!bruto) return null;
 
-  /*
-   * O `giftId` vira texto porque ele é comparado com `===` contra o que está
-   * escrito no painel, e a TikTok manda número em algumas versões do
-   * protocolo e texto em outras. Sem isto, o presente chegaria, não acharia
-   * urna, e não contaria — o defeito mais caro possível, porque some sem
-   * deixar rastro.
-   */
-  const giftId = String(bruto.giftId);
+  const texto = (valor) => (valor == null ? '' : String(valor).trim());
   const inteiro = (valor, padrao) => {
     const n = Math.floor(Number(valor));
     return Number.isFinite(n) && n > 0 ? n : padrao;
   };
-  const texto = (valor) => (valor == null ? '' : String(valor).trim());
 
-  return {
+  const temGiftId = bruto.giftId != null && bruto.giftId !== '';
+
+  /*
+   * O `tipo` escrito MANDA. O `giftId` só decide quando ninguém disse o tipo,
+   * que é o caso do simulador — ele nasceu antes disto existir e não manda
+   * `tipo` nenhum.
+   *
+   * A ordem importa: um evento que se declara `seguidor` e traz um `giftId`
+   * de brinde NÃO pode virar voto. A regra nunca é "tem giftId, então conta";
+   * é sempre "o que este evento diz que é".
+   */
+  const tipo = texto(bruto.tipo).toLowerCase() || (temGiftId ? 'presente' : '');
+
+  const comum = {
+    tipo,
     plataforma: texto(bruto.plataforma) || plataforma,
     userId: texto(bruto.userId),
     // A TikTok chama de `nickname` em algumas versões e de `userName` em
     // outras; o resto do sistema só conhece `usuario`.
     usuario: texto(bruto.usuario ?? bruto.userName ?? bruto.nickname),
-    giftId,
-    giftNome: texto(bruto.giftNome ?? bruto.giftName),
-    // Combo ausente é presente simples. Combo zero contaria zero votos e o
-    // presente sumiria da contagem sem aviso nenhum.
-    combo: inteiro(bruto.combo, 1),
-    comboIndex: Number.isFinite(Number(bruto.comboIndex)) ? Math.max(0, Math.floor(Number(bruto.comboIndex))) : 0,
     em: Number.isFinite(Number(bruto.em)) ? Number(bruto.em) : Date.now(),
   };
+
+  if (tipo === 'presente') {
+    if (!temGiftId) return null;
+    return {
+      ...comum,
+      /*
+       * O `giftId` vira texto porque ele é comparado com `===` contra o que
+       * está escrito no painel, e a TikTok manda número em algumas versões do
+       * protocolo e texto em outras. Sem isto, o presente chegaria, não
+       * acharia urna, e não contaria — o defeito mais caro possível, porque
+       * some sem deixar rastro.
+       */
+      giftId: String(bruto.giftId),
+      giftNome: texto(bruto.giftNome ?? bruto.giftName),
+      // Combo ausente é presente simples. Combo zero contaria zero votos e o
+      // presente sumiria da contagem sem aviso nenhum.
+      combo: inteiro(bruto.combo, 1),
+      comboIndex: Number.isFinite(Number(bruto.comboIndex))
+        ? Math.max(0, Math.floor(Number(bruto.comboIndex)))
+        : 0,
+    };
+  }
+
+  if (TIPOS_SOCIAIS.includes(tipo)) {
+    // A quantidade só existe onde ela significa alguma coisa. Uma entrada
+    // com `quantidade: 1` seria um campo que ninguém pode ler sem desconfiar.
+    return tipo === 'curtida'
+      ? { ...comum, quantidade: inteiro(bruto.quantidade ?? bruto.count, 1) }
+      : comum;
+  }
+
+  return null;
 }
 
 /**

@@ -71,6 +71,89 @@ test('um presente sem giftId não é evento', () => {
   assert.equal(normalizarEvento(null), null);
 });
 
+/* ------------------------------------------------------------- o social */
+
+/*
+ * Nem tudo que chega da live é voto.
+ *
+ * A v1 deste arquivo só conhecia presente, e a consequência era silenciosa:
+ * um seguidor chegava, o `normalizarEvento` devolvia `null`, e o narrador
+ * ficava mudo sem que nada acusasse erro. O Leonardo pediu o narrador
+ * justamente para isso — "quando alguem segue e tal".
+ *
+ * O que muda é o discriminador `tipo`. O que NÃO muda é a regra do presente:
+ * contar para a urna errada continua sendo pior do que não contar, e um
+ * presente sem `giftId` continua não sendo evento.
+ */
+
+test('um seguidor vira evento, e não voto', () => {
+  const e = normalizarEvento({ tipo: 'seguidor', userId: 'ana', usuario: 'Ana' }, 'tiktok');
+  assert.equal(e.tipo, 'seguidor');
+  assert.equal(e.usuario, 'Ana');
+  assert.equal(e.userId, 'ana');
+  assert.equal(e.plataforma, 'tiktok');
+  // Sem `giftId`: é o que impede o motor de contar isto como voto para
+  // alguma urna. O narrador lê o evento; o placar não.
+  assert.ok(e.giftId == null, 'um seguidor ganhou giftId e viraria voto');
+});
+
+test('o presente ganha o tipo, sem perder nada do que já tinha', () => {
+  // O hub precisa do discriminador para saber o que contar e o que narrar.
+  const e = normalizarEvento({ giftId: '2', userId: 'ana', combo: 3 });
+  assert.equal(e.tipo, 'presente');
+  assert.equal(e.giftId, '2');
+  assert.equal(e.combo, 3);
+});
+
+test('um presente sem giftId não vira evento nem com o tipo escrito', () => {
+  // O `tipo` diz o que o evento É; o `giftId` diz PARA ONDE o voto vai. Um
+  // evento que se declara presente sem dizer para onde contar é exatamente o
+  // caso que a seção 7 manda recusar.
+  assert.equal(normalizarEvento({ tipo: 'presente', userId: 'ana' }), null);
+  assert.equal(normalizarEvento({ tipo: 'presente', giftId: '' }), null);
+});
+
+test('a curtida carrega quantas, e sozinha vale uma', () => {
+  // O narrador diz "valeu pelas 12 curtidas". Sem a quantidade ele diria
+  // "pelas 0 curtidas", e sem o padrão diria "pelas undefined".
+  assert.equal(normalizarEvento({ tipo: 'curtida', quantidade: 12 }).quantidade, 12);
+  assert.equal(normalizarEvento({ tipo: 'curtida' }).quantidade, 1);
+  assert.equal(normalizarEvento({ tipo: 'curtida', quantidade: 0 }).quantidade, 1);
+  assert.equal(normalizarEvento({ tipo: 'curtida', quantidade: 'x' }).quantidade, 1);
+});
+
+test('os outros tipos sociais também passam', () => {
+  // Entrada, compartilhamento e assinatura são o "e tal" do pedido. Cada um
+  // tem a sua frase no narrador, e todos chegam pelo mesmo caminho.
+  for (const tipo of ['entrada', 'compartilhou', 'assinatura']) {
+    const e = normalizarEvento({ tipo, userId: 'ana', usuario: 'Ana' });
+    assert.equal(e?.tipo, tipo, `${tipo} não passou`);
+  }
+});
+
+test('o tipo é lido sem se importar com maiúscula', () => {
+  // O JSON vem de um processo Python, e um dia alguém vai escrever
+  // "SEGUIDOR" num deles. Não é motivo para a live ficar muda.
+  assert.equal(normalizarEvento({ tipo: 'SEGUIDOR', userId: 'ana' })?.tipo, 'seguidor');
+  assert.equal(normalizarEvento({ tipo: ' Seguidor ', userId: 'ana' })?.tipo, 'seguidor');
+});
+
+test('um tipo que ninguém conhece não vira evento', () => {
+  // A lista é fechada de propósito. Um tipo desconhecido é uma versão futura
+  // da ponte falando com um servidor antigo — e inventar um evento a partir
+  // dele faria o narrador narrar coisa nenhuma.
+  assert.equal(normalizarEvento({ tipo: 'dancou', userId: 'ana' }), null);
+  assert.equal(normalizarEvento({ tipo: '', userId: 'ana' }), null);
+  assert.equal(normalizarEvento({ tipo: 'presente' }), null);
+});
+
+test('o evento social tem o apelido limpo, e nunca a palavra undefined', () => {
+  const e = normalizarEvento({ tipo: 'seguidor' });
+  assert.equal(e.usuario, '');
+  assert.equal(e.userId, '');
+  assert.equal(typeof e.em, 'number');
+});
+
 test('o apelido em branco é apelido vazio, e não a palavra undefined', () => {
   // O nome vai para o cartão do placar. `undefined` impresso na tela da live
   // é o tipo de coisa que ninguém vê no teste e todo mundo vê na transmissão.
