@@ -13,3 +13,8 @@ data/
 Thumbs.db
 Desktop.ini
 .DS_Store
+
+# Rascunho do processo de desenvolvimento (planos em execução, capturas do
+# portão visual, perfis de navegador headless). É descartável: o histórico do
+# git é o registro, e um perfil de Chrome tem centenas de arquivos.
+.superpowers/
