@@ -738,7 +738,6 @@ Expected: FAIL — `paraCoordenadasDoPalco is not a function`
 
 ```js
 // public/js/urna.js
-import { POSES } from './hand/poses.js';
 
 /**
  * Converte um DOMRect do viewport para coordenadas do palco (1080x1920),
@@ -2167,7 +2166,7 @@ export class PoolDeTimelines {
 - [ ] **Step 4: Rodar o teste e confirmar que passa**
 
 Run: `node --test tests/timeline.test.js`
-Expected: PASS — 12 testes
+Expected: PASS — 15 testes
 
 - [ ] **Step 5: Commit**
 
@@ -3590,6 +3589,7 @@ export class AtorDaMao {
     this.timelineAtual = null;
     this.ocupado = false;
     this._geometriaCache = null;
+    this._contadorPercurso = 0;
 
     camada.append(renderizador.sombra, renderizador.el);
     renderizador.posicionar(this.posicao.x, this.posicao.y, { escala: 1 });
@@ -3613,7 +3613,14 @@ export class AtorDaMao {
 
   /**
    * Move a mão ao longo de um arco até o alvo, com a pose indicada.
-   * Devolve a timeline para quem chamou poder encadear.
+   *
+   * Esta chamada acontece NO MEIO da execução da timeline, disparada por um
+   * `chamar` da coreografia. Por isso o tween é ancorado em `t.decorrido` e
+   * não em zero: um tween `at: 0` nasceria já vencido (`decorrido > fim` no
+   * primeiro tick) e a mão teleportaria para o alvo em vez de percorrer o arco.
+   *
+   * O id é único porque a mesma timeline recebe vários percursos; com id fixo,
+   * dois percursos correm juntos e disputam a posição da mão.
    */
   moverPara({ alvo, pose = 'apontando', duracao = 420, timeline = null }) {
     const t = timeline ?? this.pool.obter();
@@ -3622,10 +3629,11 @@ export class AtorDaMao {
     const caminho = calcularCaminho(origem, destino, { arco: 70 });
     const poseAlvo = POSES[pose] ?? POSES.apontando;
     const posePartida = this.poseAtual;
+    const id = `percurso-${++this._contadorPercurso}`;
 
     // Sobe no meio do trajeto: a altura alimenta a sombra projetada.
-    t.add('percurso', {
-      at: 0, dur: duracao, ease: 'in-out-cubic', from: 0, to: 1,
+    t.add(id, {
+      at: t.decorrido, dur: duracao, ease: 'in-out-cubic', from: 0, to: 1,
       onUpdate: (p) => {
         const idx = Math.min(caminho.length - 1, Math.floor(p * (caminho.length - 1)));
         const ponto = caminho[idx];
