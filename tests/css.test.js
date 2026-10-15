@@ -70,3 +70,50 @@ test('todo CSS e JS referenciado pelo HTML existe no disco', async () => {
     await readFile(DIR_PUBLICO + ref.slice(1), 'utf8');
   }
 });
+
+test('o palco se centra sem depender do alinhamento do container', async () => {
+  /*
+   * O palco é MAIOR que a janela (1080x1920 contra qualquer monitor), e um
+   * grid ou flex não centra filho que transborda: a linha do grid cresce
+   * para baixo e o item encosta no topo dela. Com `place-items: center` e
+   * `transform-origin: center center`, a escala então gira em torno de um
+   * centro que está abaixo do centro da tela.
+   *
+   * Medido no navegador antes desta correção, com o palco a 1080x1920:
+   *
+   *   janela      | escala | topo do palco | faixa em cima | cortado embaixo
+   *   1080x1920   | 1.000  | 0             | 0             | 0
+   *   1920x1080   | 0.563  | 420           | 420           | 420
+   *   1536x730    | 0.380  | 595           | 595           | 595
+   *   1280x800    | 0.417  | 560           | 560           | 560
+   *
+   * Ou seja: só o formato exato do OBS ficava certo. Em qualquer outro, uma
+   * faixa morta em cima e o rodapé da cena fora da tela.
+   *
+   * A ancoragem tem que ser no centro da janela, e a escala em torno desse
+   * mesmo ponto.
+   */
+  const cena = semComentarios(await readFile(DIR_CSS + 'scene.css', 'utf8'));
+  const regra = (seletor) => {
+    const alvo = seletor.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    // `String.raw` não é enfeite: dentro de um template literal comum, `\s`
+    // vira `s` e `\{` vira `{`, e o padrão deixa de casar com o espaço antes
+    // da chave — o teste então falha dizendo "regra não encontrada" para uma
+    // regra que está bem ali na frente.
+    const m = new RegExp(String.raw`(?:^|[}\s])${alvo}\s*\{([^}]*)\}`).exec(cena);
+    assert.ok(m, `regra não encontrada: ${seletor}`);
+    return m[1];
+  };
+
+  const palco = regra('.palco');
+  assert.match(palco, /position:\s*absolute/,
+    'o palco precisa sair do fluxo do grid: um filho maior que a janela não é centrado por ele');
+  assert.match(palco, /left:\s*50%/,
+    'o palco não está ancorado no centro horizontal da janela');
+  assert.match(palco, /top:\s*50%/,
+    'o palco não está ancorado no centro vertical da janela');
+  assert.match(palco.replace(/\s+/g, ' '), /translate\(\s*-50%\s*,\s*-50%\s*\)/,
+    'falta o translate que põe o CENTRO do palco no centro da janela antes de escalar');
+  assert.match(palco, /transform-origin:\s*center/,
+    'a escala precisa girar em torno do centro, que agora é o centro da janela');
+});

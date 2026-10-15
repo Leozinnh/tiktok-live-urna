@@ -1,24 +1,48 @@
 /* Cenário: parede da cabine, armário ao fundo, mesa, piso e camadas do palco. */
 
+/*
+ * A cena não centraliza mais ninguém: quem se centra é o palco, e sozinho.
+ *
+ * Havia aqui um `display: grid` com `place-items: center`, e ele não fazia o
+ * que parecia fazer. O palco é MAIOR que a janela (1080x1920 contra qualquer
+ * monitor), e grid não centra filho que transborda: a linha do grid cresce
+ * para baixo até caber o item e ele encosta no topo dessa linha, que começa
+ * no topo da cena. O `place-items` não tem contra o que centralizar.
+ */
 .cena {
   position: fixed;
   inset: 0;
-  display: grid;
-  place-items: center;
   background: #0b0b0f;
   overflow: hidden;
 }
 
 /*
  * O palco é sempre 1080x1920 e desenhado nessa medida. A escala vem do JS
- * como --escala, e o transform-origin no centro mantém tudo centrado
- * quando a janela é mais larga ou mais alta que o palco.
+ * como --escala.
+ *
+ * A centralização é feita à mão, e é o motivo de o `position` ser `absolute`:
+ * `left/top: 50%` põe o canto superior esquerdo do palco no centro da janela,
+ * o `translate(-50%, -50%)` recua metade da largura e da altura — ou seja,
+ * põe o CENTRO do palco no centro da janela — e só então a escala acontece,
+ * girando em torno desse mesmo centro, que o `translate` já trouxe para o
+ * lugar certo. Fora do fluxo, o tamanho do palco não empurra mais nada.
+ *
+ * Medido no navegador, com o palco a 1080x1920:
+ *
+ *   janela      | escala | topo do palco | faixa em cima | cortado embaixo
+ *   1080x1920   | 1.000  | 0             | 0             | 0
+ *   1920x1080   | 0.563  | 420           | 420           | 420
+ *   1536x730    | 0.380  | 595           | 595           | 595
+ *
+ * Ou seja, antes desta correção só o formato exato do OBS ficava no lugar.
  */
 .palco {
-  position: relative;
+  position: absolute;
+  left: 50%;
+  top: 50%;
   width: var(--palco-largura);
   height: var(--palco-altura);
-  transform: scale(var(--escala, 0.5));
+  transform: translate(-50%, -50%) scale(var(--escala, 0.5));
   transform-origin: center center;
   overflow: hidden;
   background: linear-gradient(180deg, var(--parede-alta) 0%, var(--parede-baixa) 100%);
