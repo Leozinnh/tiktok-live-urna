@@ -3,6 +3,12 @@ import { readFile, stat } from 'node:fs/promises';
 import { realpathSync } from 'node:fs';
 import { extname, join, normalize, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { abrirBanco } from './db.js';
+import { criarTally } from './tally.js';
+import { criarHub } from './hub.js';
+import { criarSimulador } from './sources/simulator.js';
+import { carregar, salvar, caminhoDaConfig } from './config.js';
+import { chaveDeAceite, codificarFrame, decodificarFrames } from './ws.js';
 
 const TIPOS = {
   '.html': 'text/html; charset=utf-8',
@@ -120,7 +126,42 @@ async function servirFoto(res, pasta, nome) {
   }
 }
 
-export function criarServidor({ raiz, config, fotos }) {
+/**
+ * Monta o motor inteiro e devolve as peças.
+ *
+ * O motor sobe LIGADO: uma fonte parada é o defeito mais silencioso que este
+ * projeto pode ter — o painel abre, tudo responde, e nenhum presente vira
+ * voto. Quem precisar de uma fonte parada chama `fonte.parar()`.
+ *
+ * `caminhoDoBanco` é parâmetro porque a suíte não pode escrever no banco da
+ * live: um teste que apaga a rodada do Leonardo é pior do que nenhum teste.
+ */
+export function montarMotor({ config, caminhoDoBanco = ':memory:', aoSalvar = null }) {
+  const db = abrirBanco(caminhoDoBanco);
+  const tally = criarTally({ db, config });
+  const fonte = criarSimulador();
+  const hub = criarHub({ tally, fonte, config, aoSalvar });
+  fonte.iniciar();
+  /*
+   * A rodada já nasce aberta. Sem ela o motor não tem onde contar — a seção
+   * 4.5 grava o voto numa rodada, e um voto sem rodada não existe no banco.
+   */
+  tally.abrirRodada();
+  return { db, tally, fonte, hub };
+}
+
+/** O cabeçalho do upgrade, montado à mão porque são quatro linhas. */
+function aceitarUpgrade(chave) {
+  return [
+    'HTTP/1.1 101 Switching Protocols',
+    'Upgrade: websocket',
+    'Connection: Upgrade',
+    `Sec-WebSocket-Accept: ${chaveDeAceite(chave)}`,
+    '', '',
+  ].join('\r\n');
+}
+
+export function criarServidor({ raiz, config, fotos, motor = null }) {
   // Por parâmetro para o teste não depender do config/local.json de verdade
   // de quem roda a suíte — e para a rota poder ser exercitada sem mexer no
   // arquivo do Leonardo.
@@ -130,7 +171,7 @@ export function criarServidor({ raiz, config, fotos }) {
   // dentro, para não ser varrida junto com o código.
   const pastaDasFotos = fotos ?? join(raiz, '..', 'fotos');
 
-  return createServer((req, res) => {
+  const servidor = createServer((req, res) => {
     // Envolvido à mão em vez de async/await: uma promessa rejeitada aqui
     // derrubaria o processo inteiro no meio de uma live.
     (async () => {
@@ -178,6 +219,66 @@ export function criarServidor({ raiz, config, fotos }) {
       }
     })();
   });
+
+  if (motor) ligarWebSocket(servidor, motor);
+  return servidor;
+}
+
+/**
+ * O canal ao vivo — seção 5 da especificação.
+ *
+ * O `upgrade` é do HTTP, e é aqui que ele encontra o hub: o handshake escolhe
+ * o caminho, o papel vem da URL, e daí para dentro é tudo quadro. É a única
+ * junção entre as duas metades do servidor, e por isso ela mora sozinha.
+ */
+function ligarWebSocket(servidor, { hub }) {
+  servidor.on('upgrade', (req, socket) => {
+    const chave = req.headers['sec-websocket-key'];
+    // Sem a chave não há handshake possível: um cliente que não é um
+    // WebSocket, ou um proxy que perdeu o cabeçalho no caminho.
+    if (!chave) { socket.destroy(); return; }
+
+    let papel = 'broadcast';
+    try {
+      papel = new URL(req.url, 'http://localhost').searchParams.get('papel') === 'admin'
+        ? 'admin'
+        : 'broadcast';
+    } catch { /* URL estranha é tela, não painel: o padrão é o mais restrito */ }
+
+    socket.write(aceitarUpgrade(chave));
+
+    const cliente = hub.conectar(
+      {
+        enviar: (texto) => {
+          if (!socket.destroyed) socket.write(codificarFrame(texto));
+        },
+      },
+      { papel },
+    );
+
+    let resto = Buffer.alloc(0);
+    socket.on('data', (pedaco) => {
+      const { mensagens, resto: sobra } = decodificarFrames(Buffer.concat([resto, pedaco]));
+      resto = sobra;
+      for (const texto of mensagens) cliente.receber(texto);
+    });
+    // 'close', 'end' e 'error' chegam os três quando um socket morre, e não
+    // se sabe qual primeiro. `fechar` é idempotente, então os três chamam.
+    socket.on('close', () => cliente.fechar());
+    socket.on('end', () => cliente.fechar());
+    socket.on('error', () => cliente.fechar());
+  });
+
+  /*
+   * O relógio da rodada, de segundo em segundo.
+   *
+   * `unref` porque este temporizador não é motivo para o processo continuar
+   * vivo: quem segura o processo é o servidor escutando. Sem ele, um teste
+   * que fecha o servidor ficaria pendurado até alguém matar na mão.
+   */
+  const relogio = setInterval(() => hub.tick(), 1000);
+  relogio.unref?.();
+  servidor.on('close', () => clearInterval(relogio));
 }
 
 /**
@@ -196,11 +297,31 @@ function executadoDireto() {
 
 if (executadoDireto()) {
   const raiz = fileURLToPath(new URL('../public/', import.meta.url));
+  const projeto = fileURLToPath(new URL('../', import.meta.url));
   const porta = Number(process.env.PORT ?? 3000);
-  criarServidor({ raiz }).listen(porta, () => {
+  const caminhoLocal = caminhoDaConfig(projeto);
+
+  const { config, avisos, erro } = await carregar(caminhoLocal);
+  for (const a of avisos) console.warn(`  aviso: ${a}`);
+  if (erro) console.warn(`  aviso: ${erro} — seguindo com a configuração padrão`);
+
+  const motor = montarMotor({
+    config,
+    caminhoDoBanco: join(projeto, 'dados', 'votos.sqlite'),
+    // Gravar é assíncrono e o hub não espera: o painel recebe o
+    // `config.changed` com a configuração que JÁ está valendo, e o arquivo
+    // alcança o disco um instante depois. Um disco lento não pode segurar o
+    // aviso que o painel mostra.
+    aoSalvar: (nova) => {
+      salvar(caminhoLocal, nova).catch((e) => console.error(`[config] não gravou: ${e.message}`));
+    },
+  });
+
+  criarServidor({ raiz, motor }).listen(porta, () => {
     console.log('');
     console.log('  Live Vote Arena');
-    console.log(`  Live:  http://localhost:${porta}`);
+    console.log(`  Live:   http://localhost:${porta}`);
+    console.log(`  Painel: http://localhost:${porta}/admin.html`);
     console.log('');
   });
 }

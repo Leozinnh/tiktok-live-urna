@@ -76,7 +76,7 @@ export function codificarControle(opcode) {
 }
 
 /**
- * Decodifica o que chegou do cliente.
+ * Decodifica o que chegou.
  *
  * Devolve `{ mensagens, resto }`:
  *
@@ -90,8 +90,14 @@ export function codificarControle(opcode) {
  * Quadros de controle são consumidos e descartados — entregá-los adiante
  * faria um `JSON.parse` explodir num `ping`, que não é erro nenhum: é o
  * navegador dizendo "tô aqui".
+ *
+ * `exigirMascara` é o PAPEL de quem lê, e não uma preferência: o RFC 6455
+ * obriga o cliente a mascarar e PROÍBE o servidor de mascarar (seção 5.1).
+ * O padrão é o lado do servidor, que é o exigente — um decodificador
+ * permissivo por descuido daria um servidor que aceita o que não deve. Quem
+ * lê do lado do cliente diz isso em voz alta.
  */
-export function decodificarFrames(buffer) {
+export function decodificarFrames(buffer, { exigirMascara = true } = {}) {
   const mensagens = [];
   let pos = 0;
 
@@ -115,7 +121,8 @@ export function decodificarFrames(buffer) {
 
     // Um cliente que não mascara está fora do protocolo. Recusar o quadro é
     // mais seguro do que adivinhar onde ele termina.
-    if (!mascarado && opcode !== OPCODE.close && opcode !== OPCODE.ping && opcode !== OPCODE.pong) {
+    if (exigirMascara && !mascarado && opcode !== OPCODE.close
+      && opcode !== OPCODE.ping && opcode !== OPCODE.pong) {
       break;
     }
     const inicioDaMascara = pos + cabecalho;

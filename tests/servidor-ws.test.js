@@ -106,6 +106,27 @@ test('lixo binário não derruba o decodificador', () => {
   assert.deepEqual(mensagens, [], 'um quadro binário virou mensagem de texto');
 });
 
+test('do lado do servidor, um quadro de texto SEM máscara é recusado', () => {
+  // RFC 6455, seção 5.1: o cliente é obrigado a mascarar. Um quadro sem
+  // máscara chegando no servidor é um cliente fora do protocolo — ou um
+  // intermediário reescrevendo bytes —, e aceitar seria adivinhar.
+  const { mensagens } = decodificarFrames(codificarFrame('oi'));
+  assert.deepEqual(mensagens, []);
+});
+
+test('do lado do cliente, o quadro sem máscara é o normal', () => {
+  /*
+   * E o mesmo RFC proíbe o SERVIDOR de mascarar. São dois papéis, um
+   * decodificador só, e a diferença tem que ser dita em voz alta: um
+   * decodificador permissivo por padrão daria um servidor que aceita quadro
+   * sem máscara, que é exatamente o que o teste acima proíbe.
+   */
+  const { mensagens } = decodificarFrames(codificarFrame('{"tipo":"state.full"}'), {
+    exigirMascara: false,
+  });
+  assert.deepEqual(JSON.parse(mensagens[0]), { tipo: 'state.full' });
+});
+
 /** Mascara um payload como o navegador faz — RFC 6455, seção 5.3. */
 function mascara(payload) {
   const chave = Buffer.from([0x12, 0x34, 0x56, 0x78]);

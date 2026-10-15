@@ -3,10 +3,15 @@ node_modules/
 # Configuração local do painel (sobrepõe o padrão)
 config/local.json
 
-# Banco de dados e logs
+# Banco de dados e logs. O `-wal` e o `-shm` são do journal em WAL, que o
+# SQLite cria ao lado do arquivo principal: sem eles aqui, o primeiro
+# `git add .` commitaria o estado interno do banco da live.
 data/
+dados/
 *.sqlite
 *.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
 *.log
 
 # Sistema operacional
