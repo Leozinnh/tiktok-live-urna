@@ -199,6 +199,23 @@ test('a boca não invade a tela nem a placa de identificação', () => {
     `a boca termina em y=${fundoDaBoca} e a tela começa em y=${comprimento('.urna__tela', 'top')}`);
 });
 
+test('a fenda encosta no painel do teclado, sem boiar no corpo', () => {
+  /*
+   * Na foto não existe fenda: a placa de identificação assenta DIRETO no
+   * painel preto do teclado. Aqui a fenda precisa existir, porque é de lá
+   * que o papel sai — mas se ela ficar solta no meio do plástico branco,
+   * vira um adesivo escuro colado no corpo, que é o que a cena mostrava
+   * quando a fenda boiava com folga dos dois lados.
+   *
+   * Encostada na borda de cima do painel, ela lê como o vinco onde o painel
+   * encontra o corpo: a costura de fábrica, e não uma peça pregada.
+   */
+  const fundoDaFenda = comprimento('.urna__slot', 'top') + comprimento('.urna__slot', 'height');
+  assert.equal(fundoDaFenda, comprimento('.urna__teclado', 'top'),
+    `a fenda termina em y=${fundoDaFenda} e o painel do teclado começa em `
+    + `y=${comprimento('.urna__teclado', 'top')}: sobrou corpo entre os dois`);
+});
+
 test('a boca é pintada por cima da cédula', () => {
   /*
    * O papel nasce com o topo DENTRO da fenda, então os primeiros 22px dele

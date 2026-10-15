@@ -98,28 +98,43 @@ function markupDiferenca(c) {
   return `<span class="cartao__diferenca cartao__diferenca--${c.posicao}">${esc(texto)}</span>`;
 }
 
+/*
+ * O raio do selo "NA FRENTE", desenhado e não escrito.
+ *
+ * É um `svg` de três pontos e não o glifo "⚡": o glifo é um emoji, e emoji
+ * não é desenho — muda de forma em cada sistema, e não aceita a cor do
+ * selo. Aqui ele herda `currentColor` e fica igual em qualquer máquina.
+ */
+const RAIO = `<svg class="cartao__raio" viewBox="0 0 12 16" aria-hidden="true">
+        <path d="M7.4 0 0 9.2h3.9L3.2 16 12 6.4H7.2L7.4 0Z" fill="currentColor"/>
+      </svg>`;
+
 function markupCartao(c) {
   // A largura da barra vai em % inline: é o único valor que muda a cada
   // voto, e uma classe por nível de 0 a 100 seria uma lista sem fim.
   const largura = (c.fracaoBarra * 100).toFixed(2);
+  const selo = c.posicao === 'lider'
+    ? `<span class="cartao__selo">${RAIO}na frente</span>`
+    : '';
   return `
       <article class="cartao cartao--${c.posicao}" data-urna="${esc(c.id)}"
                style="--cor-urna:${esc(c.cor ?? '#666')}">
         <header class="cartao__topo">
           <span class="cartao__numero">${esc(c.numero)}</span>
           <span class="cartao__nome">${esc(c.nome)}</span>
+          ${selo}
         </header>
-        <div class="cartao__contagem">
+        <div class="cartao__corpo">
           <span class="cartao__votos" data-votos="${esc(c.id)}">${esc(c.votos)}</span>
           <span class="cartao__unidade">votos</span>
+          <div class="cartao__barra">
+            <div class="cartao__barra-cheia" style="width:${largura}%"></div>
+          </div>
+          <footer class="cartao__rodape">
+            <span class="cartao__percentual">${esc(c.percentual)}</span>
+            ${markupDiferenca(c)}
+          </footer>
         </div>
-        <div class="cartao__barra">
-          <div class="cartao__barra-cheia" style="width:${largura}%"></div>
-        </div>
-        <footer class="cartao__rodape">
-          <span class="cartao__percentual">${esc(c.percentual)}</span>
-          ${markupDiferenca(c)}
-        </footer>
       </article>`;
 }
 
@@ -143,7 +158,7 @@ export function renderizarPlacar(placar) {
   return `
     <div class="placar__status">
       <div class="placar__bloco">
-        <span class="placar__rotulo">total de votos</span>
+        <span class="placar__rotulo">total</span>
         <span class="placar__valor" data-total>${esc(placar.total)}</span>
       </div>
       ${espectadores}

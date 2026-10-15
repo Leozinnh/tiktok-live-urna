@@ -119,3 +119,23 @@ test('o total de votos aparece em destaque', () => {
   assert.match(html, /109/);
   assert.match(html, /total/i);
 });
+
+test('o selo "na frente" sai só no cartão de quem lidera', () => {
+  /*
+   * O selo é a resposta que o olho pega antes de ler qualquer número. Se
+   * ele aparecesse nos dois cartões, não responderia nada; se sumisse do
+   * cartão do líder, o placar voltaria a exigir a comparação mental de
+   * "61 contra 48" para saber quem está ganhando.
+   */
+  const html = renderizarPlacar(calcularPlacar([U1, U2]));
+  const selos = [...html.matchAll(/class="cartao__selo"/g)];
+  assert.equal(selos.length, 1, 'o selo precisa aparecer exatamente uma vez');
+
+  // E ele está dentro do cartão do líder, que é o u1.
+  const cartaoLider = html.slice(html.indexOf('data-urna="u1"'));
+  assert.match(cartaoLider.slice(0, cartaoLider.indexOf('</article>')), /cartao__selo/,
+    'o selo ficou no cartão de quem está atrás');
+
+  const empatado = renderizarPlacar(calcularPlacar([{ ...U1, votos: 5 }, { ...U2, votos: 5 }]));
+  assert.ok(!/cartao__selo/.test(empatado), 'num empate ninguém está na frente');
+});

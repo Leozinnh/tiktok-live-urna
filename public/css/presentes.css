@@ -1,0 +1,149 @@
+/*
+ * A vitrine de presentes.
+ *
+ * Duas etiquetas flutuando abaixo da mesa, uma de cada lado do dedo que
+ * aponta — a mesma posição da referência. É a única parte da cena que
+ * ensina o que fazer: quem chega no meio da live vê o joinha ligado ao 22 e
+ * a rosa ligada ao 13 sem que ninguém precise escrever nada no chat.
+ *
+ * A faixa fica logo abaixo do tampo laranja, na altura em que os pés da
+ * mesa aparecem, e as duas posições são espelhadas: a distância da borda é
+ * a mesma dos dois lados, e é ela que mantém a composição equilibrada
+ * quando o dedo sobe no meio do quadro.
+ */
+
+.vitrine {
+  position: absolute;
+  left: 0;
+  right: 0;
+  /*
+   * 1152px é o tampo da mesa: 60% de 1920, o mesmo `--mesa-topo` da cena.
+   * O valor é literal porque o teste tests/css.test.js refaz a conta a
+   * partir do token — subir a vitrine para cima do tampo é o defeito que
+   * ele existe para pegar, e ele não pega o que não consegue ler.
+   */
+  top: 1152px;
+  height: 330px;
+  /*
+   * Sem z-index próprio: a vitrine vive na camada de efeitos, que é a que
+   * fica acima da mão. Na referência os presentes tapam os braços que
+   * entram pelas laterais, e é isso que os faz parecer colados no vidro —
+   * dentro da camada de baixo eles passariam por trás do braço.
+   */
+  pointer-events: none;
+}
+
+.vitrine__posicao {
+  position: absolute;
+  top: 0;
+  width: 250px;
+}
+.vitrine__posicao--esq { left: 118px; }
+.vitrine__posicao--dir { right: 118px; }
+
+.presente {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/*
+ * O brilho rosa por trás do presente.
+ *
+ * Na referência os dois presentes são adesivos com um contorno neon. Sem
+ * o brilho eles ficam colados no fundo e a leitura vira "adesivo de
+ * aplicativo"; com ele, os dois se descolam da parede e passam a flutuar,
+ * que é como a referência os desenha.
+ */
+.presente__brilho {
+  position: absolute;
+  left: 50%;
+  top: 96px;
+  width: 230px;
+  height: 230px;
+  margin: -115px 0 0 -115px;
+  border-radius: 50%;
+  background: radial-gradient(circle,
+    rgba(255, 47, 208, 0.55) 0%,
+    rgba(255, 47, 208, 0.22) 45%,
+    rgba(255, 47, 208, 0) 72%);
+  filter: blur(6px);
+}
+
+.presente__desenho {
+  position: relative;
+  width: 212px;
+  height: 212px;
+  display: block;
+  /* O contorno neon do adesivo, feito com dois drop-shadows: o de dentro
+     desenha a linha rosa colada no desenho, o de fora abre o halo. Um
+     `filter` só, e não uma borda, porque o desenho é transparente em
+     volta — a borda seguiria a caixa, não a silhueta. */
+  filter:
+    drop-shadow(0 0 3px #ff2fd0)
+    drop-shadow(0 0 14px rgba(255, 47, 208, 0.85))
+    drop-shadow(0 10px 16px rgba(30, 0, 40, 0.45));
+}
+
+/*
+ * A etiqueta: "Votar 22".
+ *
+ * Escura e fina, encostada na base do desenho — na referência ela se
+ * sobrepõe um pouco ao presente, como etiqueta de adesivo. O número sai na
+ * cor da urna e o verbo em branco: é a cor que faz a ligação com a urna, e
+ * o verbo só precisa ser lido uma vez.
+ */
+.presente__etiqueta {
+  position: relative;
+  margin-top: -26px;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 8px 22px 10px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(14, 10, 22, 0.94) 0%, rgba(6, 4, 12, 0.96) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 0 18px rgba(255, 47, 208, 0.35),
+    0 10px 22px rgba(0, 0, 0, 0.45);
+}
+
+.presente__verbo {
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #f4f4f8;
+}
+
+.presente__numero {
+  font-size: 38px;
+  font-weight: 900;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  color: var(--cor-urna, #8a8f98);
+  /* O número é aceso na cor da urna — é o que faz a etiqueta parecer um
+     letreiro e não um rótulo impresso. */
+  text-shadow:
+    0 0 10px var(--cor-urna, #8a8f98),
+    0 0 22px var(--cor-urna, #8a8f98);
+}
+
+/*
+ * O nome do presente, pequeno e discreto embaixo da etiqueta.
+ *
+ * Não está na referência, e é de propósito que ele seja menor do que
+ * qualquer outra coisa aqui: serve para quem opera a live conferir de
+ * relance qual presente está ligado a qual urna. Em tamanho de leitura
+ * ele competiria com o "Votar NN", que é o que o espectador precisa ver.
+ */
+.presente__nome {
+  margin-top: 8px;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(255, 236, 246, 0.45);
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+}

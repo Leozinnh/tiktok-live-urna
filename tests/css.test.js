@@ -122,16 +122,15 @@ test('o palco se centra sem depender do alinhamento do container', async () => {
     'a escala precisa girar em torno do centro, que agora é o centro da janela');
 });
 
-test('a contagem e a palavra VOTOS ficam na mesma linha de base', async () => {
+test('a contagem do cartão é grande e branca sobre um corpo escuro', async () => {
   /*
-   * O cartão tem 400px de altura e a contagem ocupa a sobra, que são uns
-   * 230px. Com o número centralizado e a palavra ancorada embaixo
-   * (`align-self: flex-end`, que era o que estava aqui), o "0" ficava no
-   * meio de um vão vazio e o "VOTOS" encostava na barra, 200px abaixo —
-   * os dois pareciam pertencer a cartões diferentes. Medido na captura do
-   * OBS: o número terminava em y=330 e a palavra começava em y=445.
+   * O cartão é lido de longe, num celular, no meio de uma live. A queixa
+   * que originou este teste foi literal: "está horrível de ler os números".
    *
-   * Na mesma linha de base eles voltam a ser um dado só: "0 VOTOS".
+   * O que fazia os números sumirem não era só o tamanho: o cartão era
+   * inteiramente da cor da urna, e número branco sobre azul médio tem menos
+   * contraste do que parece. Na referência o miolo é escuro e a cor da urna
+   * fica na moldura e no cabeçalho — é essa separação que dá o contraste.
    */
   const css = semComentarios(await readFile(DIR_CSS + 'placar.css', 'utf8'));
   const bloco = (seletor) => {
@@ -141,10 +140,153 @@ test('a contagem e a palavra VOTOS ficam na mesma linha de base', async () => {
     return m[1];
   };
 
-  assert.match(bloco('.cartao__contagem'), /align-items:\s*baseline/,
-    'a contagem precisa alinhar número e unidade pela linha de base');
-  assert.doesNotMatch(bloco('.cartao__unidade'), /align-self:\s*flex-end/,
-    'a unidade não pode ser empurrada para o rodapé do bloco da contagem');
+  const votos = bloco('.cartao__votos');
+  const tamanho = parseFloat(/font-size:\s*([\d.]+)px/.exec(votos)?.[1] ?? '0');
+  assert.ok(tamanho >= 120,
+    `a contagem está com ${tamanho}px: é o maior número da cena e precisa dominar o cartão`);
+
+  /*
+   * A luminância do fundo do corpo, medida de verdade.
+   *
+   * Escrever `assert.match(corpo, /#131b2e/)` seria um teste sobre o texto
+   * do CSS, não sobre o que aparece na tela: trocar o valor por outro escuro
+   * qualquer quebraria o teste sem nenhum defeito. O que importa é ser
+   * escuro, então é isso que ele mede.
+   */
+  const corpo = bloco('.cartao__corpo');
+  const cores = [...corpo.matchAll(/#([0-9a-f]{6})\b/gi)].map((m) => m[1]);
+  assert.ok(cores.length > 0, 'o corpo do cartão não declara nenhuma cor de fundo');
+  const luminancia = (hex) => {
+    const canal = (i) => {
+      const v = parseInt(hex.slice(i, i + 2), 16) / 255;
+      return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+    };
+    return 0.2126 * canal(0) + 0.7152 * canal(2) + 0.0722 * canal(4);
+  };
+  const maisClara = Math.max(...cores.map(luminancia));
+  assert.ok(maisClara < 0.10,
+    `o corpo do cartão não é escuro o bastante (luminância ${maisClara.toFixed(3)}): a contagem branca some`);
+
+  // E a cor da urna continua vindo da configuração, no cabeçalho.
+  assert.match(bloco('.cartao__topo'), /var\(--cor-urna/,
+    'o cabeçalho do cartão perdeu a cor que vem da urna');
+});
+
+test('o placar começa abaixo do fim do cronômetro', async () => {
+  /*
+   * Cronômetro e placar são dois blocos posicionados em medidas fixas do
+   * palco, cada um no seu arquivo. Nada no CSS impede que se sobreponham: se
+   * o painel do cronômetro crescer, ou o placar subir, o número grande
+   * simplesmente passa a ser desenhado por cima dos cartões — e numa
+   * transmissão isso aparece como um borrão que ninguém sabe de onde veio.
+   *
+   * A conta é a mais simples que existe: topo do placar >= base do
+   * cronômetro. É pouco, mas é exatamente o que quebra.
+   */
+  const ler = async (arquivo) => semComentarios(await readFile(DIR_CSS + arquivo, 'utf8'));
+  const px = (texto, prop) => {
+    const m = new RegExp(String.raw`(?:^|[;{\s])${prop}:\s*(-?[\d.]+)px`).exec(texto);
+    assert.ok(m, `não achei ${prop}`);
+    return parseFloat(m[1]);
+  };
+  const regra = (css, seletor) => {
+    const alvo = seletor.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const m = new RegExp(String.raw`(?:^|\n)\s*${alvo}\s*\{([^}]*)\}`).exec(css);
+    assert.ok(m, `regra não encontrada: ${seletor}`);
+    return m[1];
+  };
+
+  const relogio = regra(await ler('cronometro.css'), '.cronometro');
+  const placar = regra(await ler('placar.css'), '.placar');
+
+  const baseDoRelogio = px(relogio, 'top') + px(relogio, 'height');
+  const topoDoPlacar = px(placar, 'top');
+  assert.ok(topoDoPlacar >= baseDoRelogio,
+    `o placar começa em ${topoDoPlacar}px e o cronômetro só termina em ${baseDoRelogio}px: `
+    + 'os dois se sobrepõem');
+});
+
+test('o placar e a cena da mesa não se sobrepõem', async () => {
+  /*
+   * O placar ocupa o alto do palco e a mesa começa logo abaixo. Se o placar
+   * descer demais, os cartões passam a cobrir as urnas — que é justamente o
+   * que a composição da referência evita: o placar informa, a mesa é onde a
+   * votação acontece, e as duas coisas precisam caber ao mesmo tempo.
+   */
+  const placar = semComentarios(await readFile(DIR_CSS + 'placar.css', 'utf8'));
+  const m = /(?:^|\n)\s*\.placar\s*\{([^}]*)\}/.exec(placar);
+  assert.ok(m, 'regra não encontrada: .placar');
+  const px = (texto, prop) => {
+    const v = new RegExp(String.raw`(?:^|[;{\s])${prop}:\s*(-?[\d.]+)px`).exec(texto);
+    assert.ok(v, `não achei ${prop}`);
+    return parseFloat(v[1]);
+  };
+  const baseDoPlacar = px(m[1], 'top') + px(m[1], 'height');
+
+  // O tampo da mesa é medido em % da altura do palco, que é 1920px.
+  const tokens = semComentarios(await readFile(DIR_CSS + 'tokens.css', 'utf8'));
+  const altura = px(tokens, '--palco-altura');
+  const topoDaMesa = parseFloat(/(--mesa-topo:\s*)([\d.]+)%/.exec(tokens)[2]) / 100 * altura;
+
+  assert.ok(baseDoPlacar <= topoDaMesa,
+    `o placar termina em ${baseDoPlacar}px, depois do tampo da mesa (${topoDaMesa}px): `
+    + 'os cartões estão cobrindo as urnas');
+});
+
+test('a vitrine fica abaixo do tampo e com os dois lados espelhados', async () => {
+  /*
+   * A vitrine é a legenda da votação: o joinha ligado ao 22 e a rosa ligada
+   * ao 13. Duas coisas podem dar errado sem que nada acuse.
+   *
+   * A primeira é ela subir. As urnas ocupam a faixa logo acima do tampo, e
+   * uma vitrine que começa antes do tampo passa a ser desenhada por cima do
+   * teclado — justamente o que a mão precisa acertar.
+   *
+   * A segunda é ela sair de eixo. As duas posições são espelhadas por
+   * construção, e é o que mantém a composição equilibrada; um ajuste de um
+   * lado só desalinha a cena inteira e é o tipo de coisa que passa batido,
+   * porque cada lado, sozinho, parece certo.
+   */
+  const css = semComentarios(await readFile(DIR_CSS + 'presentes.css', 'utf8'));
+  const tokens = semComentarios(await readFile(DIR_CSS + 'tokens.css', 'utf8'));
+  const px = (texto, prop) => {
+    const m = new RegExp(String.raw`(?:^|[;{\s])${prop}:\s*(-?[\d.]+)px`).exec(texto);
+    assert.ok(m, `não achei ${prop}`);
+    return parseFloat(m[1]);
+  };
+  const regra = (seletor) => {
+    const alvo = seletor.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const m = new RegExp(String.raw`(?:^|\n)\s*${alvo}\s*\{([^}]*)\}`).exec(css);
+    assert.ok(m, `regra não encontrada: ${seletor}`);
+    return m[1];
+  };
+
+  const altura = px(tokens, '--palco-altura');
+  const topoDaMesa = parseFloat(/(--mesa-topo:\s*)([\d.]+)%/.exec(tokens)[2]) / 100 * altura;
+  const vitrine = regra('.vitrine');
+  const topo = px(vitrine, 'top');
+
+  assert.ok(topo >= topoDaMesa,
+    `a vitrine começa em ${topo}px, antes do tampo da mesa (${topoDaMesa}px): `
+    + 'os presentes estão cobrindo o teclado das urnas');
+  assert.ok(topo + px(vitrine, 'height') <= altura,
+    'a vitrine passa do fim do palco: o rodapé dela fica fora do enquadramento');
+
+  // Espelhamento: o mesmo recuo dos dois lados.
+  assert.equal(px(regra('.vitrine__posicao--esq'), 'left'),
+    px(regra('.vitrine__posicao--dir'), 'right'),
+    'os dois presentes estão a distâncias diferentes da borda');
+
+  /*
+   * A etiqueta tem que ser lida de longe — num celular, com a live a 38% de
+   * escala. O número é a metade que importa: é ele que diz em qual urna o
+   * presente vota, e é ele que sai aceso na cor da urna.
+   */
+  const numero = regra('.presente__numero');
+  assert.ok(parseFloat(/font-size:\s*([\d.]+)px/.exec(numero)[1]) >= 30,
+    'o número da etiqueta está pequeno demais para ser lido no celular');
+  assert.match(numero, /var\(--cor-urna/,
+    'o número perdeu a cor da urna: a legenda deixa de ligar presente e urna');
 });
 
 test('as duas bases do teclado alinham as colunas', async () => {

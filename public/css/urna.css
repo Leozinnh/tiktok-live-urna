@@ -25,7 +25,7 @@
 .urna__corpo {
   position: absolute;
   inset: 0;
-  border-radius: 26px 26px 14px 14px;
+  border-radius: 18px 18px 10px 10px;
   background:
     /* grão sutil de plástico */
     repeating-linear-gradient(101deg,
@@ -53,8 +53,8 @@
   left: 0;
   right: 0;
   top: 0;
-  height: 74px;
-  border-radius: 26px 26px 0 0;
+  height: 46px;
+  border-radius: 18px 18px 0 0;
   transform-origin: top center;
   transform: rotateX(-72deg) translateZ(6px);
   background: linear-gradient(180deg,
@@ -111,35 +111,42 @@
   transform: translateZ(-2px);
 }
 
-/* ---------- Tela LCD ---------- */
+/* ---------- O painel do candidato ---------- */
 
 /*
- * A tela é CLARA, como a da urna brasileira de verdade.
+ * O painel é a metade esquerda da frente da urna: uma placa branca, de
+ * borda fina na cor do candidato, com o retrato e o NÚMERO GIGANTE.
  *
- * Ela era um painel verde-fósforo com "URNA 1 / 22 / 0 VOTOS" — que é a
- * cara de um terminal de aeroporto, não a de uma urna. A urna do TSE tem
- * tela branca, faixa escura no alto com "SEU VOTO PARA" e o cargo, o
- * retrato do candidato ao lado do nome e do partido, e um rodapé dizendo
- * qual tecla confirma.
+ * É esta peça que a cena não tinha. O visor era um LCD pequeno no meio de
+ * um caixote alto, e a urna de verdade — e a da referência — é o contrário:
+ * uma caixa larga e baixa, com o número do candidato ocupando um terço da
+ * frente. Quem olha de longe na live não lê nome nem partido; lê o número.
  *
- * A moldura plástica em volta continua igual: é ela que dá a impressão de
- * vidro embutido no gabinete.
+ * A moldura de plástico em volta continua igual: é ela que dá a impressão
+ * de vidro embutido no gabinete.
+ *
+ * O aro na cor do candidato SAIU. Ele existia para amarrar o visor à
+ * identidade da urna, e na foto não existe aro nenhum: o vidro é embutido
+ * direto no plástico cinza, e a cor aparece DENTRO, no número do candidato
+ * — que é de longe a maior mancha colorida da frente. Com o aro, a frente
+ * tinha duas cores disputando a mesma atenção e nenhuma delas vencia.
  */
 .urna__tela {
   position: absolute;
-  left: 26px;
-  top: 96px;
-  width: 232px;
-  height: 168px;
-  border-radius: 10px;
+  left: var(--painel-esq);
+  top: var(--painel-topo);
+  width: var(--painel-largura);
+  height: var(--painel-altura);
+  border-radius: 8px;
   overflow: hidden;
-  background: linear-gradient(180deg, #fcfdfe 0%, #e9eef4 100%);
+  background: linear-gradient(180deg, #ffffff 0%, #eef2f8 100%);
   box-shadow:
-    /* moldura plástica ao redor do vidro */
-    inset 0 0 0 7px #b6b3ac,
-    inset 0 0 0 9px #8e8b84,
+    /* moldura plástica ao redor do vidro: dois tons de cinza, o claro por
+       fora e o escuro no vão, que é o que dá a profundidade do embutido */
+    inset 0 0 0 4px #c9c6bf,
+    inset 0 0 0 8px #96938c,
     /* sombra interna: o vidro é fundo, e o fundo escurece a borda */
-    inset 0 0 22px rgba(60, 84, 116, 0.20),
+    inset 0 0 22px rgba(60, 84, 116, 0.18),
     0 10px 20px rgba(0, 0, 0, 0.35);
   font-family: "Segoe UI", "Inter", system-ui, sans-serif;
   color: #16202c;
@@ -147,7 +154,7 @@
 
 .tela__conteudo {
   position: absolute;
-  inset: 9px;
+  inset: 11px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -156,7 +163,7 @@
 /* Faixa do cargo — a primeira coisa que se lê na urna de verdade. */
 .tela__faixa {
   flex: none;
-  height: 33px;
+  height: 34px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -168,21 +175,27 @@
 .tela__faixa-rotulo { font-size: 8px; letter-spacing: 0.2em; opacity: 0.82; }
 .tela__faixa-cargo  { font-size: 15px; font-weight: 700; letter-spacing: 0.05em; }
 
-/* Retrato do candidato à esquerda, ficha à direita. */
+/*
+ * O miolo: retrato à esquerda, número à direita, os dois ocupando tudo.
+ *
+ * A proporção é a da referência — o número é quase tão alto quanto o
+ * retrato, e o conjunto é o que domina o painel.
+ */
 .tela__ficha {
   flex: 1;
   min-height: 0;
   display: flex;
-  gap: 7px;
-  padding: 6px 8px 4px;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 6px 4px;
 }
 
 .tela__retrato {
   flex: none;
-  width: 58px;
-  height: 74px;
-  border: 1px solid #9fb0c4;
-  border-radius: 2px;
+  width: 88px;
+  height: 108px;
+  border: 2px solid var(--cor-urna, #8a8f98);
+  border-radius: 3px;
   overflow: hidden;
   background: #cdd8e6;
 }
@@ -199,63 +212,87 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
+  align-items: center;
+  justify-content: center;
   gap: 2px;
 }
 
-.tela__campo {
-  display: flex;
+/*
+ * O número: o maior texto da urna e o único que precisa ser lido de longe.
+ *
+ * `line-height: 0.82` porque a caixa da fonte reserva espaço para os
+ * acentos, que um número nunca usa — sem isso o "22" flutua no meio de um
+ * vão vazio.
+ */
+.tela__campo { display: flex; }
+.tela__campo--numero {
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+}
+.tela__numero {
+  font-family: "Segoe UI", "Inter", system-ui, sans-serif;
+  font-size: 92px;
+  font-weight: 900;
+  line-height: 0.82;
+  letter-spacing: -0.02em;
+  color: var(--cor-urna);
+  text-shadow: 0 3px 0 rgba(0, 0, 0, 0.10);
+}
+
+/* Nome e partido: uma linha miúda cada, abaixo do retrato e do número. */
+.tela__dados .tela__campo {
   align-items: baseline;
+  justify-content: center;
   gap: 4px;
-  font-size: 11px;
-  line-height: 1.25;
+  max-width: 100%;
+  font-size: 10px;
+  line-height: 1.2;
+  color: #16202c;
 }
 .tela__campo-rotulo { flex: none; color: #5a6b80; }
 .tela__campo-valor {
   font-weight: 700;
-  color: #16202c;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 /*
- * O número empurrado para baixo e em corpo grande: é o que a mão vai
- * digitar, e é o que quem assiste precisa conseguir ler de longe.
+ * Os dígitos que a mão digita ocupam o lugar do número, e não um bloco à
+ * parte: a urna de verdade tem um lugar só para o número, e ele é o mesmo
+ * antes e depois de digitar. Dois lugares para o mesmo número fariam o
+ * painel mostrar "22" e "2_" ao mesmo tempo.
  */
-.tela__campo--numero { margin-top: auto; align-items: center; }
-.tela__numero {
-  font-family: "Consolas", "SF Mono", monospace;
-  font-size: 32px;
-  font-weight: 700;
-  line-height: 1;
-  letter-spacing: 0.04em;
-  color: var(--cor-urna);
+.tela__numeros {
+  display: flex;
+  gap: 8px;
 }
-
-.tela__numeros { display: flex; gap: 6px; }
 .tela__digito {
-  width: 26px;
-  height: 32px;
+  width: 56px;
+  height: 74px;
   display: grid;
   place-items: center;
-  font-family: "Consolas", "SF Mono", monospace;
-  font-size: 30px;
-  font-weight: 700;
+  font-family: "Segoe UI", "Inter", system-ui, sans-serif;
+  font-size: 76px;
+  font-weight: 900;
   line-height: 1;
   color: var(--cor-urna);
-  border-bottom: 2px solid rgba(22, 32, 44, 0.25);
-  opacity: 0.25;
+  /* O traço embaixo é o lugar vazio esperando o dígito — é assim na urna
+     de verdade, e é o que diz quantos dígitos faltam. */
+  border-bottom: 4px solid rgba(22, 32, 44, 0.22);
+  opacity: 0.22;
   transition: opacity 120ms linear;
 }
 .tela__digito.is-preenchido { opacity: 1; }
 
-/* Rodapé: qual tecla confirma, e quantos votos a urna já tem. */
+/* Rodapé: qual tecla confirma, e qual recomeça. */
 .tela__rodape {
   flex: none;
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 3px 8px;
+  padding: 4px 8px;
   background: #dde5ee;
   border-top: 1px solid #c2cdda;
   font-size: 9px;
@@ -371,64 +408,85 @@
 
 /* ---------- Teclado ---------- */
 
+/*
+ * UM painel preto só, ocupando toda a direita da frente.
+ *
+ * Eram dois recessos escuros empilhados, cada um com o seu próprio fundo e
+ * a sua própria sombra, com um vão de plástico claro entre eles. Na foto não
+ * existe vão: é uma chapa preta fosca, do alto do gabinete até o pé, e as
+ * doze teclas moram dentro dela. O painel é a segunda maior mancha escura da
+ * urna depois do vidro, e é o que dá a leitura de "mesa de votação" de longe.
+ */
 .urna__teclado {
   position: absolute;
   right: var(--teclado-recuo);
-  top: 92px;
+  top: var(--painel-topo);
   width: var(--teclado-largura);
+  border-radius: 8px;
+  background: linear-gradient(180deg, #1e1f24 0%, #121316 60%, #0d0e10 100%);
+  box-shadow:
+    /* o painel é rebaixado em relação ao corpo: sombra no alto, luz no pé */
+    inset 0 3px 7px rgba(0, 0, 0, 0.85),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.08),
+    0 1px 0 rgba(255, 255, 255, 0.45);
 }
 
-/* Recesso onde o teclado mora — dá profundidade ao conjunto */
+/*
+ * Os dois blocos não pintam nada: quem pinta é o painel. Eles continuam
+ * declarando o MESMO padding e o mesmo vão, e é isso que faz as três colunas
+ * de BRANCO/CORRIGE/CONFIRMA caírem exatamente debaixo das três de 1/2/3 —
+ * com um padding só de um dos lados, os dois blocos ficam visivelmente
+ * tortos um em relação ao outro.
+ */
 .teclado__grade,
 .teclado__acoes {
   position: relative;
-  border-radius: 10px;
   padding: 8px;
-  background: linear-gradient(180deg, #2c2e33 0%, #1a1c20 100%);
-  box-shadow:
-    inset 0 3px 8px rgba(0, 0, 0, 0.75),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.10),
-    0 1px 0 rgba(255, 255, 255, 0.45);
 }
 
 .teclado__grade {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 6px;
+  gap: 4px;
 }
 
 /* O zero fica sozinho na coluna do meio, como na urna de verdade. */
 .tecla--zero { grid-column: 2; }
 
-/*
- * O recesso das ações não declara padding próprio de propósito: ele herda o
- * mesmo `padding: 8px` do recesso da grade, lá em cima. É o que faz as três
- * colunas de baixo caírem exatamente debaixo das três de cima. Com um
- * padding só dele, os dois blocos ficavam tortos um em relação ao outro.
- * O vão também é o mesmo, pelo mesmo motivo.
- */
 .teclado__acoes {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 6px;
-  margin-top: 9px;
+  gap: 4px;
+  margin-top: 6px;
 }
 
 /* ---------- A tecla ---------- */
 
+/*
+ * A tecla é um pouco mais LARGA que alta — 65x60 na foto —, e não um
+ * quadrado. Não é só fidelidade: com `aspect-ratio: 1/1` as quatro fileiras
+ * de números comiam 194 dos 264px que o painel tem, e não sobrava altura
+ * para a fileira das ações sem encolher o painel para fora da urna.
+ */
 .tecla {
   position: relative;
   padding: 0;
   border: none;
   background: none;
   cursor: pointer;
-  aspect-ratio: 1 / 1;
+  aspect-ratio: 1 / 0.92;
   transform-style: preserve-3d;
   /* Perspectiva própria: a tecla afunda em relação a si mesma */
   perspective: 260px;
 }
 
-.teclado__acoes .tecla { aspect-ratio: 1 / 1.15; }
+/*
+ * As três de ação são baixas e largas: na foto elas têm cerca de metade da
+ * altura de uma numérica. Era 1/1.15 — mais altas que largas —, e a fileira
+ * inteira ficava com o dobro do peso visual das outras, como se BRANCO,
+ * CORRIGE e CONFIRMA fossem as teclas importantes do teclado.
+ */
+.teclado__acoes .tecla { aspect-ratio: 1 / 0.72; }
 
 /*
  * A capa é o que se move. Em repouso fica alta; pressionada, desce.
@@ -440,7 +498,13 @@
   position: absolute;
   inset: 0;
   display: grid;
-  place-items: center;
+  /*
+   * O algarismo fica no ALTO À ESQUERDA, e não centralizado. É assim na
+   * tecla de verdade, e não é capricho: é o que abre o canto de baixo para
+   * o ponto Braille, que é a outra metade do que a tecla mostra.
+   */
+  place-items: start start;
+  padding: 4px 0 0 6px;
   border-radius: 7px;
   background:
     linear-gradient(180deg,
@@ -461,11 +525,54 @@
 }
 
 .tecla__rotulo {
-  font-size: 26px;
+  /* 17px num teclado de 48px: o algarismo da urna de verdade ocupa um
+     terço da tecla, e era o dobro disso aqui — o número parecia um letreiro
+     e não uma tecla. */
+  font-size: 17px;
+  line-height: 1;
   font-weight: 600;
   color: var(--tecla-texto);
   text-shadow: 0 1px 1px rgba(0, 0, 0, 0.7);
   user-select: none;
+}
+
+/*
+ * O ponto Braille da tecla da urna.
+ *
+ * A tecla de verdade tem, no canto de baixo à esquerda, uma matriz de dois
+ * por três pontos em relevo. É o detalhe que faz o teclado ser reconhecido
+ * como o da urna brasileira e não o de um telefone — e é a única coisa na
+ * tecla que não é um algarismo.
+ *
+ * Os seis pontos são seis elementos numa grade de duas colunas por três
+ * linhas, e não um gradiente repetido de fundo: assim o teste consegue
+ * CONTAR os pontos, e o desenho não some sem aviso quando alguém mexe no
+ * tamanho da tecla.
+ */
+.tecla__pontos {
+  position: absolute;
+  left: 6px;
+  bottom: 3px;
+  display: grid;
+  grid-template-columns: repeat(2, 4px);
+  gap: 1px 2px;
+}
+
+.tecla__ponto {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.60);
+  box-shadow: 0 0 3px rgba(255, 255, 255, 0.30);
+}
+
+/*
+ * A tecla de ação é lisa e centrada: o rótulo é uma palavra comprida, não um
+ * algarismo, e ela não leva ponto Braille.
+ */
+.tecla--acao .tecla__capa {
+  place-items: center;
+  padding: 0;
 }
 
 /* Tecla pressionada: a capa afunda 5px e a sombra some */
@@ -480,34 +587,56 @@
 
 /* Teclas de ação — cores características da urna brasileira */
 .tecla--branco   .tecla__capa { background: linear-gradient(180deg, #ffffff 0%, var(--tecla-branco) 45%, #cfcfc8 100%); }
-.tecla--branco   .tecla__rotulo { color: #2a2a2a; text-shadow: 0 1px 0 rgba(255,255,255,0.8); }
 .tecla--corrige  .tecla__capa { background: linear-gradient(180deg, #ffb154 0%, var(--tecla-corrige) 45%, #c96a0c 100%); }
 .tecla--confirma .tecla__capa { background: linear-gradient(180deg, #4fd177 0%, var(--tecla-confirma) 45%, #167a35 100%); }
+
+/*
+ * O rótulo das três é PRETO. Só o BRANCO tinha isso; CORRIGE e CONFIRMA
+ * herdavam o branco do rótulo numérico, e branco sobre laranja é a
+ * combinação que menos se lê de todas — na captura o "CORRIGE" sumia dentro
+ * da própria tecla. Na foto as três palavras são pretas.
+ *
+ * A sombra clara embaixo é o que segura a letra preta sobre o verde escuro
+ * do pé da tecla, onde o preto sozinho encosta no fundo.
+ */
+.tecla--branco   .tecla__rotulo,
+.tecla--corrige  .tecla__rotulo,
+.tecla--confirma .tecla__rotulo { color: #1b1b1b; }
+
+.tecla--branco   .tecla__rotulo { text-shadow: 0 1px 0 rgba(255, 255, 255, 0.8); }
+.tecla--corrige  .tecla__rotulo { text-shadow: 0 1px 0 rgba(255, 226, 190, 0.65); }
+.tecla--confirma .tecla__rotulo { text-shadow: 0 1px 0 rgba(190, 255, 210, 0.55); }
 /*
  * O rótulo das teclas de ação é pequeno, e é pequeno na urna de verdade
  * também: são oito caracteres ("CONFIRMA") numa tecla que, na urna real,
- * tem a mesma largura das teclas de número. Não é descuido de desenho.
+ * tem quase a mesma largura das teclas de número. Não é descuido de desenho.
  *
- * O teto aqui é medido, não estimado. Com a tecla a 52px de largura útil:
+ * O teto aqui é medido, não estimado. Medido no navegador, com a tecla a
+ * 49px de largura (o teclado tem 170px, menos 16 de padding e dois vãos de
+ * 4, dividido em três colunas):
  *
  *   tecla     | o texto pede | maior fonte que ainda cabe
- *   BRANCO    |     35px      | 11px
- *   CORRIGE   |     37px      | 11px
- *   CONFIRMA  |     43px      |  9px
+ *   BRANCO    |     40px      | 11px
+ *   CORRIGE   |     42px      | 10px
+ *   CONFIRMA  |     49px      |  9px
  *
- * É o CONFIRMA que manda, porque é o mais longo dos três. A 9px ele ocupa
- * ~48px dos 52 — a maior fonte que ainda deixa folga. Aumentar a tecla não
- * resolve: o teclado tem 178px e a tela da urna termina a 258px, então
- * alargar o teclado empurra as teclas por baixo do vidro.
+ * É o CONFIRMA que manda, porque é o mais longo dos três. A 9px ele pede
+ * 49px numa tecla de 49 — zero de folga, e qualquer troca de fonte ou
+ * arredondamento de subpixel encosta na borda. Por isso 8px: sobra quase
+ * 6px, e a 38% de escala o rótulo é ilegível de qualquer jeito — quem
+ * identifica BRANCO, CORRIGE e CONFIRMA na transmissão é a COR da tecla.
+ *
+ * Alargar a tecla não resolve: o teclado tem 170px e o visor da urna
+ * termina a 294px, então um teclado mais largo encosta no vidro.
  *
  * O `white-space: nowrap` garante que ele encolha em vez de quebrar em duas
  * linhas dentro da tecla. Para medir de novo depois de mexer no teclado:
  * `node .superpowers/sonda/rotulos.js`.
  */
 .tecla--acao .tecla__rotulo {
-  font-size: 9px;
+  font-size: 8px;
   /* Sem espaçamento entre letras: ele somava 1,4px aos 49px que o CONFIRMA
-     já pede, e a folga até a borda da tecla caía para 1,6px. */
+     já pede, e a folga até a borda da tecla desaparecia. */
   letter-spacing: 0;
   white-space: nowrap;
 }
@@ -537,70 +666,143 @@
 .tecla--corrige  { --tecla-led-cor: #ffb154; }
 .tecla--branco   { --tecla-led-cor: #ffffff; }
 
+/* ---------- Tarja de identidade no topo ---------- */
+
+/*
+ * A tarja do alto é a única faixa da urna pintada na cor do candidato, e
+ * continua sendo o que diz de longe a qual urna a pessoa está votando.
+ *
+ * Mas ela é FINA e PÁLIDA, não grossa e saturada. A foto da urna de verdade
+ * mostra o alto do gabinete no mesmo branco do corpo; o que a referência da
+ * cena tem é um leve tingimento. A 26px saturados, a tarja virava a coisa
+ * mais chamativa de uma urna que é branca, e o "JUSTIÇA ELEITORAL" em letra
+ * branca por cima dela desaparecia.
+ *
+ * O tingimento é um véu branco sobre a cor, e não um `color-mix()`: mix só
+ * existe a partir do Chromium 111 e o OBS 30 embarca o 103 — lá o véu
+ * simplesmente não apareceria, sem erro nenhum no console.
+ */
+.urna__faixa-urna {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 14px;
+  border-radius: 18px 18px 0 0;
+  background:
+    linear-gradient(180deg,
+      rgba(255, 255, 255, 0.66) 0%,
+      rgba(255, 255, 255, 0.40) 100%),
+    linear-gradient(180deg,
+      var(--cor-urna, #8a8f98) 0%,
+      var(--cor-urna-2, #6a6f78) 100%);
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.45),
+    /* o filete saturado no pé da tarja: é ele que devolve a cor cheia à
+       distância, sem engordar a faixa clara */
+    inset 0 -3px 0 var(--cor-urna, #8a8f98);
+}
+
 /* ---------- Placa de identificação ---------- */
 
+/*
+ * "JUSTIÇA ELEITORAL" fica no CORPO, no alto à direita, em letra preta.
+ *
+ * Ela morava dentro da tarja colorida, em letra branca — e não é assim. Na
+ * foto é uma chapinha clara embutida no plástico, no canto superior direito,
+ * com o emblema redondo à esquerda do texto e as duas palavras quebradas em
+ * duas linhas alinhadas à direita. É a peça que diz de quem é a urna, e é a
+ * primeira coisa que se lê depois do visor.
+ *
+ * A coluna é a mesma do teclado, e a placa é ancorada pela DIREITA para cair
+ * em cima dele: assim ela acompanha qualquer mexida no teclado.
+ */
 .urna__placa {
   position: absolute;
-  left: 26px;
-  top: 44px;
-  padding: 5px 14px;
-  border-radius: 4px;
-  font-size: 12px;
+  right: var(--teclado-recuo);
+  top: 17px;
+  width: var(--teclado-largura);
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #fbfaf7 0%, #eceae4 100%);
+  box-shadow:
+    inset 0 0 0 1px rgba(120, 116, 108, 0.35),
+    0 1px 2px rgba(0, 0, 0, 0.18);
+  font-size: 10px;
   font-weight: 700;
-  letter-spacing: 0.16em;
-  color: #5a5750;
-  background: linear-gradient(180deg, #d9d6cf 0%, #bcb8b0 100%);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.9),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.18),
-    0 1px 2px rgba(0, 0, 0, 0.22);
+  line-height: 1.05;
+  text-align: right;
+  color: #17202e;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
-/* ---------- Parafusos ---------- */
-
-.urna__parafusos span {
-  position: absolute;
-  width: 11px;
-  height: 11px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 34% 30%,
-    #f2f2f0 0%, var(--urna-metal) 42%, var(--urna-metal-2) 100%);
-  box-shadow:
-    inset 0 -1px 1px rgba(0, 0, 0, 0.45),
-    0 1px 1px rgba(0, 0, 0, 0.35);
+/*
+ * O emblema redondo, à esquerda do texto: na foto é o brasão da Justiça
+ * Eleitoral, escuro, do tamanho da placa. Desenhado, e não uma imagem, para
+ * não trazer a arte de outra pessoa para dentro da transmissão.
+ */
+.urna__emblema {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  display: block;
 }
-
-/* A fenda do parafuso */
-.urna__parafusos span::after {
-  content: '';
-  position: absolute;
-  inset: 44% 2px auto 2px;
-  height: 1.5px;
-  background: rgba(40, 38, 34, 0.75);
-}
-
-.urna__parafusos span:nth-child(1) { left: 16px;  top: 16px;    transform: rotate(24deg); }
-.urna__parafusos span:nth-child(2) { right: 16px; top: 16px;    transform: rotate(-38deg); }
-.urna__parafusos span:nth-child(3) { left: 16px;  bottom: 16px; transform: rotate(72deg); }
-.urna__parafusos span:nth-child(4) { right: 16px; bottom: 16px; transform: rotate(8deg); }
 
 /* ---------- Respiros ---------- */
 
+/*
+ * A grelha de ventilação fica embaixo do VISOR, na mesma coluna dele.
+ *
+ * Ela estava embaixo do teclado, e é o canto errado: na foto as fendas estão
+ * logo abaixo do vidro, à esquerda, onde fica a fonte da urna. Ancorar pelos
+ * mesmos tokens do visor é o que mantém as duas peças na mesma coluna
+ * quando o visor mudar de tamanho.
+ */
 .urna__respiros {
   position: absolute;
-  left: 26px;
-  bottom: 30px;
-  width: 120px;
-  height: 34px;
-  border-radius: 4px;
+  left: var(--painel-esq);
+  bottom: 8px;
+  width: var(--painel-largura);
+  height: 12px;
+  border-radius: 2px;
   background:
-    repeating-linear-gradient(180deg,
-      rgba(0, 0, 0, 0.42) 0 2px,
-      rgba(0, 0, 0, 0) 2px 5px),
+    /* as fendas são VERTICAIS, uma fileira delas, como na foto */
+    repeating-linear-gradient(90deg,
+      rgba(0, 0, 0, 0.45) 0 3px,
+      rgba(0, 0, 0, 0) 3px 11px),
     linear-gradient(180deg, #b8b5ae 0%, #9c988f 100%);
   box-shadow:
     inset 0 2px 5px rgba(0, 0, 0, 0.5),
     inset 0 -1px 0 rgba(255, 255, 255, 0.5);
+}
+
+/* ---------- Marca do fabricante ---------- */
+
+/*
+ * A plaquinha do fabricante, gravada no corpo logo abaixo do visor.
+ *
+ * Não é enfeite: é a assinatura que a urna de verdade traz, e a cena sem ela
+ * parece um móvel branco. Fica na mesma coluna do visor e acima dos
+ * respiros, e é pequena de propósito — quem lê é quem chega perto.
+ */
+.urna__marca {
+  position: absolute;
+  left: var(--painel-esq);
+  bottom: 24px;
+  width: var(--painel-largura);
+  display: flex;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 800;
+  font-style: italic;
+  letter-spacing: 0.14em;
+  color: #8e8b84;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.85);
 }
 
 /* ---------- Boca da impressora ---------- */
@@ -680,14 +882,20 @@
     0 0 42px var(--cor-urna-fraca, transparent);
 }
 
-/* Filete de identidade na base do gabinete */
+/*
+ * Filete de identidade na base do gabinete.
+ *
+ * Ele fica 3px acima do pé, e não a 12px: nessa altura ele atravessava os
+ * respiros (que terminam a 332) e a base do painel do teclado, riscando por
+ * cima das duas peças com uma linha colorida que a urna não tem.
+ */
 .urna__corpo::after {
   content: '';
   position: absolute;
   left: 8%;
   right: 8%;
-  bottom: 12px;
-  height: 4px;
+  bottom: 3px;
+  height: 3px;
   border-radius: 2px;
   background: linear-gradient(90deg,
     transparent 0%,

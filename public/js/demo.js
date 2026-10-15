@@ -9,11 +9,13 @@
 import { montarCenario } from './scene.js';
 import { criarUrna } from './urna.js';
 import { criarPlacar } from './placar.js';
+import { criarCronometro } from './cronometro.js';
+import { criarPresentes, PRESENTES_PADRAO } from './presentes.js';
 import { criarMaoSvg } from './hand/hand-svg.js';
 import { AtorDaMao } from './hand-actor.js';
 
 const cenario = montarCenario(document.getElementById('cena'));
-const { camadaUrnas, camadaMao, camadaPlacar } = cenario;
+const { camadaUrnas, camadaMao, camadaPlacar, camadaEfeitos } = cenario;
 
 /*
  * A contagem — a única fonte da verdade sobre quantos votos cada urna tem.
@@ -34,11 +36,11 @@ const contagem = Object.create(null);
 // candidato, o partido, e — se tiver a foto — `foto: '/fotos/fulano.jpg'`.
 // Sem foto, a urna desenha um retrato.
 const CONFIG_URNAS = [
-  { id: 'u1', x: 40,  y: 33, rot: -7, nome: 'URNA 1', numero: '22',
+  { id: 'u1', x: 24,  y: 38, rot: -6, nome: 'URNA 1', numero: '22',
     corPrimaria: '#1a5fd0', corSecundaria: '#0d3a8f',
     cargo: 'DEPUTADO FEDERAL',
     candidato: { nome: 'Ana Prado', partido: 'PARTIDO A' } },
-  { id: 'u2', x: 550, y: 33, rot:  7, nome: 'URNA 2', numero: '13',
+  { id: 'u2', x: 556, y: 38, rot:  6, nome: 'URNA 2', numero: '13',
     corPrimaria: '#e02020', corSecundaria: '#8f0d0d',
     cargo: 'DEPUTADO FEDERAL',
     candidato: { nome: 'Bruno Tavares', partido: 'PARTIDO B' } },
@@ -53,9 +55,42 @@ for (const cfg of CONFIG_URNAS) {
   urnas[cfg.id] = u;
 }
 
+/*
+ * A vitrine: os dois presentes embaixo da mesa, um por urna.
+ *
+ * A cor e o número de cada etiqueta saem da configuração da urna — a
+ * vitrine não sabe que o 22 é azul, ela sabe perguntar. Trocar a cor de uma
+ * urna no CONFIG_URNAS acima repinta a urna, o cartão do placar e a
+ * etiqueta do presente de uma vez, sem nenhum lugar a mais para lembrar.
+ */
+const presentes = PRESENTES_PADRAO.map((p) => {
+  const cfg = CONFIG_URNAS.find((c) => c.id === p.urnaId);
+  return { ...p, numero: cfg.numero, cor: cfg.corPrimaria };
+});
+criarPresentes(camadaEfeitos, presentes);
+
 const placar = criarPlacar(camadaPlacar, CONFIG_URNAS.map((c) => ({
   id: c.id, nome: c.nome, numero: c.numero, votos: 0, cor: c.corPrimaria,
 })));
+
+/*
+ * A rodada.
+ *
+ * O cronômetro conta o tempo real da rodada — o mesmo
+ * `rodada.duracaoSegundos` da configuração — e, quando ele chega a zero, a
+ * rodada FECHA: os presentes que chegarem depois são recusados. É de
+ * propósito que o relógio não seja só enfeite: um número grande contando
+ * para baixo sem nada por trás seria um dado inventado na tela, e neste
+ * projeto a única coisa pior do que não ter cronômetro é ter um que mente.
+ */
+const DURACAO_RODADA = 300;
+let rodadaAberta = true;
+
+const cronometro = criarCronometro(camadaPlacar, {
+  duracao: DURACAO_RODADA,
+  aoTerminar: () => { rodadaAberta = false; },
+});
+cronometro.comecar();
 
 function atualizarPlacar() {
   placar.atualizar(CONFIG_URNAS.map((c) => ({
@@ -79,10 +114,9 @@ ator.iniciar();
 // ---- Controles de demonstração ----------------------------------------
 // Substituídos pelo modo de teste real na Etapa 6. Servem para validar
 // visualmente as Etapas 1-3 antes de construir o motor de votação.
-const PRESENTES_DEMO = [
-  { nome: 'Rosa',     urnaId: 'u1' },
-  { nome: 'Heart Me', urnaId: 'u2' },
-];
+// Os mesmos dois presentes da vitrine: o que a barra enfileira é o que a
+// legenda embaixo da mesa está anunciando.
+const PRESENTES_DEMO = presentes.map((p) => ({ nome: p.nome, urnaId: p.urnaId }));
 
 const barra = document.createElement('div');
 barra.className = 'demo-barra';
@@ -97,6 +131,7 @@ barra.innerHTML = PRESENTES_DEMO
    * que o OBS vai capturar — a transmissão em si continua capturando a
    * página inteira, sem zoom nenhum.
    */
+  + '<button data-nova-rodada="1">Nova rodada</button>'
   + '<button data-zoom="1">Ver no tamanho real</button>';
 document.body.append(barra);
 
@@ -119,6 +154,10 @@ window.addEventListener('mousemove', mostrarBarra, { passive: true });
 let contador = 0;
 
 function enfileirar(urnaId, presente) {
+  // Rodada fechada recusa voto. Recusar em silêncio, e não enfileirar e
+  // ignorar depois: um voto que entra na fila e não é contado é pior do que
+  // um voto que nunca entrou.
+  if (!rodadaAberta) return false;
   const u = urnas[urnaId];
   contador += 1;
   ator.fila.enfileirar({
@@ -131,6 +170,7 @@ function enfileirar(urnaId, presente) {
     presente,
     prioridade: 0,
   });
+  return true;
 }
 
 barra.addEventListener('click', (evento) => {
@@ -141,6 +181,11 @@ barra.addEventListener('click', (evento) => {
     btn.textContent = ligado ? 'Voltar ao enquadramento' : 'Ver no tamanho real';
     btn.classList.toggle('demo-barra__botao--ativo', ligado);
     mostrarBarra();
+    return;
+  }
+  if (btn.dataset.novaRodada) {
+    rodadaAberta = true;
+    cronometro.comecar(DURACAO_RODADA);
     return;
   }
   if (btn.dataset.rajada) {

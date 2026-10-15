@@ -49,17 +49,26 @@ export function escalaDaCena({ ligado, pedida, larguraJanela, alturaJanela }) {
   return pedida ?? 1;
 }
 
-const PAINEIS = 4;
-
 export function montarCenario(raiz) {
+  /*
+   * A ordem aqui é a ordem de pintura de trás para a frente: parede, piso,
+   * mesa, postes, e só então as camadas de conteúdo. Cada peça também
+   * declara o próprio z-index, mas manter a ordem do documento igual à da
+   * profundidade é o que faz a cena continuar legível para quem for mexer
+   * nela depois.
+   */
   raiz.innerHTML = `
     <div class="palco" id="palco">
-      <div class="parede">
-        ${Array.from({ length: PAINEIS }, () => '<div class="parede__painel"></div>').join('')}
-      </div>
-      <div class="armario"></div>
-      <div class="mesa"><div class="mesa__tampo"></div></div>
+      <div class="parede"></div>
       <div class="piso"></div>
+      <div class="mesa">
+        <div class="mesa__tampo"></div>
+        <div class="mesa__saia"></div>
+        <div class="mesa__pe mesa__pe--esq"></div>
+        <div class="mesa__pe mesa__pe--dir"></div>
+      </div>
+      <div class="cabine__poste cabine__poste--esq"></div>
+      <div class="cabine__poste cabine__poste--dir"></div>
       <div class="camada camada--placar"  id="camada-placar"></div>
       <div class="camada camada--urnas"   id="camada-urnas"></div>
       <div class="camada camada--mao"     id="camada-mao"></div>

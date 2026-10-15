@@ -3,17 +3,37 @@
 :root {
   color-scheme: dark;
 
-  /* Paleta do cenário — cabine eleitoral */
-  --parede-alta:      #efe4d2;
-  --parede-baixa:     #ddceb6;
-  --parede-junta:     #c9b89c;
-  --mesa-clara:       #d99a4e;
-  --mesa-escura:      #a86a28;
-  --mesa-veio:        rgba(120, 70, 20, 0.18);
-  --piso-claro:       #e6d9c4;
-  --piso-escuro:      #c4b299;
-  --armario:          #b98a52;
-  --armario-escuro:   #8a6033;
+  /*
+   * Paleta do cenário — a da foto de referência.
+   *
+   * A parede é um rosa-queimado (mauve), e não o bege que estava aqui. Foi
+   * a primeira coisa que saltou ao comparar a cena com a referência: o
+   * fundo bege fazia a cena parecer um escritório, e o rosa-queimado é o
+   * que dá o ar de estúdio de live.
+   *
+   * A mesa é LARANJA e saturada, com pés pretos — não é madeira clara. É a
+   * cor que mais aparece no enquadramento depois da parede, e é ela que
+   * separa visualmente "onde a votação acontece" do resto.
+   */
+  --parede-alta:      #dcaea8;
+  --parede-baixa:     #c08d88;
+  --parede-junta:     #b8837e;
+  --mesa-clara:       #f5861f;
+  --mesa-escura:      #cf5c07;
+  --mesa-veio:        rgba(120, 45, 0, 0.16);
+  --mesa-pe:          #16121c;
+  --mesa-pe-luz:      #2a2434;
+  --piso-claro:       #c99a95;
+  --piso-escuro:      #ad7d79;
+  /*
+   * A junta do ladrilho. Ela era 0.35 de opacidade e virava uma grade
+   * desenhada por cima do chão: na referência as juntas aparecem, mas o
+   * que dá a perspectiva é a convergência delas, não o contraste. A 0.20
+   * elas continuam marcando o plano sem disputar atenção com a mesa.
+   */
+  --piso-junta:       rgba(90, 55, 52, 0.20);
+  --cabine-poste:     #17131d;
+  --cabine-poste-2:   #302a3c;
 
   /* Gabinete da urna */
   --urna-plastico:    #e8e6e1;
@@ -48,10 +68,18 @@
   /* Medidas de palco — base 1080x1920 */
   --palco-largura:    1080px;
   --palco-altura:     1920px;
-  --mesa-topo:        66%;
-  --urna-largura:     490px;
-  --urna-altura:      560px;
-  --urna-profundidade: 70px;
+  --mesa-topo:        60%;
+  /*
+   * A urna é LARGA e BAIXA, como na referência e como a urna de verdade.
+   *
+   * Ela era um caixote de 490x560 — mais alto do que largo, com um visor
+   * pequeno no meio. A urna do TSE é o contrário: 40cm de largura por 20 de
+   * altura, com o painel do candidato ocupando a metade esquerda da frente
+   * e o teclado a direita. Era essa silhueta que a cena não tinha.
+   */
+  --urna-largura:     500px;
+  --urna-altura:      340px;
+  --urna-profundidade: 54px;
   --perspectiva:      1600px;
 
   /*
@@ -69,18 +97,45 @@
    * propósito — derivação escondida dentro do CSS não é conferível.
    */
   --teclado-recuo:    22px;   /* distancia da direita da urna até o teclado */
-  --teclado-largura:  184px;
-  --bocal-centro:     376px;  /* 490 - 22 - 184/2 */
-  --bocal-largura:    190px;
-  --bocal-altura:     22px;
-  --bocal-topo:       30px;
+  --teclado-largura:  170px;
+  --bocal-centro:     393px;  /* 500 - 22 - 170/2 */
+  --bocal-largura:    176px;
+  /*
+   * 14px, e não 20: na foto da urna não há fenda nenhuma nessa altura — a
+   * placa de identificação assenta direto no painel do teclado. A fenda
+   * existe aqui porque o papel precisa sair de algum lugar, então ela é
+   * fina, e o que se vê é um vinco no plástico e não uma barra preta.
+   */
+  --bocal-altura:     14px;
+  /* Logo abaixo da placa de identificação e acima do painel do teclado,
+     como na urna de verdade: a fenda fica na altura do alto do painel,
+     sobre o teclado, com o visor livre à esquerda.
+     54 e não 46: o fundo da fenda (54 + 14) tem que cair exatamente no
+     alto do painel preto (--painel-topo), senão sobra uma faixa de corpo
+     entre os dois e a fenda boia no plástico branco como um adesivo. O
+     teste tests/urna-bocal.test.js prende essa soma. */
+  --bocal-topo:       54px;
   /* Espessura da moldura em volta da boca escura. A largura da boca é
      --bocal-largura menos duas vezes isto, e ela precisa ser pelo menos a
      largura do papel: papel mais largo que o buraco por onde sai aparece
      cortado nas laterais. */
-  --bocal-borda:      10px;
-  --cedula-largura:   170px;
-  --cedula-altura:    128px;
+  --bocal-borda:      8px;
+  --cedula-largura:   150px;
+  --cedula-altura:    120px;
+
+  /*
+   * O painel do candidato: a metade esquerda da frente da urna.
+   *
+   * As medidas são as da foto da urna, proporcionais a um gabinete de
+   * 500x340: o visor ocupa 54% da largura e 68% da altura, encostado no
+   * alto. A sobra à direita do visor é o painel preto do teclado, e entre
+   * os dois fica a coluna por onde o papel desce — por isso a margem
+   * esquerda é pequena e a largura não pode crescer sem invadir o bocal.
+   */
+  --painel-esq:       26px;
+  --painel-topo:      68px;
+  --painel-largura:   268px;
+  --painel-altura:    232px;
 
   /* Camadas */
   --z-fundo:     10;

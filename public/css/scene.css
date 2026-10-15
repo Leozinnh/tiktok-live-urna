@@ -80,65 +80,51 @@
 
 /* ---- Parede -------------------------------------------------------- */
 
+/*
+ * A parede é rosa-queimado, com o claro em cima e o escuro embaixo.
+ *
+ * As juntas verticais dos painéis saíram. Elas existiam para dar escala a
+ * uma parede bege de escritório; na referência a parede é lisa e o que dá
+ * profundidade é o piso em perspectiva. Uma junta a mais aqui é uma linha
+ * escura atravessando o enquadramento de cima a baixo.
+ */
 .parede {
   position: absolute;
   inset: 0;
-  display: flex;
   z-index: var(--z-fundo);
+  background:
+    radial-gradient(120% 70% at 50% 8%,
+      rgba(255, 255, 255, 0.16) 0%,
+      rgba(255, 255, 255, 0) 60%),
+    linear-gradient(180deg, var(--parede-alta) 0%, var(--parede-baixa) 100%);
 }
 
-.parede__painel {
-  flex: 1;
-  border-right: 2px solid var(--parede-junta);
-  background: linear-gradient(
-    100deg,
-    rgba(255, 255, 255, 0.10) 0%,
-    rgba(255, 255, 255, 0) 42%,
-    rgba(0, 0, 0, 0.05) 100%
-  );
-}
-
-.parede__painel:last-child { border-right: none; }
-
-/* ---- Armário ao fundo ---------------------------------------------- */
+/* ---- Postes da cabine ----------------------------------------------- */
 
 /*
- * Desfocado de propósito: ele existe para dar profundidade à cena e
- * tirar o vazio do canto, não para competir com as urnas pelo olho de
- * quem assiste. Um filter de blur em elemento grande é caro por frame,
- * então o elemento é promovido a camada própria.
+ * As duas colunas escuras nas laterais.
+ *
+ * Elas emolduram o enquadramento: sem elas a cena é uma parede infinita e
+ * as urnas parecem flutuar num vazio cor-de-rosa. Na referência são as
+ * traves pretas da cabine de votação, e é o que fecha a composição dos
+ * dois lados.
  */
-.armario {
+.cabine__poste {
   position: absolute;
-  left: 3%;
-  top: 26%;
-  width: 26%;
-  height: 44%;
-  z-index: calc(var(--z-fundo) + 1);
-  border-radius: 6px;
-  background:
-    linear-gradient(180deg, var(--armario) 0%, var(--armario-escuro) 100%);
+  top: 0;
+  bottom: 0;
+  width: 34px;
+  z-index: calc(var(--z-mesa) + 1);
+  background: linear-gradient(90deg,
+    var(--cabine-poste) 0%,
+    var(--cabine-poste-2) 55%,
+    var(--cabine-poste) 100%);
   box-shadow:
-    inset 0 0 0 6px rgba(255, 255, 255, 0.08),
-    0 30px 60px rgba(60, 35, 10, 0.35);
-  filter: blur(5px);
-  opacity: 0.85;
-  will-change: transform;
+    inset 0 0 20px rgba(0, 0, 0, 0.7),
+    0 0 40px rgba(20, 10, 25, 0.45);
 }
-
-.armario::before,
-.armario::after {
-  content: "";
-  position: absolute;
-  left: 8%;
-  right: 8%;
-  height: 5px;
-  border-radius: 3px;
-  background: rgba(0, 0, 0, 0.22);
-}
-
-.armario::before { top: 34%; }
-.armario::after  { top: 67%; }
+.cabine__poste--esq { left: 0; }
+.cabine__poste--dir { right: 0; }
 
 /* ---- Mesa ----------------------------------------------------------- */
 
@@ -161,8 +147,8 @@
   left: -6%;
   right: -6%;
   top: 0;
-  height: 210px;
-  transform: rotateX(64deg);
+  height: 150px;
+  transform: rotateX(66deg);
   transform-origin: top center;
   background:
     repeating-linear-gradient(
@@ -174,36 +160,78 @@
     ),
     linear-gradient(180deg, var(--mesa-clara) 0%, var(--mesa-escura) 100%);
   box-shadow:
-    inset 0 4px 0 rgba(255, 255, 255, 0.18),
+    inset 0 5px 0 rgba(255, 255, 255, 0.30),
     0 24px 50px rgba(70, 40, 10, 0.35);
 }
 
-/* ---- Piso ----------------------------------------------------------- */
-
-.piso {
+/*
+ * A saia: a espessura da mesa, vista de frente. Sem ela o tampo é uma
+ * folha de papel laranja flutuando — é a quina que faz a mesa ter corpo.
+ */
+.mesa__saia {
   position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 26%;
-  z-index: calc(var(--z-mesa) - 1);
-  background: linear-gradient(180deg, var(--piso-escuro) 0%, var(--piso-claro) 100%);
+  left: -6%;
+  right: -6%;
+  top: 56px;
+  height: 34px;
+  background: linear-gradient(180deg,
+    var(--mesa-clara) 0%,
+    var(--mesa-escura) 60%,
+    #8f3d00 100%);
+  box-shadow: 0 14px 28px rgba(70, 30, 0, 0.45);
 }
 
-/* Reflexo suave de cada urna no piso — vende o contato com o chão. */
-.piso__reflexo {
+/*
+ * Os pés pretos. São o que ancora a mesa no chão: com eles, a mesa tem
+ * altura e o piso tem onde encostar.
+ */
+.mesa__pe {
   position: absolute;
-  left: 12%;
-  top: 8%;
-  width: 26%;
+  top: 88px;
+  width: 36px;
+  height: 300px;
+  background: linear-gradient(90deg,
+    var(--mesa-pe) 0%,
+    var(--mesa-pe-luz) 48%,
+    var(--mesa-pe) 100%);
+  box-shadow: 0 30px 50px rgba(40, 15, 40, 0.45);
+}
+.mesa__pe--esq { left: 16%; }
+.mesa__pe--dir { right: 16%; }
+
+/* ---- Piso ----------------------------------------------------------- */
+
+/*
+ * O piso é um plano em perspectiva de verdade — não um degradê.
+ *
+ * `rotateX` com a origem na borda de cima deita o plano para trás, e a
+ * `perspective` do palco faz as juntas dos ladrilhos convergirem sozinhas,
+ * que é o que dá a profundidade na referência. O degradê sozinho, que era
+ * o que estava aqui, produz uma faixa de cor lisa: parece um rodapé, não
+ * um chão.
+ *
+ * A largura extra (left/right -40%) existe porque o plano girado encolhe
+ * na horizontal — sem a sobra, os cantos de baixo deixariam a parede
+ * aparecendo dos lados.
+ */
+.piso {
+  position: absolute;
+  left: -40%;
+  right: -40%;
+  bottom: -6%;
   height: 46%;
-  border-radius: 50%;
-  background: radial-gradient(
-    ellipse at center,
-    rgba(60, 45, 25, 0.30) 0%,
-    rgba(60, 45, 25, 0) 70%
-  );
-  pointer-events: none;
+  z-index: calc(var(--z-mesa) - 1);
+  transform-origin: top center;
+  transform: rotateX(72deg);
+  background:
+    repeating-linear-gradient(90deg,
+      var(--piso-junta) 0 3px,
+      rgba(0, 0, 0, 0) 3px 150px),
+    repeating-linear-gradient(0deg,
+      var(--piso-junta) 0 3px,
+      rgba(0, 0, 0, 0) 3px 150px),
+    linear-gradient(180deg, var(--piso-escuro) 0%, var(--piso-claro) 100%);
+  box-shadow: inset 0 0 200px rgba(80, 45, 45, 0.35);
 }
 
 /* ---- Camadas de conteúdo ------------------------------------------- */

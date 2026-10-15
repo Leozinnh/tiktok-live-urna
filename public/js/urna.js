@@ -139,6 +139,15 @@ function markupFaixa(estado) {
     </div>`;
 }
 
+/*
+ * O miolo do painel: retrato à esquerda, NÚMERO GIGANTE à direita, e nome e
+ * partido numa linha miúda embaixo.
+ *
+ * A ordem não é arbitrária. Quem assiste à live vê esta urna a 38% do
+ * tamanho, deitado no sofá: lê o "22" e não lê mais nada. Por isso o número
+ * ocupa o lugar de honra e o nome — que continua ali, porque a urna de
+ * verdade o mostra — fica no corpo menor, para quem olhar de perto.
+ */
 function markupFicha(estado, cor, slotNumero) {
   const c = estado.candidato ?? {};
   const nome = c.nome ?? estado.nome ?? '';
@@ -148,6 +157,7 @@ function markupFicha(estado, cor, slotNumero) {
     <div class="tela__ficha">
       <div class="tela__retrato">${markupRetrato(estado, cor)}</div>
       <div class="tela__dados">
+        <div class="tela__campo tela__campo--numero">${numero}</div>
         <div class="tela__campo">
           <span class="tela__campo-rotulo">Nome:</span>
           <span class="tela__campo-valor">${esc(nome)}</span>
@@ -155,10 +165,6 @@ function markupFicha(estado, cor, slotNumero) {
         <div class="tela__campo">
           <span class="tela__campo-rotulo">Partido:</span>
           <span class="tela__campo-valor">${esc(partido)}</span>
-        </div>
-        <div class="tela__campo tela__campo--numero">
-          <span class="tela__campo-rotulo">Número:</span>
-          ${numero}
         </div>
       </div>
     </div>`;
@@ -244,6 +250,54 @@ export function renderizarTela(estado) {
     ${markupRodape(estado)}`;
 }
 
+/**
+ * O emblema redondo da placa "JUSTIÇA ELEITORAL".
+ *
+ * Na foto é um selo circular escuro, do tamanho da placa, à esquerda do
+ * texto. Aqui é um selo genérico — anel, estrela de cinco pontas e miolo —,
+ * e não o brasão de verdade: o brasão é um símbolo oficial, e desenhá-lo
+ * dentro de uma urna de brincadeira é usar a marca do Estado como se ela
+ * fosse nossa. O que a placa precisa dizer é "esta urna é da Justiça
+ * Eleitoral", e isso o texto ao lado já diz.
+ *
+ * Sem `defs` e sem gradiente pelo mesmo motivo do retrato: dois destes na
+ * mesma página repetiriam o mesmo `id`.
+ */
+export function emblemaSvg() {
+  const traco = '#39404f';
+  return `<svg class="urna__emblema" viewBox="0 0 40 40" role="img" aria-label="Emblema da Justiça Eleitoral">
+    <circle cx="20" cy="20" r="19" fill="#e9e7e1" stroke="${traco}" stroke-width="2"/>
+    <circle cx="20" cy="20" r="13.5" fill="none" stroke="${traco}" stroke-width="1.4"/>
+    <path d="M20 9 L22.7 16.28 L30.46 16.6 L24.38 21.42 L26.47 28.9 L20 24.6 L13.53 28.9 L15.63 21.42 L9.54 16.6 L17.3 16.28 Z" fill="${traco}"/>
+    <circle cx="20" cy="20" r="2.6" fill="#e9e7e1"/>
+  </svg>`;
+}
+
+/**
+ * A placa de identificação: o emblema e as duas palavras, no alto à direita.
+ *
+ * A quebra em duas linhas é a da foto ("JUSTIÇA" em cima, "ELEITORAL"
+ * embaixo): numa linha só, o texto não cabe na largura do teclado, que é a
+ * coluna em que a placa vive.
+ */
+export function markupPlaca() {
+  return `
+    <div class="urna__placa">
+      ${emblemaSvg()}
+      <span class="urna__placa-texto">JUSTIÇA<br>ELEITORAL</span>
+    </div>`;
+}
+
+/**
+ * A plaquinha do fabricante, gravada no corpo logo abaixo do visor.
+ *
+ * Aqui vai o MODELO, e não a marca: a foto traz a marca do fabricante, e
+ * gravar a marca de uma empresa de verdade numa urna de brincadeira é pôr a
+ * assinatura de outra pessoa no que não é dela. "UE2020" é a designação do
+ * modelo real, faz o mesmo papel visual e não pertence a ninguém.
+ */
+export const MARCA_DA_URNA = 'UE2020';
+
 export const LAYOUT_TECLADO = {
   grade: ['1', '2', '3', '4', '5', '6', '7', '8', '9'],
   zero: '0',
@@ -286,20 +340,37 @@ export function todasAsTeclas() {
  * O zero fica sozinho na coluna do meio, como na urna de verdade.
  */
 export function markupTeclado() {
-  const tecla = (id, classe = '', rotulo = id) => `
+  const tecla = (id, classe = '', rotulo = id, pontos = false) => `
     <button class="tecla ${classe}" data-tecla="${id}" type="button">
-      <span class="tecla__capa"><span class="tecla__rotulo">${esc(rotulo)}</span></span>
+      <span class="tecla__capa">
+        <span class="tecla__rotulo">${esc(rotulo)}</span>
+        ${pontos ? markupPontos() : ''}
+      </span>
       <span class="tecla__led"></span>
     </button>`;
 
   return `
     <div class="teclado__grade">
-      ${LAYOUT_TECLADO.grade.map((n) => tecla(n)).join('')}
-      ${tecla(LAYOUT_TECLADO.zero, 'tecla--zero')}
+      ${LAYOUT_TECLADO.grade.map((n) => tecla(n, '', n, true)).join('')}
+      ${tecla(LAYOUT_TECLADO.zero, 'tecla--zero', LAYOUT_TECLADO.zero, true)}
     </div>
     <div class="teclado__acoes">
       ${LAYOUT_TECLADO.acoes.map((t) => tecla(t.id, `tecla--acao ${t.classe}`, t.rotulo)).join('')}
     </div>`;
+}
+
+/**
+ * O ponto Braille da tecla: seis pontos em relevo, no canto de baixo.
+ *
+ * São seis elementos de verdade, e não um `background-image` repetido, por
+ * dois motivos. O primeiro é que um desenho feito de gradiente some sem
+ * aviso quando alguém mexe no tamanho da tecla, e ninguém descobre até ver a
+ * transmissão. O segundo é que assim o teste consegue CONTAR os pontos — um
+ * "ponto Braille" de cinco pontos não é o ponto Braille da urna.
+ */
+function markupPontos() {
+  const pontos = Array.from({ length: 6 }, () => '<span class="tecla__ponto"></span>').join('');
+  return `<span class="tecla__pontos" aria-hidden="true">${pontos}</span>`;
 }
 
 /**
@@ -332,7 +403,8 @@ export function criarUrna(config) {
     <div class="urna__lado"></div>
     <div class="urna__topo"></div>
     <div class="urna__corpo">
-      <div class="urna__placa">JUSTIÇA ELEITORAL</div>
+      <div class="urna__faixa-urna"></div>
+      ${markupPlaca()}
       <div class="urna__slot" data-papel="entrada">
         <div class="urna__slot-boca"></div>
       </div>
@@ -344,10 +416,8 @@ export function criarUrna(config) {
       <div class="urna__teclado">
         ${markupTeclado()}
       </div>
+      <div class="urna__marca">${esc(MARCA_DA_URNA)}</div>
       <div class="urna__respiros"></div>
-      <div class="urna__parafusos">
-        <span></span><span></span><span></span><span></span>
-      </div>
     </div>
     <div class="urna__glow"></div>
   `;
