@@ -1,42 +1,84 @@
 /**
  * Tempos de cada fase, em milissegundos a 1x.
  *
- * Um voto de dois dígitos soma ~4,65s, que é o alvo de ~4,5s da spec (§4.4).
+ * Um voto de dois dígitos soma ~4,7s, que é o alvo de ~4,5s da spec (§4.4).
  * Se estes números crescerem, a fila estoura em live movimentada — a spec
  * assume este orçamento de tempo para uma animação completa.
+ *
+ * Todo contato com a urna — dígito, CONFIRMA, cédula no slot — tem a mesma
+ * forma: pairar (`chegada…`/`irPara…`), descer (`descida`), pressionar
+ * (`pressao…`) e subir (`recuoDoDedo`). O movimento e a pressão são dois
+ * passos separados, e o tempo do movimento é declarado à parte: era essa a
+ * peça que faltava quando a tecla afundava antes de o dedo chegar.
  */
 export const TEMPOS = {
-  anuncio:        450,
-  aproximacao:    480,
-  porDigito:      320,   // por dígito, mais o recuo abaixo
-  recuoDoDedo:     50,
-  irParaConfirma: 260,
-  confirmar:      420,
-  confirmado:     400,
-  cedulaSai:      400,
-  pegaCedula:     200,
-  irParaSlot:     300,
-  inserir:        320,
-  contar:         400,
-  retirada:       280,
+  anuncio:         400,
+  aproximacao:     440,
+  chegadaTecla:    210,   // pairar sobre a tecla
+  descida:          80,   // a ponta desce até encostar nela
+  pressaoTecla:    180,   // tempo com a tecla afundada
+  recuoDoDedo:      80,   // e a ponta sobe de volta
+  irParaConfirma:  210,
+  pressaoConfirma: 230,   // o CONFIRMA é mais deliberado que um dígito
+  confirmado:      380,
+  cedulaSai:       380,
+  pegaCedula:      180,
+  irParaSlot:      290,
+  pressaoSlot:     150,   // tempo com a cédula enfiada no slot
+  contar:          380,
+  retirada:        260,
 };
+
+/*
+ * As durações de fase são DERIVADAS dos tempos acima, nunca escritas de
+ * novo. Como o fim da fase é o fim do último movimento que ela agenda, uma
+ * cópia à mão vira uma promessa que ninguém confere — foi assim que o
+ * recuo de 80ms conviveu com uma fase que orçava 320ms para um percurso de
+ * 420ms, e a tecla passou a afundar antes de o dedo chegar.
+ */
+/** Um dígito inteiro: pairar, descer, pressionar, subir. */
+export const POR_DIGITO =
+  TEMPOS.chegadaTecla + TEMPOS.descida + TEMPOS.pressaoTecla + TEMPOS.recuoDoDedo;
+
+/** Do pairar sobre o CONFIRMA até soltá-lo. */
+export const FASE_CONFIRMA =
+  TEMPOS.irParaConfirma + TEMPOS.descida + TEMPOS.pressaoConfirma + TEMPOS.recuoDoDedo;
+
+/** Do primeiro movimento até a cédula entrar no slot. */
+export const FASE_DEPOSITO =
+  TEMPOS.pegaCedula + TEMPOS.irParaSlot
+  + TEMPOS.descida + TEMPOS.pressaoSlot + TEMPOS.recuoDoDedo;
 
 /**
  * As fases, na ordem, com a duração nominal a 1x.
- * `digitacao` tem duração variável: (porDigito + recuoDoDedo) × nº de dígitos.
+ * `digitacao` tem duração variável: POR_DIGITO × nº de dígitos.
  * Serve de referência para leitura e para o teste de cobertura das fases.
  */
 export const FASES = [
   { nome: 'anuncio',     dur: TEMPOS.anuncio },
   { nome: 'aproximacao', dur: TEMPOS.aproximacao },
   { nome: 'digitacao',   dur: null },
-  { nome: 'confirmacao', dur: TEMPOS.irParaConfirma + TEMPOS.confirmar },
+  { nome: 'confirmacao', dur: FASE_CONFIRMA },
   { nome: 'confirmado',  dur: TEMPOS.confirmado },
   { nome: 'cedula',      dur: TEMPOS.cedulaSai },
-  { nome: 'deposito',    dur: TEMPOS.pegaCedula + TEMPOS.irParaSlot + TEMPOS.inserir },
+  { nome: 'deposito',    dur: FASE_DEPOSITO },
   { nome: 'contagem',    dur: TEMPOS.contar },
   { nome: 'retirada',    dur: TEMPOS.retirada },
 ];
+
+/** Quanto a ponta do indicador paira acima do centro antes de descer. */
+export const ALTURA_DO_PAR = 40;
+
+/**
+ * As duas posições de um contato, em coordenadas de palco.
+ *
+ * Pairar e encostar são pontos distintos, e é a coreografia que sabe a
+ * diferença — o ator só interpola até onde lhe dizem. Quando era o ator
+ * que subtraía uma altura fixa de todo alvo, a pose `pressionando` também
+ * parava no ar: a tecla afundava com o dedo pairando por cima dela.
+ */
+export const pairarSobre = (centro) => ({ x: centro.x, y: centro.y - ALTURA_DO_PAR });
+export const encostarEm = (centro) => ({ x: centro.x, y: centro.y });
 
 const semQuebrar = (fn) => (...args) => {
   try { fn?.(...args); } catch (erro) { console.error('[sequencia] callback falhou', erro); }
@@ -49,9 +91,14 @@ const semQuebrar = (fn) => (...args) => {
  * Não sabe o que é uma urna, um SVG ou um pixel — só posições e tempo.
  * É isso que permite testar a coreografia inteira sem navegador.
  *
- * `aoMoverMao` recebe `{ alvo, pose }`, onde `alvo` é um ponto em
- * coordenadas do palco e `pose` é o nome de uma pose de `POSES`. O ator
- * (vote-actor.js) interpola da pose atual até essa, em direção ao alvo.
+ * `aoMoverMao` recebe `{ alvo, pose, duracao }`: `alvo` é um ponto em
+ * coordenadas do palco, `pose` é o nome de uma pose de `POSES` e `duracao`
+ * é quanto o percurso leva. Os três andam juntos — um alvo sem duração faz
+ * o ator cair no tempo padrão dele, que pode ser maior que a fase inteira,
+ * e é assim que uma tecla afunda antes de o dedo chegar nela.
+ *
+ * O ator (hand-actor.js) interpola da pose atual até a pedida, ao longo de
+ * um arco, no tempo declarado.
  */
 export function construirSequenciaDeVoto({
   geometria,
@@ -83,7 +130,12 @@ export function construirSequenciaDeVoto({
   // ---- P1: aproximação. A mão entra por baixo e sobe até a primeira tecla. ----
   const primeira = geometria.teclas?.[digitos[0]];
   if (primeira) {
-    timeline.chamar('aproxima', { at: t, fn: () => cb.aoMoverMao({ alvo: primeira.centro, pose: 'apontando' }) });
+    timeline.chamar('aproxima', {
+      at: t,
+      fn: () => cb.aoMoverMao({
+        alvo: pairarSobre(primeira.centro), pose: 'apontando', duracao: tempos.aproximacao,
+      }),
+    });
   }
   t += tempos.aproximacao;
 
@@ -92,62 +144,75 @@ export function construirSequenciaDeVoto({
     const alvo = geometria.teclas?.[digito];
     if (!alvo) return;                       // tecla fora da geometria: pula sem quebrar
     const base = t;
+    const par = pairarSobre(alvo.centro);
+    const desce = base + tempos.chegadaTecla;
 
     timeline.chamar(`mover-${i}`, {
       at: base,
-      fn: () => cb.aoMoverMao({ alvo: alvo.centro, pose: 'apontando' }),
+      fn: () => cb.aoMoverMao({ alvo: par, pose: 'apontando', duracao: tempos.chegadaTecla }),
     });
 
+    // Descer até a tecla, e só então pressionar: a descida é um passo com
+    // duração própria, e é o fim dela que a tecla afunda.
     timeline.chamar(`desce-${i}`, {
-      at: base + tempos.porDigito * 0.55,
-      fn: () => {
-        cb.aoMoverMao({ alvo: alvo.centro, pose: 'pressionando' });
-        cb.aoTeclar(digito);
-      },
+      at: desce,
+      fn: () => cb.aoMoverMao({
+        alvo: encostarEm(alvo.centro), pose: 'pressionando', duracao: tempos.descida,
+      }),
     });
 
-    timeline.chamar(`tela-${i}`, {
-      at: base + tempos.porDigito * 0.62,
-      fn: () => cb.aoMostrarTela({ tipo: 'digitando', numeroDigitado: digitos.slice(0, i + 1).join('') }),
+    timeline.chamar(`afunda-${i}`, {
+      at: desce + tempos.descida,
+      fn: () => {
+        cb.aoTeclar(digito);
+        cb.aoMostrarTela({ tipo: 'digitando', numeroDigitado: digitos.slice(0, i + 1).join('') });
+      },
     });
 
     timeline.chamar(`sobe-${i}`, {
-      at: base + tempos.porDigito * 0.78,
+      at: desce + tempos.descida + tempos.pressaoTecla,
       fn: () => {
         cb.aoSoltarTecla(digito);
-        cb.aoMoverMao({ alvo: alvo.centro, pose: 'apontando' });
+        cb.aoMoverMao({ alvo: par, pose: 'apontando', duracao: tempos.recuoDoDedo });
       },
     });
 
-    t = base + tempos.porDigito + tempos.recuoDoDedo;
+    t = base + POR_DIGITO;
   });
 
   // ---- P3: CONFIRMA ----
   const confirma = geometria.teclas?.CONFIRMA;
   if (confirma) {
-    timeline.chamar('vai-confirma', {
-      at: t,
-      fn: () => cb.aoMoverMao({ alvo: confirma.centro, pose: 'apontando' }),
-    });
-    t += tempos.irParaConfirma;
+    const base = t;
+    const par = pairarSobre(confirma.centro);
+    const desce = base + tempos.irParaConfirma;
 
-    timeline.chamar('aperta-confirma', {
-      at: t,
-      fn: () => {
-        cb.aoMoverMao({ alvo: confirma.centro, pose: 'pressionando' });
-        cb.aoTeclar('CONFIRMA');
-      },
+    timeline.chamar('vai-confirma', {
+      at: base,
+      fn: () => cb.aoMoverMao({ alvo: par, pose: 'apontando', duracao: tempos.irParaConfirma }),
     });
-    t += tempos.confirmar * 0.45;
+
+    timeline.chamar('desce-confirma', {
+      at: desce,
+      fn: () => cb.aoMoverMao({
+        alvo: encostarEm(confirma.centro), pose: 'pressionando', duracao: tempos.descida,
+      }),
+    });
+
+    timeline.chamar('afunda-confirma', {
+      at: desce + tempos.descida,
+      fn: () => cb.aoTeclar('CONFIRMA'),
+    });
 
     timeline.chamar('solta-confirma', {
-      at: t,
+      at: desce + tempos.descida + tempos.pressaoConfirma,
       fn: () => {
         cb.aoSoltarTecla('CONFIRMA');
-        cb.aoMoverMao({ alvo: confirma.centro, pose: 'apontando' });
+        cb.aoMoverMao({ alvo: par, pose: 'apontando', duracao: tempos.recuoDoDedo });
       },
     });
-    t += tempos.confirmar * 0.55;
+
+    t = base + FASE_CONFIRMA;
   }
 
   // ---- P4: confirmado ----
@@ -163,26 +228,40 @@ export function construirSequenciaDeVoto({
 
   // ---- P6: pega a cédula e deposita no slot ----
   if (geometria.slot) {
+    const base = t;
+    const par = pairarSobre(geometria.slot.centro);
+    const empurra = base + tempos.pegaCedula + tempos.irParaSlot;
+
     timeline.chamar('pega-cedula', {
-      at: t,
-      fn: () => cb.aoMoverMao({ alvo: geometria.slot.centro, pose: 'segurando' }),
+      at: base,
+      fn: () => cb.aoMoverMao({ alvo: par, pose: 'segurando', duracao: tempos.pegaCedula }),
     });
-    t += tempos.pegaCedula;
 
     timeline.chamar('vai-slot', {
-      at: t,
-      fn: () => cb.aoMoverMao({ alvo: geometria.slot.centro, pose: 'segurando' }),
+      at: base + tempos.pegaCedula,
+      fn: () => cb.aoMoverMao({ alvo: par, pose: 'segurando', duracao: tempos.irParaSlot }),
     });
-    t += tempos.irParaSlot;
 
+    // A cédula também desce: o slot fica no tampo, e a mão enfia o papel
+    // nele em vez de soltá-lo no ar.
     timeline.chamar('insere', {
-      at: t,
-      fn: () => {
-        cb.aoMoverMao({ alvo: geometria.slot.centro, pose: 'inserindo' });
-        cb.aoDepositarCedula();
-      },
+      at: empurra,
+      fn: () => cb.aoMoverMao({
+        alvo: encostarEm(geometria.slot.centro), pose: 'inserindo', duracao: tempos.descida,
+      }),
     });
-    t += tempos.inserir;
+
+    timeline.chamar('entrega', {
+      at: empurra + tempos.descida,
+      fn: () => cb.aoDepositarCedula(),
+    });
+
+    timeline.chamar('solta-cedula', {
+      at: empurra + tempos.descida + tempos.pressaoSlot,
+      fn: () => cb.aoMoverMao({ alvo: par, pose: 'segurando', duracao: tempos.recuoDoDedo }),
+    });
+
+    t = base + FASE_DEPOSITO;
   }
 
   // ---- P7: contagem ----
@@ -192,7 +271,9 @@ export function construirSequenciaDeVoto({
   // ---- P8: retirada ----
   timeline.chamar('retira', {
     at: t,
-    fn: () => cb.aoMoverMao({ alvo: { x: 540, y: 1900 }, pose: 'retraindo' }),
+    fn: () => cb.aoMoverMao({
+      alvo: { x: 540, y: 1900 }, pose: 'retraindo', duracao: tempos.retirada,
+    }),
   });
   timeline.chamar('tela-ocioso', {
     at: t + tempos.retirada,

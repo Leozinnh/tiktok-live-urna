@@ -94,8 +94,20 @@ export class AtorDaMao {
   moverPara({ alvo, pose = 'apontando', duracao = 420, timeline = null }) {
     const t = timeline ?? this.pool.obter();
     const origem = { ...this.posicao };
-    const destino = { x: alvo.x, y: alvo.y - 40 };  // o dedo toca acima do centro da tecla
-    const caminho = calcularCaminho(origem, destino, { arco: 70 });
+    /*
+     * A ponta do indicador vai exatamente ao alvo.
+     *
+     * Aqui já houve um `y - 40` fixo, para o dedo não tapar a tecla — mas
+     * ele valia para toda pose, então `pressionando` também parava 40px
+     * acima e a tecla afundava com o dedo pairando no ar. Quem decide a
+     * altura de cada momento é a coreografia, que tem uma posição para
+     * pairar e outra para encostar (vote-sequence.js); o ator entrega o
+     * ponto que lhe pedem, sem corrigir por conta própria.
+     *
+     * `duracao` é a da fase que agendou este percurso. O padrão de 420ms só
+     * vale para quem chama `moverPara` fora de uma coreografia.
+     */
+    const caminho = calcularCaminho(origem, alvo, { arco: 70 });
     const poseAlvo = POSES[pose] ?? POSES.apontando;
     const posePartida = this.poseAtual;
     const id = `percurso-${++this._contadorPercurso}`;
@@ -130,7 +142,7 @@ export class AtorDaMao {
         timeline,
         callbacks: {
           aoDestacar: () => urna.el.classList.add('is-destacada'),
-          aoMoverMao: ({ alvo, pose }) => this.moverPara({ alvo, pose, timeline }),
+          aoMoverMao: ({ alvo, pose, duracao }) => this.moverPara({ alvo, pose, duracao, timeline }),
           aoTeclar: (t) => { urna.pressionarTecla(t); urna.acenderLed(t, true); },
           aoSoltarTecla: (t) => { urna.soltarTecla(t); setTimeout(() => urna.acenderLed(t, false), 140); },
           aoMostrarTela: (estado) => urna.definirTela({ numero, nome: urna.config.nome, ...estado }),

@@ -64,6 +64,43 @@ function rodar(timeline, passos = 200) {
   for (let i = 0; i < passos; i++) timeline.tick(50);
 }
 
+/**
+ * Executa a agenda da sequência sem uma timeline de verdade.
+ *
+ * O que se quer medir é o INSTANTE em que cada passo foi agendado. Uma
+ * timeline real só entrega isso quantizado em ticks de 50ms, grosseiro
+ * demais para comparar com uma descida de dedo de 80ms — a medida ficaria
+ * maior que o fenômeno. Com um dublê que só guarda os itens, o
+ * agendamento sai exato.
+ */
+function agendaDe(numero = '21') {
+  const itens = [];
+  const timeline = {
+    itens,
+    chamar(id, { at = 0, fn } = {}) { itens.push({ id, at, fn }); return this; },
+    add() { return this; },
+  };
+  const eventos = [];
+  let agora = 0;
+  construirSequenciaDeVoto({
+    geometria,
+    numero,
+    votos: 1,
+    timeline,
+    callbacks: {
+      aoMoverMao: (dados) => eventos.push({ tipo: 'mover', at: agora, ...dados }),
+      aoTeclar: (t) => eventos.push({ tipo: 'teclar', at: agora, tecla: t }),
+      aoSoltarTecla: (t) => eventos.push({ tipo: 'soltar', at: agora, tecla: t }),
+      aoDepositarCedula: () => eventos.push({ tipo: 'cedula-entra', at: agora }),
+    },
+  });
+  for (const item of [...itens].sort((a, b) => a.at - b.at)) {
+    agora = item.at;
+    item.fn?.();
+  }
+  return eventos;
+}
+
 test('a sequência cobre todas as fases obrigatórias', () => {
   const { timeline } = montar();
   assert.ok(timeline.duracao > 3000, `duração curta demais: ${timeline.duracao}`);
@@ -200,4 +237,61 @@ test('a contagem recebe o número de votos do evento', () => {
   rodar(timeline);
   assert.equal(recebidos.length, 1);
   assert.equal(recebidos[0].votos, 7);
+});
+
+// ------------------------------------------------- o dedo encosta na tecla
+
+test('a tecla só afunda quando a ponta do dedo chega nela', () => {
+  /*
+   * O defeito que este teste existe para pegar: o ator levava 420ms para
+   * percorrer o arco, enquanto a fase que continha o movimento orçava 320.
+   * O resultado na transmissão era a tecla afundando — e a tela mostrando
+   * o dígito — 244ms ANTES de o dedo chegar, que é o inverso das 17 etapas
+   * pedidas. O tempo do percurso agora viaja junto com o alvo, e a tecla
+   * afunda no instante em que a descida termina.
+   */
+  const eventos = agendaDe('21');
+  const contatos = eventos.filter((e) => e.tipo === 'teclar' || e.tipo === 'cedula-entra');
+  assert.equal(contatos.length, 4, `esperava 3 teclas e 1 depósito: ${contatos.length}`);
+
+  for (const contato of contatos) {
+    const chegada = eventos.filter((e) => e.tipo === 'mover' && e.at <= contato.at).at(-1);
+    assert.ok(chegada, `nenhum movimento antes de ${contato.tipo}`);
+    assert.ok(chegada.duracao > 0,
+      `o movimento até ${contato.tipo} não declara quanto dura`);
+    const pouso = chegada.at + chegada.duracao;
+    assert.ok(contato.at >= pouso,
+      `${contato.tipo} disparou ${pouso - contato.at}ms antes de o dedo chegar`);
+    assert.ok(contato.at - pouso <= 60,
+      `${contato.tipo} disparou ${contato.at - pouso}ms depois de o dedo parar`);
+  }
+});
+
+test('a mão paira acima da tecla e só então desce até o centro dela', () => {
+  /*
+   * A pose sozinha não bastava: `pressionando` mudava o formato do dedo,
+   * mas a mão continuava 40px acima do alvo, então a tecla afundava com a
+   * ponta pairando no ar. Pairar e encostar são duas posições distintas, e
+   * as duas precisam existir na coreografia — é a etapa 4 das 17.
+   */
+  const eventos = agendaDe('21');
+  const descidas = eventos.filter(
+    (e) => e.tipo === 'mover' && (e.pose === 'pressionando' || e.pose === 'inserindo'));
+  assert.equal(descidas.length, 4, `esperava 4 descidas de dedo: ${descidas.length}`);
+
+  // Os únicos pontos que o dedo pode encostar: o centro de uma tecla ou o slot.
+  const centros = [...Object.values(geometria.teclas).map((t) => t.centro), geometria.slot.centro];
+  const ehCentroConhecido = (alvo) => centros.some(
+    (c) => Math.abs(c.x - alvo.x) < 0.5 && Math.abs(c.y - alvo.y) < 0.5);
+
+  for (const desce of descidas) {
+    assert.ok(ehCentroConhecido(desce.alvo),
+      `a descida mira um ponto que não é tecla nem slot: ${JSON.stringify(desce.alvo)}`);
+
+    const paira = eventos.filter((e) => e.tipo === 'mover' && e.at <= desce.at).at(-2);
+    assert.ok(paira, 'a mão desceu sem ter pairado antes');
+    assert.equal(paira.alvo.x, desce.alvo.x, 'a mão pairou fora do eixo da tecla');
+    assert.ok(paira.alvo.y < desce.alvo.y,
+      `a mão já estava sobre a tecla antes de descer: ${paira.alvo.y} vs ${desce.alvo.y}`);
+  }
 });

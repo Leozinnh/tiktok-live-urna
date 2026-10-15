@@ -134,6 +134,22 @@ test('a mão levanta no meio do trajeto e a sombra acompanha', () => {
   assert.ok(render.poses.length > 0, 'a pose nunca foi aplicada durante o percurso');
 });
 
+test('a ponta do dedo para exatamente no alvo, sem folga', () => {
+  // O ator subtraía 40px de todo alvo, para o dedo não tapar a tecla. Mas a
+  // pose `pressionando` também é um alvo, então o dedo parava no ar enquanto
+  // a tecla afundava embaixo dele. Quem sabe a que altura a mão paira é a
+  // coreografia, que tem uma posição para pairar e outra para encostar: o
+  // ator entrega o ponto que lhe pedem, sem corrigir por conta própria.
+  const { ator } = montarAtor();
+  const t = new Timeline();
+  t.play();
+  ator.moverPara({ alvo: { x: 700, y: 900 }, duracao: 100, timeline: t });
+  for (let i = 0; i < 4; i++) t.tick(50);
+
+  assert.ok(Math.abs(ator.posicao.x - 700) < 0.01, `o x errou por ${ator.posicao.x - 700}`);
+  assert.ok(Math.abs(ator.posicao.y - 900) < 0.01, `o y errou por ${ator.posicao.y - 900}`);
+});
+
 test('a fila não trava quando uma animação falha', async () => {
   const { ator, ticker } = montarAtor();
   const geometria = { teclas: { '2': { centro: { x: 700, y: 900 } } }, slot: null };
