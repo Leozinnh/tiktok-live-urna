@@ -12,6 +12,13 @@ const TIPOS = {
   '.svg': 'image/svg+xml',
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
+  // O retrato que sai do celular ou do TikTok costuma ser webp, e o
+  // `jpeg` escrito por extenso também aparece. Sem entrada aqui, o arquivo
+  // sai como binário genérico e o `<img>` dispara `error` — a urna desenha
+  // o retrato no lugar e ninguém entende por que a foto não subiu.
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif',
   '.woff2': 'font/woff2',
 };
 
@@ -69,11 +76,59 @@ async function servirConfig(res, caminho) {
   responder(dados);
 }
 
-export function criarServidor({ raiz, config }) {
+/**
+ * O retrato de um candidato, servido de `fotos/` na raiz do projeto.
+ *
+ * O nome chega já decodificado da URL, e é a única parte que o visitante
+ * escolhe: por isso a conferência é sobre ELE, e não sobre o caminho montado
+ * depois. Duas travas, de propósito — recusar barra e recusar o que escapa da
+ * pasta —, porque a primeira sozinha depende de eu ter lembrado de todos os
+ * separadores que o Windows aceita, e ele aceita mais de um.
+ *
+ * Nome ausente e nome inexistente dão o mesmo 404: não há o que distinguir,
+ * e a urna já sabe desenhar o retrato quando a foto não vem (ver
+ * ligarQuedaDoRetrato em urna.js). Este 404 é para o CONSOLE, não para a
+ * tela — o desenho aparece de qualquer jeito.
+ */
+async function servirFoto(res, pasta, nome) {
+  const naoAchou = () => {
+    res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
+    res.end('Não encontrado');
+  };
+
+  // Um nome é um arquivo, não um caminho: `fotos/` não tem subpastas, e
+  // aceitar barra aqui seria abrir a pasta inteira do projeto.
+  if (!nome || nome.includes('/') || nome.includes('\\')) { naoAchou(); return; }
+
+  const destino = normalize(join(pasta, nome));
+  if (!destino.startsWith(normalize(pasta + sep))) { naoAchou(); return; }
+
+  try {
+    const info = await stat(destino);
+    if (!info.isFile()) { naoAchou(); return; }
+
+    const corpo = await readFile(destino);
+    res.writeHead(200, {
+      'content-type': TIPOS[extname(destino)] ?? 'application/octet-stream',
+      // A foto é trocada quando ele quiser outro retrato; um cache longo
+      // deixaria a imagem antiga na tela do OBS até alguém limpar o cache.
+      'cache-control': 'no-store',
+    });
+    res.end(corpo);
+  } catch {
+    naoAchou();
+  }
+}
+
+export function criarServidor({ raiz, config, fotos }) {
   // Por parâmetro para o teste não depender do config/local.json de verdade
   // de quem roda a suíte — e para a rota poder ser exercitada sem mexer no
   // arquivo do Leonardo.
   const caminhoDaConfig = config ?? join(raiz, '..', 'config', 'local.json');
+  // A pasta de retratos, pelo mesmo motivo e no mesmo lugar que o config:
+  // é material do Leonardo, não do site. Mora ao lado de public/, e não
+  // dentro, para não ser varrida junto com o código.
+  const pastaDasFotos = fotos ?? join(raiz, '..', 'fotos');
 
   return createServer((req, res) => {
     // Envolvido à mão em vez de async/await: uma promessa rejeitada aqui
@@ -86,6 +141,11 @@ export function criarServidor({ raiz, config }) {
 
         if (caminho === '/config/local.json') {
           await servirConfig(res, caminhoDaConfig);
+          return;
+        }
+
+        if (caminho.startsWith('/fotos/')) {
+          await servirFoto(res, pastaDasFotos, caminho.slice('/fotos/'.length));
           return;
         }
 

@@ -10,6 +10,11 @@ Jogue aqui os retratos que a urna vai mostrar, e aponte para eles no
 Esta pasta é servida em `/fotos/`, então o mesmo arquivo também atende por
 `/fotos/ana.jpg` — dá no mesmo, é só a forma mais longa.
 
+**Esta pasta fica ao lado de `public/`, e não dentro.** É a mesma escolha do
+`config/local.json`: são os seus arquivos, não os do site. Dentro de
+`public/` eles seriam varridos junto com o código no dia em que alguém
+limpasse a pasta para recomeçar; aqui, sobrevivem.
+
 **Se a imagem não carregar, a urna desenha o retrato no lugar.** Um nome
 errado não deixa o ícone de imagem quebrada na tela.
 
