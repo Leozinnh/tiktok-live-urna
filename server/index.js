@@ -112,13 +112,19 @@ async function servirConfig(res, caminho) {
 const NOME_SIMPLES = (nome) => Boolean(nome) && !nome.includes('/') && !nome.includes('\\');
 
 /**
- * O nome de um áudio de narração: dezesseis caracteres hexadecimais e `.wav`.
+ * O nome de um áudio de narração: dezesseis hexadecimais e a extensão.
  *
- * Estreito de propósito. É o único formato que o servidor gera
- * (`chaveDoTexto`), então tudo o que não casa é pedido que ele não fez — e
- * `dados/` é justamente onde mora o banco da votação.
+ * Estreito de propósito. São os dois formatos que o servidor gera — `.mp3` da
+ * voz neural, `.wav` da voz do Windows —, e tudo o que não casa é pedido que
+ * ele não fez. `dados/` é justamente onde mora o banco da votação, e esta
+ * lista fechada é a única coisa que separa um pedido de um caminho.
+ *
+ * Ela nasceu só com `wav` e ficou desatualizada quando a voz neural entrou: o
+ * servidor RECUSARIA o arquivo que ele mesmo acabou de sintetizar, e a fala
+ * sairia muda com tudo funcionando — o pior defeito possível, porque não
+ * deixa rastro.
  */
-const NOME_DE_VOZ = (nome) => /^[0-9a-f]{16}\.wav$/.test(String(nome ?? ''));
+const NOME_DE_VOZ = (nome) => /^[0-9a-f]{16}\.(wav|mp3)$/.test(String(nome ?? ''));
 async function servirArquivo(res, pasta, nome, conferirNome) {
   const naoAchou = () => {
     res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
@@ -379,6 +385,11 @@ if (executadoDireto()) {
   let cfgAtual = config;
   const voz = criarVoz({
     pasta: pastaDaVoz,
+    // Os três como FUNÇÃO, e não como valor: o painel os troca com a live no
+    // ar, e quem os lê no momento de subir o sintetizador pega o que vale
+    // agora. Como valor fixo, mudar a voz no painel só teria efeito depois de
+    // reiniciar o servidor — e nada na tela diria isso.
+    motor: () => cfgAtual.narracao?.motor,
     nome: () => cfgAtual.narracao?.voz,
     velocidade: () => cfgAtual.narracao?.velocidade,
     aoAvisar: (texto) => console.warn(`  voz: ${texto}`),
@@ -407,7 +418,10 @@ if (executadoDireto()) {
    * subir, e a live não pode depender da voz para existir.
    */
   voz.aquecer().then((ok) => {
-    if (ok) console.log(`  Voz:    ${voz.voz || 'a primeira do Windows'}`);
+    // O motor vai junto porque as duas vozes se chamam de coisas parecidas e
+    // soam completamente diferentes: sem ele, "Microsoft Maria Desktop" e
+    // "pt-BR-FranciscaNeural" não diriam ao Leonardo QUAL sintetizador subiu.
+    if (ok) console.log(`  Voz:    ${voz.voz || `a padrão do ${voz.motor}`} (${voz.motor})`);
   });
 
   const servidor = criarServidor({ raiz, voz: pastaDaVoz, motor });

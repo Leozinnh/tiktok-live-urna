@@ -309,3 +309,31 @@ test('um prazo escolhido no painel vale', () => {
   const { config } = normalizar({ integracao: { esperaNumeroSegundos: 30 } });
   assert.equal(config.integracao.esperaNumeroSegundos, 30);
 });
+
+/* ------------------------------------------------------- o motor da voz */
+
+test('a voz nasce neural, que é a que soa como gente', () => {
+  /*
+   * A voz do Windows funciona e é feia: é uma colagem de pedaços gravados, e
+   * lê um nome brasileiro com a música de um GPS. A neural é a qualidade que
+   * se ouve no Teams — e é o padrão porque o padrão é o que o Leonardo ouve se
+   * não mexer em nada, e o que ele ouve tem que ser a melhor das duas.
+   */
+  const { config } = normalizar({});
+  assert.equal(config.narracao.motor, 'edge');
+});
+
+test('um motor que o servidor não conhece cai no padrão, e não cala a live', () => {
+  /*
+   * Este campo é texto livre no arquivo de configuração. Um `"Edge"` com
+   * maiúscula, um `"edgi"` de dedo escorregado, um `null` de um painel antigo
+   * — nada disso pode deixar a live muda. O valor é aceito só se for um motor
+   * que existe; o resto vira o padrão.
+   */
+  assert.equal(normalizar({ narracao: { motor: 'sapi' } }).config.narracao.motor, 'sapi');
+  assert.equal(normalizar({ narracao: { motor: 'Edge' } }).config.narracao.motor, 'edge');
+  assert.equal(normalizar({ narracao: { motor: ' SAPI ' } }).config.narracao.motor, 'sapi');
+  assert.equal(normalizar({ narracao: { motor: 'edgi' } }).config.narracao.motor, 'edge');
+  assert.equal(normalizar({ narracao: { motor: '' } }).config.narracao.motor, 'edge');
+  assert.equal(normalizar({ narracao: { motor: 7 } }).config.narracao.motor, 'edge');
+});

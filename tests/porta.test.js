@@ -86,6 +86,33 @@ test('a mensagem com PID traz o comando exato e o motivo', () => {
   assert.match(m, /já está rodando|outra instância/i, 'não disse o motivo mais comum');
 });
 
+test('a mensagem de porta ocupada oferece o reiniciar de uma linha', () => {
+  /*
+   * O Leonardo foi literal: "nao quero ter q dar taskkill e tal para
+   * reiniciar". O `npm run reiniciar` foi escrito para isso — derruba quem
+   * está na porta e sobe de novo, na mesma janela, sem ele caçar PID nenhum.
+   *
+   * Só que ele não aparecia AQUI, que é onde o Leonardo esbarra de verdade:
+   * no terminal, com a live esperando. Um comando que existe e não é
+   * oferecido na única mensagem que ele lê não resolve nada — ele continua
+   * copiando o `taskkill`, que é exatamente o que ele pediu para não fazer.
+   *
+   * Vale nas duas mensagens, inclusive na que não achou o PID: o reiniciar
+   * descobre sozinho quem está segurando, então é justamente aí que ele é a
+   * resposta mais útil.
+   */
+  for (const m of [mensagemDePortaOcupada(3000, 23144), mensagemDePortaOcupada(3000, null)]) {
+    assert.match(m, /npm run reiniciar/, 'não ofereceu o reiniciar de uma linha');
+  }
+
+  // E vem ANTES do taskkill: é a resposta que ele pediu, e a única que não
+  // exige copiar PID nenhum. Enterrada embaixo do comando bruto, ela não é
+  // lida — e o Leonardo volta a fazer o que ele já disse que não quer.
+  const comPid = mensagemDePortaOcupada(3000, 23144);
+  assert.ok(comPid.indexOf('npm run reiniciar') < comPid.indexOf('taskkill'),
+    'o taskkill apareceu antes do reiniciar: a resposta boa ficou escondida');
+});
+
 test('a mensagem sem PID não manda matar ninguém', () => {
   /*
    * Sem PID não há o que matar, e "taskkill /PID null /F" seria pior do que

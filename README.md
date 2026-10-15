@@ -46,11 +46,29 @@ enquadramento do OBS.
 segue, curte, entra, compartilha ou assina, ele **fala** e mostra uma faixa
 na tela. As frases são suas, editáveis na aba **Textos**, uma por linha.
 
-A voz sai pelo **Windows**, e não pela página: o navegador que o OBS embarca
-não fala, então quem sintetiza é o servidor (`voz.ps1`), que guarda o áudio
-e manda a página tocar. Se a voz não sair, o problema está no Windows ou no
+A voz sai pelo **servidor**, e não pela página: o navegador que o OBS embarca
+não fala, então quem sintetiza é o Node, que guarda o áudio em arquivo e manda
+a página tocar. Se a voz não sair, o problema está no motor escolhido ou no
 volume — e não na live. Para descobrir isso sem esperar alguém seguir de
 verdade, a aba **Teste** tem um botão para cada um dos cinco avisos.
+
+**São dois motores de voz, e você escolhe na aba Textos:**
+
+| Motor | Como soa | Precisa de |
+|---|---|---|
+| **Neural** (padrão) | Como gente. É a voz `pt-BR-FranciscaNeural` | Internet |
+| **Do Windows** | Robótica, mas inteligível | Nada além do Windows |
+
+O neural é o padrão porque é o que soa como uma pessoa narrando. O do Windows
+existe para o dia em que a internet cair no meio da live — e **o sistema troca
+sozinho**: se o motor escolhido falhar, ele avisa uma vez no console e fala com
+a voz do Windows em vez de ficar mudo. A troca é por frase, então a live não
+para.
+
+Um nome de voz se escreve diferente em cada motor (a neural se chama
+`pt-BR-FranciscaNeural`, a do Windows é `Microsoft Maria Desktop`). Deixar o
+campo **Voz** vazio escolhe a melhor voz do motor — que é o que você quer, a
+não ser que tenha uma preferida.
 
 **A live de verdade (Etapa 7).** Na aba **Integração**, troque o modo para
 **TikTok ao vivo**, escreva o nome da sua live (sem o `@`) e salve. A troca
@@ -116,16 +134,18 @@ fechar a janela, não precisa matar processo nenhum.
 npm run dev
 ```
 
-**Se a porta 3000 estiver ocupada**, o servidor diz quem está segurando e o
-comando exato para derrubar — em vez da pilha de chamadas do Node, que não
-responde nem uma coisa nem outra:
+**Se a porta 3000 estiver ocupada**, o servidor diz o que fazer — em vez da
+pilha de chamadas do Node, que não responde nem uma coisa nem outra:
 
 ```
   A porta 3000 já está ocupada.
 
-  Quem está segurando é o processo 16408.
   Na maioria das vezes é outra instância deste servidor que ficou de pé.
-  Para derrubá-la:
+  Para derrubá-la e subir de novo, num comando só:
+
+      npm run reiniciar
+
+  Quem está segurando é o processo 16408. Para derrubá-lo à mão:
 
       taskkill /PID 16408 /F
 
@@ -135,7 +155,13 @@ responde nem uma coisa nem outra:
 ```
 
 O caso mais comum de todos é o servidor da tentativa anterior ter ficado de
-pé. O `npm run dev` resolve isso na prática: ele reaproveita a mesma janela.
+pé — e para ele existe **`npm run reiniciar`**, que derruba quem está na porta
+e sobe o servidor de novo, na mesma janela, com o mesmo Ctrl+C. Não precisa
+caçar PID, não precisa colar comando, não precisa abrir outra janela.
+
+```powershell
+npm run reiniciar
+```
 
 ### 3. Abrir a cena no navegador
 
@@ -151,11 +177,11 @@ Acesse <http://localhost:3000/admin>. O painel tem sete abas:
 |---|---|
 | Urnas | Nome, número, partido e cores de cada urna |
 | Presentes | Qual presente vale voto, e em qual urna ele cai |
-| Rodada | **A duração da rodada**, e o que fazer quando ela acaba |
+| Rodada | **A duração da rodada** |
 | Animação | A velocidade da mão |
-| Teste | Disparar um presente e abrir/encerrar/zerar a rodada |
-| Integração | O log ao vivo do que chega do servidor |
-| Textos | Os letreiros da tela |
+| Teste | Disparar presente, disparar rajada, disparar um presente **sem urna** e o número no chat |
+| Integração | De onde vêm os presentes: simulador ou TikTok ao vivo |
+| Textos | As frases do placar, as da voz, o motor e a voz |
 
 Salve e o servidor confirma — o painel só diz **"enviado"** até o servidor
 responder, porque quem grava é ele.
@@ -178,9 +204,10 @@ Volte à janela do PowerShell e aperte **Ctrl+C**.
 npm test
 ```
 
-São **525 testes** cobrindo a geometria da cena, a matemática da animação, a
-fila, as poses da mão, a tela da urna, o placar, o protocolo do servidor e os
-campos do painel. A suíte roda em poucos segundos e não precisa de navegador.
+São **701 testes** cobrindo a geometria da cena, a matemática da animação, a
+fila, as poses da mão, a tela da urna, o placar, o protocolo do servidor, os
+campos do painel e as duas pontas da voz. A suíte roda em poucos segundos e
+não precisa de navegador.
 
 O que a suíte **não** cobre sozinha é o que só existe dentro de um navegador
 de verdade — se a mão aparece, se o placar sobe na hora certa, se o que o
@@ -188,6 +215,15 @@ painel salva chega à tela do ar. Para isso existem as sondas em
 `.superpowers/sonda/`, que abrem o Chrome e medem a página por dentro do
 protocolo de depuração. Elas não fazem parte do `npm test` porque precisam de
 um navegador instalado.
+
+> **Hoje a suíte tem 1 vermelho, e é uma decisão sua.**
+> `o teclado é um painel preto só` (`tests/urna-visual.test.js`) mede a
+> luminância do fundo do teclado e acha `0.0422`, acima do teto `0.03`. A
+> linha é `public/css/urna.css:426`, e o último trecho do gradiente está
+> `#363a43` — um cinza. O teste foi escrito contra a foto da urna de verdade,
+> onde o painel é preto fosco uniforme. Ou o valor volta para `#0d0e10` e o
+> teste passa, ou o cinza é o que você quer e o teto do teste é que está
+> errado. **Os 700 outros passam.**
 
 ---
 
@@ -221,12 +257,15 @@ public/
     cronometro.js       O relógio, que obedece ao servidor
     presentes.js        O aviso de presente que entra na tela
     som.js              Os sons da urna
+    painel.js           A fila e o ranking do rodapé
+    narrador.js         A voz e a faixa: quem toca o áudio que o servidor gravou
     config.js           A configuração que chega do servidor
     net.js              O canal WebSocket, dos dois lados
     admin.js            Ponto de entrada do PAINEL
     admin/
       campos.js         Os campos do painel: puro, testado sem navegador
       abas.js           As sete abas, montadas a partir da configuração
+      medidores.js      Os quatro números do alto do painel
     anim/
       timeline.js       Linha do tempo com tweens nomeados
       easing.js         Curvas de aceleração
@@ -241,14 +280,25 @@ server/
   tally.js              A contagem e as rodadas
   db.js                 O banco (SQLite, escrito à mão)
   config.js             Lê, normaliza e grava a configuração
+  narracao.js           As frases da voz: sorteia sem repetir e troca {nome}
+  espera.js             A espera do número no chat, e a cobrança por voz
   ws.js                 O protocolo WebSocket, escrito à mão
   porta.js              Porta ocupada: quem está segurando e o que fazer
-  voz.js                A voz do narrador (o lado Node do `voz.ps1`)
+  reiniciar.js          `npm run reiniciar`: derruba quem está na porta e sobe
+  voz.js                A voz do narrador: os dois motores e o processo de cada um
   voz.ps1               O sintetizador do Windows, falado por linhas de texto
-  sources/              De onde vêm os presentes (hoje, o simulador)
+  sources/              De onde vêm os presentes
+    base.js             O contrato de uma fonte
+    simulator.js        O simulador — o que o painel dispara
+    tiktok.js           A live de verdade, pela ponte em Python
+    troca.js            A fonte que troca de fonte, sem reiniciar o servidor
+ponte/
+  tiktok.py             A ponte com a TikTok LIVE (precisa do `TikTokLive`)
+  voz.py                O motor neural de voz (precisa do `edge-tts`)
 config/local.json       A configuração do Leonardo (nasce vazia)
+dados/                  O banco e os votos gravados
 fotos/                  Os retratos dos candidatos
-tests/                  525 testes, rodando no `node --test`
+tests/                  701 testes, rodando no `node --test`
 .superpowers/sonda/     As sondas de navegador (não rodam no `npm test`)
 docs/superpowers/       A spec do produto e o plano de implementação
 ```
@@ -284,9 +334,27 @@ Não, e não é por esconder nada. O painel é uma **página separada**, em
 teste que varre os módulos dela para prender isso. Pode deixar o painel
 aberto no segundo monitor durante a live inteira.
 
+**Preciso instalar mais alguma coisa?**
+
+Para as urnas, o placar, a mão e o painel: **não**. O Node sozinho dá conta, e
+o projeto não tem uma dependência de Node instalada — nem uma.
+
+Duas coisas pedem um pouco mais, e as duas são opcionais:
+
+| O quê | Para quê | Como |
+|---|---|---|
+| **Python + `edge-tts`** | A voz **neural**, a que soa como gente | `pip install edge-tts` |
+| **Python + `TikTokLive`** | Receber os presentes da **live de verdade** | `pip install TikTokLive` |
+
+Sem elas o projeto continua inteiro: sem o `edge-tts` a voz sai pela do
+Windows, e sem o `TikTokLive` o simulador do painel continua funcionando. O
+que **não** dá para fazer é fingir: a aba Integração diz o que está faltando
+quando a ponte não sobe, em vez de mostrar a live conectada sem estar.
+
 **Preciso de internet para rodar?**
-Até a Etapa 5, não. O servidor é local e nada sai da sua máquina. A partir da
-Etapa 7, a conexão com a TikTok LIVE vai precisar de internet.
+Para as urnas, não: o servidor é local e nada sai da sua máquina. A live de
+verdade e a voz neural, sim. A voz do Windows funciona sem internet, e é por
+isso que ela existe.
 
 **Funciona no OBS?**
 A cena é feita para o formato vertical do celular: **1080×1920**, sem barra de
@@ -320,8 +388,10 @@ o que não salvou.
 
 ## Próximos passos
 
-As Etapas 6 a 8 estão especificadas em
-`docs/superpowers/specs/2026-10-15-urna-tiktok-live-design.md`. O caminho é:
-modo de teste usando exatamente o mesmo processamento do evento real (6),
-integração com os presentes da TikTok LIVE (7) e o modo transmissão com as
-instruções finais do OBS (8).
+Falta a **Etapa 8**: fechar o modo transmissão com as instruções de captura no
+OBS. As Etapas 1 a 7 estão de pé e validadas.
+
+Para mexer no projeto — onde cada coisa mora, como o voto anda de ponta a
+ponta, o que já tem teste e o que ainda não tem —, leia
+[`documentacao.md`](documentacao.md). A spec do produto está em
+`docs/superpowers/specs/2026-10-15-urna-tiktok-live-design.md`.

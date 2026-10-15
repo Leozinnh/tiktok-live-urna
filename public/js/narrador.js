@@ -44,8 +44,15 @@ const CLASSES_DE_TIPO = Object.freeze(TIPOS_DA_FAIXA.map((t) => `narrador--${t}`
  */
 export const LIMITE_DO_TEXTO = 120;
 
-/** O endereço que o servidor serve — ver a rota `/voz/` em server/index.js. */
-const ENDERECO_DE_VOZ = /^\/voz\/[0-9a-f]{16}\.wav$/;
+/**
+ * O endereço que o servidor serve — ver a rota `/voz/` em server/index.js.
+ *
+ * Os dois formatos são os dois motores: `.mp3` da voz neural, `.wav` da voz do
+ * Windows. Esta lista e a do servidor são a MESMA lista escrita duas vezes, uma
+ * em cada ponta do fio — e uma delas esquecida faz o áudio ser recusado aqui,
+ * depois de ter sido sintetizado com sucesso.
+ */
+const ENDERECO_DE_VOZ = /^\/voz\/[0-9a-f]{16}\.(wav|mp3)$/;
 
 /** Quanto tempo a faixa fica na tela quando não há som para acompanhar. */
 const TEMPO_MINIMO_MS = 3_500;

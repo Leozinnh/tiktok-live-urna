@@ -116,15 +116,83 @@ const JANELA_CURTIDA_MS = 3_000;
  */
 export const LIMIAR_DA_CURTIDA = LIMIAR_CURTIDA;
 
+/*
+ * O apelido do TikTok é escrito para ser LIDO, e não para ser falado.
+ *
+ * Ele vem com bandeira, coração, cifrão, caveirinha — e um sintetizador de voz
+ * ou tenta ler aquilo (e sai "bandeira do Brasil" no meio do nome de quem
+ * acabou de chegar) ou trava na pontuação. O nome tem que chegar na voz como
+ * uma pessoa o diria.
+ *
+ * A limpeza é uma LISTA DO QUE FICA, e não do que sai: letra, número, espaço e
+ * os três sinais que aparecem em nome de verdade (hífen, ponto, sublinhado,
+ * apóstrofo). Uma lista do que sai — "tira emoji, tira cifrão, tira estrela" —
+ * envelhece a cada emoji novo que o TikTok lança, e o dia em que ela falha é o
+ * dia em que a voz lê um emoji no ar. `\p{L}` e `\p{N}` deixam passar acento,
+ * cedilha e nome em outra escrita, que é o que interessa num nome brasileiro.
+ *
+ * Isto acontece ANTES de a frase ser montada, e vale para a tela também: a
+ * faixa que o OBS captura mostra o mesmo texto que a voz fala. Duas versões do
+ * mesmo nome — uma escrita e outra falada — divergiriam no dia em que alguém
+ * mexesse numa só, e ninguém veria.
+ */
+const NAO_SE_FALA = /[^\p{L}\p{N}\s._'\-]/gu;
+
+/** A parte que dá para falar de um nome, ou string vazia. */
+function falavel(bruto) {
+  return String(bruto ?? '')
+    .replace(NAO_SE_FALA, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Nome TODO em maiúsculas vira nome, e não sigla.
+ *
+ * Voz neural com palavra curta em caixa alta tende a soletrar: "ANA" sai
+ * "á-ene-á". Apelido de três letras em maiúscula é comuníssimo no TikTok, e o
+ * efeito no ar é a voz lendo sigla em vez de chamar a pessoa.
+ *
+ * A regra é cirúrgica de propósito: só mexe em nome que não tem UMA letra
+ * minúscula sequer. Um "João Pedro" com a caixa certa atravessa intacto,
+ * porque o nome dele na tela é o nome dele — e o `.capitalize()` do narrador
+ * do horse, aplicado a todo mundo, transformaria "João Pedro" em "João pedro".
+ */
+function emCaixaDeNome(texto) {
+  return texto.replace(/(^|[\s\-])(\p{L})/gu, (_, antes, letra) => antes + letra.toUpperCase());
+}
+
+/**
+ * O nome como a voz deve dizê-lo.
+ *
+ * A ordem dos degraus é a do narrador do horse, e cada um existe por um caso
+ * real: o apelido é o nome que a pessoa escolheu; quando ele não sobra em nada
+ * falável, o @ é o nome que aparece embaixo do presente e que ela reconhece; e
+ * "Alguém" é o fim da linha, para quando nem um nem outro tem uma letra.
+ */
+export function nomeFalavel(nome, usuario = '') {
+  const apelido = falavel(nome);
+  const arroba = falavel(usuario);
+  const quem = apelido || arroba;
+  if (!quem) return 'Alguém';
+  // `\p{Ll}` é "letra minúscula" em qualquer escrita — um nome em cirílico ou
+  // em grego também tem caixa, e uma faixa `a-z` os trataria como se não
+  // tivessem.
+  return /\p{Ll}/u.test(quem) ? quem : emCaixaDeNome(quem.toLowerCase());
+}
+
 /**
  * Troca os marcadores pelos valores.
  *
  * `{nome}` em branco vira "Alguém" porque o apelido vem da rede e chega nulo
  * para conta sem nome definido — "Fala, !" na tela da live é o tipo de coisa
  * que ninguém vê no teste e todo mundo vê na transmissão.
+ *
+ * `usuario` é o @: ele só é consultado quando o apelido não tem nada que se
+ * possa falar.
  */
-export function preencher(modelo, { nome = '', quantidade = 0 } = {}) {
-  const quem = String(nome ?? '').trim() || 'Alguém';
+export function preencher(modelo, { nome = '', usuario = '', quantidade = 0 } = {}) {
+  const quem = nomeFalavel(nome, usuario);
   return String(modelo ?? '')
     // `replaceAll`, e não `replace`: uma frase com `{nome}` duas vezes sairia
     // com o segundo marcador cru na tela.
@@ -252,7 +320,12 @@ export function criarNarrador({ falas = {}, sorteio = Math.random, agora = Date.
       }
 
       liberadoEm.set(chave, t + (COOLDOWN_MS[tipo] ?? 60_000));
-      const texto = preencher(escolher(tipo, modelos), { nome: evento.usuario, quantidade });
+      const texto = preencher(escolher(tipo, modelos), {
+        nome: evento.usuario,
+        // O @ só é usado se o apelido não sobrar em nada falável.
+        usuario: evento.userId,
+        quantidade,
+      });
       aoNarrar?.(texto);
       return texto;
     },

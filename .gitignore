@@ -14,6 +14,11 @@ dados/
 *.sqlite-shm
 *.log
 
+# O bytecode do Python. Nasce sozinho na primeira vez que a ponte roda, e não
+# é fonte de nada: o `.py` ao lado é que manda.
+__pycache__/
+*.pyc
+
 # Sistema operacional
 Thumbs.db
 Desktop.ini

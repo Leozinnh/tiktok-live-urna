@@ -282,3 +282,56 @@ test('o cache em disco sobrevive ao processo', { skip: !soWindows }, async () =>
     await rm(pasta, { recursive: true, force: true });
   }
 });
+
+/* ------------------------------------------------------ o motor da voz */
+
+test('a extensão do arquivo volta do sintetizador, e não é adivinhada', { skip: !soWindows }, async () => {
+  /*
+   * O `<audio>` da tela recebe um endereço montado pelo servidor, e o arquivo
+   * tem nomes diferentes conforme quem o escreveu: `.wav` da voz do Windows,
+   * `.mp3` da neural. O servidor não tem como deduzir qual dos dois está em
+   * disco — ele pergunta, e é o `wav` na resposta que responde.
+   */
+  const pasta = await mkdtemp(join(tmpdir(), 'urna-voz-ext-'));
+  const voz = criarVoz({ pasta });
+  try {
+    const r = await voz.sintetizar('a extensão vem na resposta');
+    assert.ok(r, 'a síntese devolveu nada');
+    assert.match(r.arquivo, /\.wav$/, 'o arquivo não tem a extensão que o motor escreve');
+  } finally {
+    voz.parar();
+    await rm(pasta, { recursive: true, force: true });
+  }
+});
+
+test('quando a voz neural cai, a do Windows fala no lugar', { skip: !soWindows }, async () => {
+  /*
+   * A voz neural depende de internet e de um serviço que a Microsoft não
+   * promete a ninguém. Quando ela cai no meio de uma live, a alternativa seria
+   * um narrador mudo até alguém perceber — e é justamente o desfecho que todo
+   * o resto deste arquivo existe para evitar. A voz do Windows é feia, mas
+   * está instalada e não usa rede: um narrador feio é melhor do que nenhum.
+   *
+   * O `python` que não existe é o jeito de derrubar o motor neural sem tocar
+   * na rede de ninguém, e sem depender de o serviço estar fora do ar naquele
+   * minuto — que é a diferença entre um teste e uma aposta.
+   */
+  const pasta = await mkdtemp(join(tmpdir(), 'urna-voz-reserva-'));
+  const avisos = [];
+  const voz = criarVoz({
+    pasta,
+    motor: 'edge',
+    exe: { edge: 'python-que-nao-existe-nesta-maquina' },
+    aoAvisar: (t) => avisos.push(t),
+  });
+  try {
+    const r = await voz.sintetizar('a reserva entra quando o titular cai');
+    assert.ok(r, 'a frase ficou sem som nenhum');
+    assert.match(r.arquivo, /\.wav$/, 'quem falou não foi a voz do Windows');
+    assert.ok(r.bytes.length > 44, 'o áudio saiu vazio');
+    assert.ok(avisos.some((a) => /falhou/.test(a)), 'a queda do motor não foi avisada');
+  } finally {
+    voz.parar();
+    await rm(pasta, { recursive: true, force: true });
+  }
+});

@@ -20,6 +20,23 @@
 
 const COR = { tipo: 'cor' };
 
+/**
+ * Os motores de voz, na ordem em que o painel os oferece.
+ *
+ * Esta lista é do PAINEL, e a de verdade é a do `server/voz.js` — pelo mesmo
+ * motivo de `ACOES_SOCIAIS`. Importar a do servidor aqui seria mais direto e
+ * não funciona: o navegador carregaria junto o `node:child_process` que o
+ * `voz.js` importa, e o painel inteiro deixaria de abrir. Os dois lados
+ * discordando é o defeito que `tests/admin-abas.test.js` prende.
+ *
+ * O rótulo diz o que decide na hora de escolher — como soa e do que depende —,
+ * e não o nome técnico, que não diz nada a quem nunca mexeu num sintetizador.
+ */
+export const MOTORES_DA_VOZ = Object.freeze([
+  { valor: 'edge', rotulo: 'Neural (soa como gente; precisa de internet)' },
+  { valor: 'sapi', rotulo: 'Do Windows (funciona sem internet; voz robótica)' },
+]);
+
 const CAMPOS_DA_URNA = [
   { campo: 'nome', rotulo: 'Nome na tela', tipo: 'texto' },
   { campo: 'numero', rotulo: 'Número', tipo: 'texto', dica: 'o que a mão digita' },
@@ -138,11 +155,23 @@ const CAMPOS_DA_NARRACAO = [
     dica: 'desligada, a faixa continua aparecendo — só o som para',
   },
   {
+    caminho: 'narracao.motor',
+    rotulo: 'Motor da voz',
+    tipo: 'selecao',
+    // Um motor que o painel oferecesse sem o servidor conhecer seria salvo,
+    // mostrado como escolhido, e ignorado — a voz continuaria a mesma e nada na
+    // tela explicaria por quê. `tests/admin-abas.test.js` prende as duas listas.
+    opcoes: [...MOTORES_DA_VOZ],
+  },
+  {
     caminho: 'narracao.voz',
-    rotulo: 'Voz do Windows',
+    rotulo: 'Voz',
     tipo: 'texto',
     largo: true,
-    dica: 'vazio escolhe a primeira voz em português instalada',
+    // O nome da voz depende do motor: a neural se chama
+    // "pt-BR-FranciscaNeural", a do Windows é "Microsoft Maria Desktop". Uma
+    // dica que falasse de uma só mandaria o Leonardo procurar no lugar errado.
+    dica: 'vazio escolhe a voz padrão do motor; no edge: pt-BR-FranciscaNeural',
   },
   {
     caminho: 'narracao.velocidade',
@@ -229,23 +258,31 @@ export const ABAS = [
           max: 86400,
           dica: 'quanto tempo o público tem para votar',
         },
-        {
-          caminho: 'rodada.politica',
-          rotulo: 'Política de fechamento',
-          tipo: 'selecao',
-          opcoes: [
-            { valor: 'processar-recebidos', rotulo: 'Processar o que chegou' },
-            { valor: 'descartar-atrasados', rotulo: 'Descartar atrasados' },
-          ],
-        },
-        {
-          caminho: 'rodada.toleranciaMs',
-          rotulo: 'Tolerância (ms)',
-          tipo: 'numero',
-          min: 0,
-          max: 60000,
-          dica: 'a janela em que um voto atrasado ainda vale',
-        },
+        /*
+         * AQUI FICAVAM "Política de fechamento" e "Tolerância (ms)".
+         *
+         * Os dois saíram porque o servidor não os honra, e essa é a regra
+         * deste arquivo. A política oferecia "processar-recebidos" e
+         * "descartar-atrasados" — e o servidor conhece três, das quais
+         * "descartar-atrasados" NÃO é uma (`POLITICAS_DE_ENCERRAMENTO` traz
+         * "corte-exato" e "tolerancia-2s" no lugar). Escolhê-la era o defeito
+         * exato que este painel existe para não ter: a tela dizia "salvo", o
+         * `normalizar` avisava baixinho, e a rodada continuava fechando igual.
+         *
+         * Pior: das três que ele ACEITA, só "processar-recebidos" é HONRADA —
+         * o `fecharRodada` do `tally.js` processa o que chegou e não consulta
+         * a política em lugar nenhum. E a tolerância é o mesmo recurso pelo
+         * mesmo motivo: uma janela de milissegundos só quer dizer alguma coisa
+         * junto de uma política que olhe o relógio do evento.
+         *
+         * Os dois voltam na etapa que implementar as três políticas da seção
+         * 6.3 da spec — e voltam puxando a lista de `POLITICAS_DE_ENCERRAMENTO`,
+         * que é do servidor, em vez de uma lista escrita aqui, que foi como
+         * "descartar-atrasados" nasceu.
+         *
+         * `tests/admin-abas.test.js` prende isso: o campo não pode reaparecer
+         * antes de o servidor honrá-lo.
+         */
       ],
     }],
   },

@@ -21,6 +21,7 @@
 
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { FALAS_PADRAO } from './narracao.js';
+import { motorConhecido } from './voz.js';
 import { dirname, join } from 'node:path';
 
 /** A mesma expressão de public/js/urna.js: o que o CSS aceita como cor. */
@@ -101,11 +102,17 @@ export const PADRAO = Object.freeze({
   }),
   narracao: Object.freeze({
     ativa: true,
-    // Vazio escolhe a primeira voz pt-BR instalada. Um nome de voz errado no
-    // arquivo deixaria a live muda com o narrador "ligado" — o painel mostra
-    // qual foi escolhida justamente para isso ter onde aparecer.
+    /*
+     * Qual dos dois sintetizadores fala. A lista é a do `voz.js`, e o padrão é
+     * a neural: ela é a que soa como gente, e o padrão é o que toca se o
+     * Leonardo não mexer em nada.
+     */
+    motor: 'edge',
+    // Vazio escolhe a voz padrão do motor. Um nome de voz errado no arquivo
+    // deixaria a live muda com o narrador "ligado" — o painel mostra qual foi
+    // escolhida justamente para isso ter onde aparecer.
     voz: '',
-    // A escala do SAPI, de -10 a 10.
+    // A escala do painel, de -10 a 10. No edge, o 0 é o +8% do horse.
     velocidade: 0,
     volume: 1,
     /*
@@ -359,6 +366,18 @@ export function normalizar(bruto = {}) {
     // Só o `false` explícito desliga. Um narrador nasce falando, e um
     // `undefined` vindo de um painel antigo não pode calá-lo.
     ativa: base.narracao?.ativa !== false,
+    /*
+     * O motor é uma lista fechada, e o que não estiver nela vira o padrão.
+     *
+     * O campo é texto livre no arquivo, então "Edge" com maiúscula e " SAPI "
+     * com espaço chegam aqui — e os dois são o mesmo pedido de quem escreveu à
+     * mão. O que não for um motor conhecido não pode deixar a live muda: um
+     * dedo escorregado no painel não é motivo para o narrador parar de falar.
+     */
+    motor: (() => {
+      const pedido = texto(base.narracao?.motor).toLowerCase();
+      return motorConhecido(pedido) ? pedido : PADRAO.narracao.motor;
+    })(),
     voz: texto(base.narracao?.voz),
     // O SAPI vai de -10 a 10. Um `99` não estoura nada, mas o número que o
     // painel mostraria não seria o que está valendo — e aí ele mexeria no

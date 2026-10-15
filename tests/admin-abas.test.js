@@ -14,9 +14,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { ABAS, acharAba, gruposDaAba, camposDaAba, ACOES_SOCIAIS, giftIdSemUrna, numeroDeTeste } from '../public/js/admin/abas.js';
-import { PADRAO } from '../server/config.js';
+import { ABAS, acharAba, gruposDaAba, camposDaAba, ACOES_SOCIAIS, giftIdSemUrna, numeroDeTeste, MOTORES_DA_VOZ } from '../public/js/admin/abas.js';
+import { PADRAO, POLITICAS_DE_ENCERRAMENTO } from '../server/config.js';
 import { TIPOS_SOCIAIS } from '../server/sources/base.js';
+import { MOTORES } from '../server/voz.js';
 
 const CONFIG_DE_TESTE = {
   urnas: {
@@ -250,4 +251,89 @@ test('o campo do número abre preenchido com uma urna que existe', () => {
   assert.equal(numeroDeTeste({ u1: { numero: '22' }, u2: { numero: '13' } }), '22');
   assert.equal(numeroDeTeste({}), '');
   assert.equal(numeroDeTeste(null), '');
+});
+
+/* --------------------------------------------------------- o motor da voz */
+
+test('os motores oferecidos no painel são os que o servidor tem', () => {
+  /*
+   * A costura de sempre, e aqui ela vale mais do que nas outras abas: o motor
+   * da voz é uma lista FECHADA do lado do servidor, e um nome que o painel
+   * oferecesse sem o servidor conhecer seria salvo, mostrado como escolhido, e
+   * ignorado — a voz continuaria a mesma e nada na tela explicaria por quê.
+   *
+   * A varredura é contra a tabela de motores do `voz.js`, que é quem decide.
+   *
+   * A comparação é por CONJUNTO, e não por ordem: a ordem da tabela do
+   * servidor é a de inserção no objeto e não quer dizer nada, enquanto a do
+   * painel é uma escolha de apresentação — o neural primeiro, porque é o
+   * padrão e é o que o Leonardo vai querer na maioria das vezes. Prender a
+   * ordem aqui obrigaria o painel a listar na ordem em que o servidor por
+   * acaso declarou, que é o tipo de acoplamento que ninguém percebe até
+   * reordenar o objeto e ver um teste vermelho sem defeito nenhum por trás.
+   */
+  const doServidor = Object.keys(MOTORES).sort();
+  assert.deepEqual(MOTORES_DA_VOZ.map((m) => m.valor).sort(), doServidor);
+
+  const campo = camposDaAba('textos', PADRAO).find((c) => c.caminho === 'narracao.motor');
+  assert.ok(campo, 'não há campo de motor da voz no painel');
+  assert.equal(campo.tipo, 'selecao');
+  assert.deepEqual(campo.opcoes.map((o) => o.valor).sort(), doServidor);
+  for (const o of campo.opcoes) assert.match(o.rotulo ?? '', /\S/, `o motor ${o.valor} ficou sem rótulo`);
+  // O padrão do servidor tem que estar entre as opções: um padrão que o painel
+  // não oferece deixaria o campo mostrando uma escolha que não existe na lista,
+  // e o primeiro salvamento trocaria a voz sem ninguém pedir.
+  assert.ok(campo.opcoes.some((o) => o.valor === PADRAO.narracao.motor),
+    'o motor padrão do servidor não está entre as opções do painel');
+});
+
+test('o campo da voz não promete mais o Windows do que ele é', () => {
+  /*
+   * O rótulo antigo dizia "Voz do Windows", e dizia certo enquanto havia um
+   * motor só. Com dois, o mesmo campo agora aceita um nome de voz NEURAL e um
+   * nome de voz do SAPI — que são listas diferentes —, e um rótulo que falasse
+   * de Windows mandaria o Leonardo procurar a Francisca neural no painel do
+   * Windows, onde ela não está.
+   */
+  const campo = camposDaAba('textos', PADRAO).find((c) => c.caminho === 'narracao.voz');
+  assert.doesNotMatch(campo.rotulo, /Windows/i);
+});
+
+/* ---------------------------------------------- o que o servidor não honra */
+
+test('a política de fechamento só volta ao painel quando o servidor a honrar', () => {
+  /*
+   * O campo oferecia duas políticas — "processar-recebidos" e
+   * "descartar-atrasados". O servidor conhece três, e "descartar-atrasados"
+   * NÃO é uma delas: `POLITICAS_DE_ENCERRAMENTO` traz "corte-exato" e
+   * "tolerancia-2s" no lugar. Escolher a opção inventada era exatamente o
+   * defeito que a regra deste arquivo existe para impedir — o painel dizia
+   * "salvo", o `normalizar` avisava baixinho, e a rodada continuava fechando
+   * do mesmo jeito.
+   *
+   * Pior: das três que o servidor ACEITA, só "processar-recebidos" é
+   * HONRADA. O `fecharRodada` do tally processa o que chegou e não consulta a
+   * política em lugar nenhum. Um campo com três opções das quais duas não
+   * fazem nada é a mesma mentira, com mais cliques.
+   *
+   * A tolerância é o MESMO recurso e tem o mesmo problema: `toleranciaMs` é a
+   * janela em que um voto atrasado ainda vale, e só quer dizer alguma coisa
+   * junto de uma política que olhe o relógio do evento. Ninguém a lê. Ela sai
+   * junto — um campo de milissegundos que não muda nada é pior do que os
+   * outros, porque parece o mais técnico e o mais confiável dos três.
+   *
+   * Então os dois saem, e voltam na etapa que implementar as três políticas.
+   * Este teste é o que impede eles de voltarem antes disso.
+   */
+  const campos = ABAS.flatMap((a) => camposDaAba(a.id, PADRAO));
+  for (const caminho of ['rodada.politica', 'rodada.toleranciaMs']) {
+    assert.equal(campos.some((c) => c.caminho === caminho), false,
+      `${caminho} voltou ao painel sem o servidor honrá-lo`);
+  }
+
+  // E a lista do servidor continua sendo a das três da spec, seção 6.3: no dia
+  // em que o campo voltar, é dela que as opções têm que sair — e não de uma
+  // lista escrita no painel, que foi como "descartar-atrasados" nasceu.
+  assert.deepEqual([...POLITICAS_DE_ENCERRAMENTO].sort(),
+    ['corte-exato', 'processar-recebidos', 'tolerancia-2s']);
 });

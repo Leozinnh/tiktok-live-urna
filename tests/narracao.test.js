@@ -268,3 +268,85 @@ test('a fala pronta é entregue a quem pediu para saber', () => {
   assert.deepEqual(ditas, [fala]);
   assert.equal(ditas[0], fala);
 });
+
+/* ------------------------------------ o que a voz fala, e não o que a tela escreve */
+
+/*
+ * O apelido do TikTok é escrito para ser LIDO, não para ser falado.
+ *
+ * Ele vem com emoji, com bandeira, com coração, com cifrão — e um sintetizador
+ * de voz neural ou tenta ler aquilo (e sai "bandeira do Brasil" no meio do
+ * nome de quem chegou) ou trava na pontuação. O nome tem que chegar na voz
+ * como uma pessoa diria: só as letras.
+ *
+ * A limpeza acontece ANTES da frase ser montada, e vale para a tela também.
+ * É uma decisão: a faixa que o OBS captura mostra o mesmo texto que a voz
+ * fala. Duas versões do mesmo nome — uma escrita e outra falada — divergiriam
+ * no dia em que alguém mexesse numa só, e ninguém veria.
+ */
+
+test('o emoji do apelido não chega na voz', () => {
+  assert.equal(preencher('Fala, {nome}!', { nome: 'caioba🇧🇷✋🏽😛' }), 'Fala, caioba!');
+  assert.equal(preencher('Fala, {nome}!', { nome: '🔥Ana🔥' }), 'Fala, Ana!');
+});
+
+test('o arroba do apelido não é pronunciado', () => {
+  // O @ é o jeito como o TikTok escreve o usuário, e a voz não tem o que
+  // fazer com ele: ou vira "arroba" no meio do nome, ou vira uma pausa
+  // estranha.
+  assert.equal(preencher('Fala, {nome}!', { nome: '@maria.silva' }), 'Fala, maria.silva!');
+  assert.equal(preencher('Fala, {nome}!', { nome: '@joao' }), 'Fala, joao!');
+});
+
+test('apelido que era só emoji vira Alguém', () => {
+  // Sem sobrar letra nenhuma, não há o que falar. "Fala, !" na tela é pior do
+  // que "Fala, Alguém!" — e a voz não pode ficar muda para um nome que ela
+  // não consegue dizer.
+  assert.equal(preencher('Fala, {nome}!', { nome: '👑🔥💎' }), 'Fala, Alguém!');
+  assert.equal(preencher('Fala, {nome}!', { nome: '🇧🇷' }), 'Fala, Alguém!');
+});
+
+test('o apelido todo em maiúsculas vira nome, e não letras soltas', () => {
+  /*
+   * Voz neural com palavra curta toda em maiúsculas tende a soletrar: "ANA"
+   * sai "á-ene-á". Um apelido de três letras em caixa alta é comuníssimo no
+   * TikTok, e o efeito no ar é a voz lendo sigla.
+   *
+   * A regra é cirúrgica de propósito: só mexe em nome que é TODO maiúsculo.
+   * Um "João Pedro" com a caixa certa não pode virar "João pedro" — o nome
+   * dele na tela é o nome dele.
+   */
+  assert.equal(preencher('Fala, {nome}!', { nome: 'ANA' }), 'Fala, Ana!');
+  assert.equal(preencher('Fala, {nome}!', { nome: 'JOAO PEDRO' }), 'Fala, Joao Pedro!');
+  // Já em caixa normal, o nome passa intacto — inclusive o sobrenome com
+  // maiúscula no meio da frase.
+  assert.equal(preencher('Fala, {nome}!', { nome: 'João Pedro' }), 'Fala, João Pedro!');
+  assert.equal(preencher('Fala, {nome}!', { nome: 'mcCain' }), 'Fala, mcCain!');
+});
+
+test('o apelido comprido não perde pedaço na limpeza', () => {
+  // A limpeza é sobre símbolo, e não sobre tamanho: o corte de 120 caracteres
+  // é da faixa, e acontece depois. Um nome com acento, cedilha e hífen é
+  // comum e tem que atravessar inteiro.
+  assert.equal(preencher('{nome}!', { nome: 'João Conceição' }), 'João Conceição!');
+  assert.equal(preencher('{nome}!', { nome: 'ana-clara_92' }), 'ana-clara_92!');
+});
+
+test('apelido que só tem emoji cai no @ da pessoa', () => {
+  /*
+   * É o que o narrador do `tiktok-live-horse` faz, e por um motivo que se vê
+   * na live: quem tem o apelido tomado por emoji reconhece o PRÓPRIO @ falado,
+   * e o resto do público também — é o nome que aparece embaixo do presente.
+   * "Alguém" não é o nome de ninguém.
+   *
+   * "Alguém" continua sendo o fim da linha, e não o primeiro degrau: ele só
+   * entra quando nem o apelido nem o @ têm uma letra que se possa falar.
+   */
+  assert.equal(preencher('Fala, {nome}!', { nome: '👑🔥💎', usuario: 'caioba92' }), 'Fala, caioba92!');
+  // E o @ passa pela mesma limpeza: ele também vem com emoji de quem o trocou.
+  assert.equal(preencher('Fala, {nome}!', { nome: '💎', usuario: '@ana🇧🇷' }), 'Fala, ana!');
+  // Só o @, sem apelido nenhum — o caso das contas sem nome definido.
+  assert.equal(preencher('Fala, {nome}!', { usuario: 'joao' }), 'Fala, joao!');
+  // Nada falável em lugar nenhum.
+  assert.equal(preencher('Fala, {nome}!', { nome: '🎁', usuario: '🏳️' }), 'Fala, Alguém!');
+});

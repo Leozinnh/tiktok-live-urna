@@ -17,8 +17,13 @@
   O protocolo é uma linha por frase, em UTF-8, separada por TAB:
 
     entrada   <id>\t<texto>
-    saída     ok\t<id>\t<texto>      (o texto volta como ECO)
+    saída     ok\t<id>\t<wav>\t<texto>      (o texto volta como ECO)
               erro\t<id>\t<motivo>
+
+  A extensão vai na resposta porque agora há DOIS sintetizadores: este escreve
+  `.wav`, e o neural, em `ponte/voz.py`, escreve `.mp3`. Quem lê o arquivo é o
+  servidor, e ele não pode adivinhar — um `readFile` no nome errado devolveria
+  ENOENT e a fala sumiria com o sintetizador tendo funcionado perfeitamente.
 
   O eco existe para o outro lado poder conferir que o acento chegou inteiro.
   O stdin do Windows PowerShell 5.1 não é UTF-8 por padrão, e "Conceição"
@@ -85,7 +90,7 @@ while ($true) {
     # aberto até a PRÓXIMA frase, e o <audio> da página toca um arquivo
     # truncado — ou nenhum.
     $s.SetOutputToNull()
-    $out.WriteLine("ok`t$id`t$texto")
+    $out.WriteLine("ok`t$id`twav`t$texto")
   } catch {
     $out.WriteLine("erro`t$id`t$($_.Exception.Message)")
   }

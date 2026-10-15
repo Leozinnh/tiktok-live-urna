@@ -65,11 +65,30 @@ export function mensagemDePortaOcupada(porta, pid = null) {
   const p = Number(porta);
   const linhas = ['', `  A porta ${p} já está ocupada.`, ''];
 
+  /*
+   * A PRIMEIRA resposta é o `npm run reiniciar`, e essa ordem é o ponto.
+   *
+   * Ele derruba quem está na porta e sobe o servidor de novo na mesma janela,
+   * sem PID nenhum para copiar — que é literalmente o que o Leonardo pediu:
+   * "nao quero ter q dar taskkill e tal para reiniciar". O `taskkill` pronto
+   * para colar foi a resposta anterior, e era boa; só não era a que ele queria
+   * dar. Deixá-lo no topo faria ele continuar fazendo à mão o que já tem
+   * comando.
+   *
+   * Vale ainda mais quando o PID não foi descoberto: o reiniciar faz a própria
+   * descoberta, então é justamente aí que ele resolve sozinho.
+   */
+  linhas.push(
+    '  Na maioria das vezes é outra instância deste servidor que ficou de pé.',
+    '  Para derrubá-la e subir de novo, num comando só:',
+    '',
+    '      npm run reiniciar',
+    '',
+  );
+
   if (pid) {
     linhas.push(
-      `  Quem está segurando é o processo ${pid}.`,
-      '  Na maioria das vezes é outra instância deste servidor que ficou de pé.',
-      '  Para derrubá-la:',
+      `  Quem está segurando é o processo ${pid}. Para derrubá-lo à mão:`,
       '',
       `      taskkill /PID ${pid} /F`,
       '',

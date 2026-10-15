@@ -53,14 +53,22 @@ test('o áudio só é pedido do endereço que o servidor serve', () => {
     '//outro.site/x.wav',
     '/voz/A1B2C3D4E5F60718.wav',
     '/voz/curto.wav',
-    '/voz/a1b2c3d4e5f60718.mp3',
+    // Formato que o servidor não escreve. A lista é fechada nos dois formatos
+    // que os dois sintetizadores produzem — um `.ogg` aqui é um pedido que
+    // ninguém fez, e é a lista fechada que impede um caminho de passar.
+    '/voz/a1b2c3d4e5f60718.ogg',
+    '/voz/a1b2c3d4e5f60718.mp3.wav',
     '/voz/../../server/hub.js',
     'javascript:alert(1)',
   ]) {
     assert.equal(falaDoServidor(fala({ wav: ruim })).wav, null, `${ruim} não podia passar`);
   }
-  // E o que o servidor manda de verdade continua passando.
+  // E o que o servidor manda de verdade continua passando — nos DOIS formatos,
+  // porque são dois sintetizadores: o `.wav` da voz do Windows e o `.mp3` da
+  // neural. Recusar o segundo deixaria a live muda com a voz nova ligada.
   assert.equal(falaDoServidor(fala()).wav, '/voz/a1b2c3d4e5f60718.wav');
+  assert.equal(falaDoServidor(fala({ wav: '/voz/a1b2c3d4e5f60718.mp3' })).wav,
+    '/voz/a1b2c3d4e5f60718.mp3');
   // Sem áudio é o caso normal — o sintetizador cai, a voz está desligada.
   assert.equal(falaDoServidor(fala({ wav: null })).wav, null);
 });
