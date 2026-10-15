@@ -1,0 +1,26 @@
+{
+  "urnas": {
+    "u1": {
+      "nome": "URNA 1",
+      "numero": "22",
+      "cargo": "DEPUTADO FEDERAL",
+      "corPrimaria": "#1a5fd0",
+      "candidato": {
+        "nome": "Ana Prado",
+        "partido": "PARTIDO A",
+        "foto": ""
+      }
+    },
+    "u2": {
+      "nome": "URNA 2",
+      "numero": "13",
+      "cargo": "DEPUTADO FEDERAL",
+      "corPrimaria": "#e02020",
+      "candidato": {
+        "nome": "Bruno Tavares",
+        "partido": "PARTIDO B",
+        "foto": ""
+      }
+    }
+  }
+}

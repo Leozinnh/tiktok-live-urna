@@ -13,6 +13,7 @@ import { criarCronometro } from './cronometro.js';
 import { criarPresentes, PRESENTES_PADRAO } from './presentes.js';
 import { criarMaoSvg } from './hand/hand-svg.js';
 import { AtorDaMao } from './hand-actor.js';
+import { carregarConfig, aplicarConfig } from './config.js';
 
 const cenario = montarCenario(document.getElementById('cena'));
 const { camadaUrnas, camadaMao, camadaPlacar, camadaEfeitos } = cenario;
@@ -28,14 +29,22 @@ const { camadaUrnas, camadaMao, camadaPlacar, camadaEfeitos } = cenario;
  */
 const contagem = Object.create(null);
 
-// Posições em coordenadas do palco (1080x1920). As urnas convergem
-// levemente para o centro, o que reforça a perspectiva da cena.
-//
-// `candidato` e `cargo` são os campos que a tela da urna mostra. Os nomes
-// aqui são de exemplo, e é aqui que você troca pelos seus: ponha o nome do
-// candidato, o partido, e — se tiver a foto — `foto: '/fotos/fulano.jpg'`.
-// Sem foto, a urna desenha um retrato.
-const CONFIG_URNAS = [
+/*
+ * As duas urnas: onde ficam no palco, e quem são.
+ *
+ * Posições em coordenadas do palco (1080x1920). As urnas convergem levemente
+ * para o centro, o que reforça a perspectiva da cena.
+ *
+ * Isto aqui é o PADRÃO, não o que vai ao ar. Quem manda é o arquivo
+ * `config/local.json`, que entra por cima campo a campo — trocar o
+ * candidato, a foto ou a cor de uma urna NÃO se faz neste arquivo, e sim
+ * lá, sem mexer em código. Ver public/js/config.js para o formato.
+ *
+ * O padrão existe para a cena abrir de pé antes de qualquer configuração:
+ * uma urna sem candidato, sem cargo e com o número em branco apareceria no
+ * ar do jeito que ela está no código, e não do jeito que a live precisa.
+ */
+const URNAS_PADRAO = [
   { id: 'u1', x: 24,  y: 38, rot: -6, nome: 'URNA 1', numero: '22',
     corPrimaria: '#1a5fd0', corSecundaria: '#0d3a8f',
     cargo: 'DEPUTADO FEDERAL',
@@ -45,6 +54,22 @@ const CONFIG_URNAS = [
     cargo: 'DEPUTADO FEDERAL',
     candidato: { nome: 'Bruno Tavares', partido: 'PARTIDO B' } },
 ];
+
+/*
+ * A configuração do Leonardo por cima do padrão.
+ *
+ * `await` no topo do módulo, e não uma promessa tratada depois, porque as
+ * urnas são montadas logo abaixo e não podem nascer com o candidato errado
+ * para serem corrigidas depois: isso seria um piscar do nome de exemplo na
+ * tela, no ar. `carregarConfig` nunca rejeita — arquivo ausente é o caso
+ * normal, e a cena segue com os padrões.
+ *
+ * O erro NÃO interrompe nada. Um JSON quebrado deixa a cena de pé com os
+ * padrões e vira um aviso na barra: melhor uma live com o candidato de
+ * exemplo e um aviso visível do que uma tela preta sem explicação.
+ */
+const { dados: configDoUsuario, erro: erroDaConfig } = await carregarConfig();
+const CONFIG_URNAS = aplicarConfig(URNAS_PADRAO, configDoUsuario);
 
 const urnas = {};
 for (const cfg of CONFIG_URNAS) {
@@ -133,6 +158,26 @@ barra.innerHTML = PRESENTES_DEMO
    */
   + '<button data-nova-rodada="1">Nova rodada</button>'
   + '<button data-zoom="1">Ver no tamanho real</button>';
+
+/*
+ * O erro de configuração aparece AQUI, e não no palco.
+ *
+ * A barra é invisível para o OBS — ela só surge quando alguém mexe o mouse —,
+ * então o aviso chega a quem está operando e não entra no enquadramento. Um
+ * aviso desenhado no palco seria uma interface administrativa ocupando a tela
+ * principal, que é exatamente o que não pode haver.
+ *
+ * `textContent`, e não `innerHTML`: a mensagem é a de um JSON quebrado e cita
+ * o que o navegador disse, com aspas e chaves dentro. Como texto, não há o que
+ * escapar nem como a mensagem virar marcação.
+ */
+if (erroDaConfig) {
+  const aviso = document.createElement('span');
+  aviso.className = 'demo-barra__erro';
+  aviso.textContent = erroDaConfig;
+  barra.append(aviso);
+}
+
 document.body.append(barra);
 
 /*

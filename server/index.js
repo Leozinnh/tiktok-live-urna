@@ -15,7 +15,66 @@ const TIPOS = {
   '.woff2': 'font/woff2',
 };
 
-export function criarServidor({ raiz }) {
+/**
+ * Publica a configuração do usuário — config/local.json — que mora FORA de
+ * public/, porque é dele e não do site.
+ *
+ * A rota é um `if` de igualdade, e não um `startsWith`: servir a pasta
+ * `config/` inteira daria acesso a qualquer arquivo largado ali dentro. Com a
+ * igualdade, a única coisa alcançável é este nome.
+ *
+ * Nunca responde erro de status. Ausente é o caso NORMAL — é assim que o
+ * projeto começa — e vale `{}`. Quebrado vira `{ erro }` com 200, para o
+ * navegador conseguir CONTAR o problema em vez de tratá-lo como rota fora do
+ * ar: um JSON malformado é o tropeço mais provável de todos, porque o
+ * arquivo é editado à mão e uma vírgula sobrando basta.
+ */
+async function servirConfig(res, caminho) {
+  const responder = (corpo) => {
+    res.writeHead(200, {
+      'content-type': 'application/json; charset=utf-8',
+      // Sem cache: ele edita o arquivo, dá F5 e espera ver a mudança.
+      'cache-control': 'no-store',
+    });
+    res.end(JSON.stringify(corpo));
+  };
+
+  let texto;
+  try {
+    texto = await readFile(caminho, 'utf8');
+  } catch {
+    responder({});
+    return;
+  }
+
+  // Arquivo de zero byte é quem criou o arquivo antes de saber o que pôr
+  // dentro. Isso não é JSON inválido, é ausência de configuração.
+  if (!texto.trim()) { responder({}); return; }
+
+  let dados;
+  try {
+    dados = JSON.parse(texto);
+  } catch (e) {
+    responder({ erro: `config/local.json não é um JSON válido: ${e.message}` });
+    return;
+  }
+
+  if (typeof dados !== 'object' || dados === null || Array.isArray(dados)) {
+    responder({
+      erro: 'config/local.json precisa conter um objeto JSON, começando por { e terminando em }.',
+    });
+    return;
+  }
+
+  responder(dados);
+}
+
+export function criarServidor({ raiz, config }) {
+  // Por parâmetro para o teste não depender do config/local.json de verdade
+  // de quem roda a suíte — e para a rota poder ser exercitada sem mexer no
+  // arquivo do Leonardo.
+  const caminhoDaConfig = config ?? join(raiz, '..', 'config', 'local.json');
+
   return createServer((req, res) => {
     // Envolvido à mão em vez de async/await: uma promessa rejeitada aqui
     // derrubaria o processo inteiro no meio de uma live.
@@ -24,6 +83,11 @@ export function criarServidor({ raiz }) {
         const url = new URL(req.url, 'http://localhost');
         let caminho = decodeURIComponent(url.pathname);
         if (caminho === '/') caminho = '/broadcast.html';
+
+        if (caminho === '/config/local.json') {
+          await servirConfig(res, caminhoDaConfig);
+          return;
+        }
 
         // normalize() resolve os '..' antes de juntarmos; a conferência
         // seguinte garante que o resultado continua dentro da raiz.

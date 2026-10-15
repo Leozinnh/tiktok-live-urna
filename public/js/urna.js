@@ -28,7 +28,15 @@ export function paraCoordenadasDoPalco(rect, palcoRect) {
 }
 
 const COR_PADRAO = '#8a8f98';
-const COR_VALIDA = /^#[0-9a-f]{3}$|^#[0-9a-f]{6}$|^#[0-9a-f]{8}$/i;
+
+/**
+ * O que conta como cor, para a urna e para a configuração do usuário.
+ *
+ * Exportada porque config.js precisa da MESMA regra: se as duas divergirem,
+ * uma cor aceita no arquivo seria recusada na hora de pintar (ou o
+ * contrário), e a urna ficaria com a cor padrão sem ninguém entender por quê.
+ */
+export const COR_VALIDA = /^#[0-9a-f]{3}$|^#[0-9a-f]{6}$|^#[0-9a-f]{8}$/i;
 
 /**
  * Hex para rgba.
@@ -114,6 +122,48 @@ export function retratoSvg(cor = '#1a5fd0') {
 }
 
 /**
+ * Faz a foto do candidato cair para o desenho quando ela não carrega.
+ *
+ * Sem isto, um caminho errado na configuração vira o ícone de imagem quebrada
+ * do navegador — na live, na frente de todo mundo, um quadradinho com um X no
+ * meio do painel. O caminho errado é o caso provável, não o improvável: é o
+ * que acontece na primeira vez que alguém aponta para o arquivo dele.
+ *
+ * Chamada a cada `definirTela`, porque cada escrita reescreve o `innerHTML` da
+ * tela e leva junto o ouvinte da imagem anterior. Ligar uma vez só, no
+ * começo, funcionaria até o primeiro voto — e depois pararia em silêncio.
+ *
+ * Devolve se havia foto para ligar. Não achar foto não é erro: o candidato
+ * sem foto configurada já está com o desenho no lugar, e as telas de
+ * "confirmado" e "corrija" não têm retrato nenhum.
+ */
+export function ligarQuedaDoRetrato(raiz, cor = '#1a5fd0') {
+  const img = raiz?.querySelector?.('.tela__retrato-foto');
+  if (!img) return false;
+
+  const cair = () => {
+    // `parentNode` pode ter saído do documento entre a falha e o evento —
+    // a tela já foi reescrita. Escrever no vazio não faz mal, mas escrever
+    // no retrato de OUTRO candidato faria.
+    const caixa = img.parentNode;
+    if (caixa) caixa.innerHTML = retratoSvg(cor);
+  };
+
+  img.addEventListener('error', cair);
+
+  /*
+   * A imagem que já falhou não dispara `error` de novo — o navegador só
+   * dispara quando TENTA carregar, e ele já desistiu. Acontece quando a tela
+   * é escrita e lida no mesmo quadro, ou quando o navegador guardou a falha
+   * em cache. `complete` sozinho não serve: é verdadeiro também para a foto
+   * que carregou bem, e aí o desenho taparia um retrato que funcionava.
+   */
+  if (img.complete && img.naturalWidth === 0) cair();
+
+  return true;
+}
+
+/**
  * O retrato do candidato: a foto do usuário, se houver, senão o desenho.
  *
  * O endereço da foto entra num atributo, então passa pelo mesmo escape do
@@ -139,6 +189,24 @@ function markupFaixa(estado) {
     </div>`;
 }
 
+/**
+ * O que foi digitado ainda pode virar o número do candidato?
+ *
+ * Compara o COMEÇO, e não o número inteiro: com "22" na urna, o "2" do
+ * primeiro toque já mantém a ficha. Exigir os dois dígitos faria o retrato
+ * sumir no primeiro toque e voltar no segundo — um piscar que parece
+ * defeito, e logo no momento em que o eleitor está olhando para a tela.
+ *
+ * O contrário — "21" digitado numa urna de "22" — não tem mais como virar o
+ * número dele, e a ficha sai. É o que o Leonardo pediu: número que não é do
+ * candidato não mostra a cara dele.
+ */
+function numeroCombina(estado) {
+  const alvo = String(estado.numero ?? '');
+  const digitado = String(estado.numeroDigitado ?? '');
+  return alvo.startsWith(digitado);
+}
+
 /*
  * O miolo do painel: retrato à esquerda, NÚMERO GIGANTE à direita, e nome e
  * partido numa linha miúda embaixo.
@@ -147,12 +215,31 @@ function markupFaixa(estado) {
  * tamanho, deitado no sofá: lê o "22" e não lê mais nada. Por isso o número
  * ocupa o lugar de honra e o nome — que continua ali, porque a urna de
  * verdade o mostra — fica no corpo menor, para quem olhar de perto.
+ *
+ * `comCandidato` falso deixa só o número. A ficha inteira sai — retrato,
+ * nome e partido —, e não vira uma moldura vazia com "Nome:" e nada depois:
+ * um campo em branco na tela é pior do que campo nenhum, porque parece
+ * defeito.
  */
-function markupFicha(estado, cor, slotNumero) {
+function markupFicha(estado, cor, slotNumero, comCandidato = true) {
+  const numero = slotNumero ?? `<span class="tela__numero">${esc(estado.numero ?? '')}</span>`;
+
+  if (!comCandidato) {
+    // Sem retrato ao lado, `.tela__dados` (`flex: 1`) toma a largura toda e o
+    // número fica centrado no painel — que é onde ele deve estar sozinho.
+    // Sem classe própria: não há regra de CSS para ela, e uma classe que
+    // ninguém estiliza é só uma pista falsa para quem lê o DOM depois.
+    return `
+      <div class="tela__ficha">
+        <div class="tela__dados">
+          <div class="tela__campo tela__campo--numero">${numero}</div>
+        </div>
+      </div>`;
+  }
+
   const c = estado.candidato ?? {};
   const nome = c.nome ?? estado.nome ?? '';
   const partido = c.partido ?? '—';
-  const numero = slotNumero ?? `<span class="tela__numero">${esc(estado.numero ?? '')}</span>`;
   return `
     <div class="tela__ficha">
       <div class="tela__retrato">${markupRetrato(estado, cor)}</div>
@@ -221,9 +308,16 @@ export function renderizarTela(estado) {
       const d = digitos[i] ?? '';
       return `<span class="tela__digito${d ? ' is-preenchido' : ''}">${esc(d)}</span>`;
     }).join('');
+    /*
+     * Sem candidato configurado não há ficha para mostrar, mesmo com o
+     * número certo: `Boolean` antes de `numeroCombina` porque um "Nome: —"
+     * e um retrato de desenho para ninguém cadastrado seriam a urna
+     * inventando um candidato.
+     */
+    const comCandidato = Boolean(estado.candidato) && numeroCombina(estado);
     return `
       ${markupFaixa(estado)}
-      ${markupFicha(estado, cor, `<span class="tela__numeros">${campos}</span>`)}
+      ${markupFicha(estado, cor, `<span class="tela__numeros">${campos}</span>`, comCandidato)}
       ${markupRodape(estado)}`;
   }
 
@@ -480,6 +574,9 @@ export function criarUrna(config) {
         votos: typeof config.contagem === 'function' ? config.contagem() : 0,
         ...estado,
       });
+      // A cada escrita, porque a escrita acima reescreveu o `innerHTML` e
+      // levou junto o ouvinte da foto anterior. Ver ligarQuedaDoRetrato.
+      ligarQuedaDoRetrato(telaConteudo, config.corPrimaria);
     },
     pressionarTecla(id) {
       const t = teclaEl(id);

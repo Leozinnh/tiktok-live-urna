@@ -49,3 +49,27 @@ body.mostrando-demo .demo-barra {
   background: #24304f;
   color: #dce6ff;
 }
+
+/*
+ * O aviso de configuração quebrada.
+ *
+ * Vermelho, e não cinza como os botões: ele é a única coisa desta barra que
+ * não é um controle, e aparece justamente quando o Leonardo acabou de editar
+ * o config/local.json e está esperando a mudança aparecer. Um aviso discreto
+ * ali no meio seria lido como mais um botão.
+ *
+ * `flex: none` para não ser espremido pelos botões, e `max-width` para a
+ * mensagem longa de um JSON quebrado — ela cita a posição do erro e é grande
+ * — quebrar em linhas em vez de esticar a barra pela tela inteira.
+ */
+.demo-barra__erro {
+  flex: none;
+  align-self: center;
+  max-width: 42vw;
+  padding: 8px 12px;
+  border: 1px solid #8f2d2d;
+  border-radius: 8px;
+  background: #3a1414;
+  color: #ffd9d9;
+  font: 500 12px/1.35 "Segoe UI", system-ui, sans-serif;
+}
