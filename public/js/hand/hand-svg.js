@@ -1,7 +1,7 @@
 import { JUNTAS, poseParaTransformacoes } from './poses.js';
-import { OSSOS, PIVOS, PONTAS, PONTA, DEDOS, PALMA } from './esqueleto.js';
+import { OSSOS, PIVOS, PONTAS, ANCORA, DEDOS, PALMA } from './esqueleto.js';
 
-export { PIVOS, PONTAS, PONTA, OSSOS, DEDOS, PALMA } from './esqueleto.js';
+export { PIVOS, PONTAS, PONTA, ANCORA, OSSOS, DEDOS, PALMA } from './esqueleto.js';
 
 export const MARCA_DE_JUNTA = (nome) => `data-junta="${nome}"`;
 
@@ -26,7 +26,24 @@ function falange(osso) {
   const dy = Math.sin(r);
   const hx = (-dy * osso.largura) / 2;
   const hy = (dx * osso.largura) / 2;
-  const k = osso.largura * 0.42;
+  /*
+   * O bojo das duas pontas, e por que eles são diferentes.
+   *
+   * A ponta do dedo é uma meia-volta. Na quadrática que vai de uma borda à
+   * outra, o ápice cai na METADE da distância até o ponto de controle — em
+   * `k = 0.42 · largura` o ápice ficava a só 0,21 · largura do fim, um
+   * tampão quase reto. Era isso que fazia cada dedo parecer um pino de
+   * plástico com uma tampa elíptica, e é o defeito que a captura de 2x da
+   * mão sobre a tecla mostrou. Com `k = largura` o ápice cai em meia
+   * largura: a meia-circunferência de um dedo.
+   *
+   * A base continua com o bojo pequeno. Ele existe só para passar para trás
+   * do pivô e cobrir a junta quando o dedo dobra; um bojo grande ali
+   * engordaria a raiz, que é justamente onde quatro dedos já estão
+   * encostados um no outro.
+   */
+  const kPonta = osso.largura;
+  const kBase = osso.largura * 0.42;
 
   const p = osso.raiz;
   const t = osso.ponta;
@@ -40,24 +57,28 @@ function falange(osso) {
     + `data-osso="${osso.nome}" data-de="${n(p.x)},${n(p.y)}" data-ate="${n(t.x)},${n(t.y)}" `
     + `d="M ${xy(p.x + hx, p.y + hy)} `
     + `L ${xy(t.x + hx, t.y + hy)} `
-    + `Q ${xy(t.x + dx * k, t.y + dy * k)} ${xy(t.x - hx, t.y - hy)} `
+    + `Q ${xy(t.x + dx * kPonta, t.y + dy * kPonta)} ${xy(t.x - hx, t.y - hy)} `
     + `L ${xy(p.x - hx, p.y - hy)} `
-    + `Q ${xy(p.x - dx * k, p.y - dy * k)} ${xy(p.x + hx, p.y + hy)} Z"/>`;
+    + `Q ${xy(p.x - dx * kBase, p.y - dy * kBase)} ${xy(p.x + hx, p.y + hy)} Z"/>`;
 }
 
 /**
- * A unha, encostada na ponta e alinhada com o eixo do osso.
+ * A unha, no dorso da última falange e alinhada com o eixo do osso.
  *
- * Pequena de propósito: a unha é o detalhe que diz "isto é um dedo", e
- * uma unha grande vira uma bola branca na ponta — foi assim que os dedos
- * apareceram na primeira captura depois da reconstrução.
+ * Pequena e PARA DENTRO de propósito. A unha já foi desenhada encostada na
+ * ponta (`0,38 · largura` atrás dela) e grande o bastante para alcançar a
+ * tampa do dedo: o resultado, na captura de 2x, foi uma pastilha clara
+ * centrada no fim de cada falange, que o olho leu como rótula de boneco —
+ * o oposto do que a unha deveria fazer. Aqui ela fica a `0,62 · largura`
+ * da ponta, inteira dentro da falange distal, e o desenho da ponta
+ * arredondada faz o resto do trabalho de dizer "isto é um dedo".
  */
 function unha(osso) {
   const r = (osso.angulo * Math.PI) / 180;
-  const cx = osso.ponta.x - Math.cos(r) * osso.largura * 0.38;
-  const cy = osso.ponta.y - Math.sin(r) * osso.largura * 0.38;
+  const cx = osso.ponta.x - Math.cos(r) * osso.largura * 0.62;
+  const cy = osso.ponta.y - Math.sin(r) * osso.largura * 0.62;
   return `<ellipse class="unha" cx="${n(cx)}" cy="${n(cy)}" `
-    + `rx="${n(osso.largura * 0.21)}" ry="${n(osso.largura * 0.26)}" `
+    + `rx="${n(osso.largura * 0.17)}" ry="${n(osso.largura * 0.24)}" `
     + `transform="rotate(${n(osso.angulo + 90)} ${n(cx)} ${n(cy)})" fill="url(#unhaGrad)"/>`;
 }
 
@@ -131,12 +152,27 @@ function palma() {
     + `C ${esquerda + 18} ${topo + 142} ${esquerda + 28} ${base - 12} ${esquerda + 36} ${base} Z`;
 }
 
-/** O antebraço: sai da base da palma e abre para fora, como um punho. */
+/**
+ * O antebraço: sai da base da palma e desce até sair de cena.
+ *
+ * A manga terminava em `y = 620`, a borda do viewBox, e como a mão é
+ * ancorada pela PONTA DO DEDO, esse corte caía cerca de 470 unidades
+ * abaixo da ponta — no meio do quadro, com a urna inteira ainda visível
+ * embaixo. O braço não terminava em lugar nenhum: aparecia uma faixa azul
+ * de aresta dura flutuando no ar, que é o detalhe que mais grita "montagem"
+ * numa transmissão.
+ *
+ * O path agora passa de 1500 unidades. O `.mao__svg` tem `overflow:
+ * visible`, então ele é pintado para fora do viewBox e quem corta é a borda
+ * do palco — ou seja, o braço sai de cena em qualquer posição em que a mão
+ * esteja sobre a urna. A barra abre de leve para baixo: é o antebraço
+ * chegando perto da câmera, e sem essa abertura a manga lê como um cano.
+ */
 function manga() {
   const { esquerda, direita, base } = PALMA;
-  return `M 128 620 L ${esquerda + 10} ${base + 14} `
+  return `M 116 1500 L ${esquerda + 10} ${base + 14} `
     + `Q ${esquerda + 26} ${base - 4} 226 ${base - 4} `
-    + `Q ${direita - 26} ${base - 4} ${direita - 10} ${base + 14} L 316 620 Z`;
+    + `Q ${direita - 26} ${base - 4} ${direita - 10} ${base + 14} L 324 1500 Z`;
 }
 
 /** O punho da manga, a faixa escura onde o tecido dobra. */
@@ -253,16 +289,16 @@ export function criarMaoSvg() {
   // escreve nele a posição que quer tocar — então ele é a única ligação
   // entre "onde a mão está" e "onde o dedo está", e por isso vem da
   // geometria do desenho em vez de ser um número solto no CSS.
-  el.style.setProperty('--ponta-x', `${PONTA.x}px`);
-  el.style.setProperty('--ponta-y', `${PONTA.y}px`);
+  el.style.setProperty('--ponta-x', `${ANCORA.x}px`);
+  el.style.setProperty('--ponta-y', `${ANCORA.y}px`);
 
   const sombra = document.createElement('div');
   sombra.innerHTML = markupDaSombra();
   const sombraEl = sombra.firstElementChild;
   // A sombra usa a mesma âncora: as duas precisam compartilhar o sistema
   // de coordenadas, senão a elipse descola da mão quando ela se move.
-  sombraEl.style.setProperty('--ponta-x', `${PONTA.x}px`);
-  sombraEl.style.setProperty('--ponta-y', `${PONTA.y}px`);
+  sombraEl.style.setProperty('--ponta-x', `${ANCORA.x}px`);
+  sombraEl.style.setProperty('--ponta-y', `${ANCORA.y}px`);
 
   // Guarda as referências uma única vez — consultar o DOM a cada frame
   // seria caro numa live de horas.

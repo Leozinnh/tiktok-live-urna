@@ -6,7 +6,7 @@
 //
 // A coreografia trabalha em POSES NOMEADAS, nunca em ângulos. É o que
 // permite trocar o renderizador por sprites sem tocar na animação.
-import { CADEIAS, LADOS, SENTIDO_DA_FLEXAO } from './esqueleto.js';
+import { CADEIAS, LADOS, SENTIDO_DA_FLEXAO, PIVOS, ANCORA } from './esqueleto.js';
 
 export const JUNTAS = [
   'mcpIndicador', 'pipIndicador', 'dipIndicador',
@@ -33,7 +33,7 @@ export const POSES = Object.freeze({
 
   /** Indicador estendido, resto recolhido — a mão que se aproxima da tecla. */
   apontando: {
-    pulso: { x: 0, y: -6, rot: -3 },
+    pulso: { x: 0, y: -6, rot: -8 },
     juntas: {
       mcpIndicador:  -4, pipIndicador:  -6, dipIndicador:  -4,
       mcpMedio:     -34, pipMedio:     -58, dipMedio:     -38,
@@ -50,7 +50,7 @@ export const POSES = Object.freeze({
    * "pressão", já que os outros dedos seguem recolhidos nas duas poses.
    */
   pressionando: {
-    pulso: { x: 0, y: 4, rot: 1 },
+    pulso: { x: 0, y: 4, rot: 2 },
     juntas: {
       mcpIndicador: -16, pipIndicador: -34, dipIndicador: -22,
       mcpMedio:     -36, pipMedio:     -60, dipMedio:     -40,
@@ -63,7 +63,7 @@ export const POSES = Object.freeze({
 
   /** Pegando a cédula: pinça entre indicador e polegar. */
   segurando: {
-    pulso: { x: 0, y: 0, rot: -8 },
+    pulso: { x: 0, y: 0, rot: -12 },
     juntas: {
       mcpIndicador: -26, pipIndicador: -42, dipIndicador: -26,
       mcpMedio:     -30, pipMedio:     -52, dipMedio:     -34,
@@ -76,7 +76,7 @@ export const POSES = Object.freeze({
 
   /** Empurrando a cédula para dentro da abertura no topo. */
   inserindo: {
-    pulso: { x: 0, y: -10, rot: -12 },
+    pulso: { x: 0, y: -10, rot: -17 },
     juntas: {
       mcpIndicador: -14, pipIndicador: -26, dipIndicador: -16,
       mcpMedio:     -24, pipMedio:     -44, dipMedio:     -28,
@@ -89,7 +89,7 @@ export const POSES = Object.freeze({
 
   /** Saindo de cena: dedos soltos, pulso virando. */
   retraindo: {
-    pulso: { x: 0, y: 8, rot: 6 },
+    pulso: { x: 0, y: 8, rot: 10 },
     juntas: {
       mcpIndicador: -20, pipIndicador: -34, dipIndicador: -22,
       mcpMedio:     -22, pipMedio:     -38, dipMedio:     -24,
@@ -178,13 +178,29 @@ const PAIS = (() => {
  */
 export function poseParaTransformacoes(pose) {
   const t = {};
+  for (const [junta, { delta, encolhe }] of Object.entries(transformacoesNumericas(pose))) {
+    t[junta] = `rotate(${delta.toFixed(3)}deg) scaleY(${encolhe.toFixed(3)})`;
+  }
+  return t;
+}
+
+/**
+ * Os mesmos números de `poseParaTransformacoes`, sem virar texto.
+ *
+ * Existe porque a correção da ponta (abaixo) precisa das duas grandezas
+ * para compor a matriz da cadeia. Com os valores presos dentro de uma
+ * string de CSS, a única forma de obtê-los seria reinterpretar o texto —
+ * e aí existiriam duas aritméticas para a mesma rotação.
+ */
+export function transformacoesNumericas(pose) {
+  const saida = {};
   const giroAbsoluto = {};
 
   for (const junta of JUNTAS) {
     if (junta === 'curvaturaPalma') {
       // A curvatura da palma é sutil: multiplicada para virar alguns graus.
       giroAbsoluto[junta] = pose.juntas[junta] * 10;
-      t[junta] = `rotate(${giroAbsoluto[junta].toFixed(3)}deg) scaleY(1)`;
+      saida[junta] = { delta: giroAbsoluto[junta], encolhe: 1 };
       continue;
     }
 
@@ -194,8 +210,69 @@ export function poseParaTransformacoes(pose) {
     const delta = giroAbsoluto[junta] - (pai ? giroAbsoluto[pai] : 0);
     const encolhe = Math.max(PISO_ENCURTAMENTO, Math.cos(grausParaRad(flexao)));
 
-    t[junta] = `rotate(${delta.toFixed(3)}deg) scaleY(${encolhe.toFixed(3)})`;
+    saida[junta] = { delta, encolhe };
   }
-  return t;
+  return saida;
+}
+
+// ------------------------------------------------- a ponta que o olho vê
+
+/* Matrizes afins 2D no formato do SVG: x' = a·x + c·y + e ; y' = b·x + d·y + f. */
+const identidade = () => ({ a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 });
+
+const multiplicar = (m, n) => ({
+  a: m.a * n.a + m.c * n.b,
+  b: m.b * n.a + m.d * n.b,
+  c: m.a * n.c + m.c * n.d,
+  d: m.b * n.c + m.d * n.d,
+  e: m.a * n.e + m.c * n.f + m.e,
+  f: m.b * n.e + m.d * n.f + m.f,
+});
+
+const aplicar = (m, p) => ({ x: m.a * p.x + m.c * p.y + m.e, y: m.b * p.x + m.d * p.y + m.f });
+
+/**
+ * A matriz de uma junta, do jeito que o CSS a aplica.
+ *
+ * Cada grupo é `rotate(δ) scaleY(s)` com `transform-box: view-box` e o
+ * `transform-origin` no pivô — ou seja, girar e encurtar em torno do pivô:
+ * T(pivô) · R(δ) · Sy(s) · T(−pivô).
+ */
+function matrizDaJunta(junta, { delta, encolhe }) {
+  const p = PIVOS[junta];
+  if (!p) return identidade();
+  const r = grausParaRad(delta);
+  const rotacao = { a: Math.cos(r), b: Math.sin(r), c: -Math.sin(r), d: Math.cos(r), e: 0, f: 0 };
+  const escala = { a: 1, b: 0, c: 0, d: encolhe, e: 0, f: 0 };
+  return multiplicar(
+    { ...identidade(), e: p.x, f: p.y },
+    multiplicar(rotacao, multiplicar(escala, { ...identidade(), e: -p.x, f: -p.y })),
+  );
+}
+
+/** A cadeia do indicador, do grupo mais externo para o mais interno. */
+const CADEIA_DO_INDICADOR = ['curvaturaPalma', 'mcpIndicador', 'pipIndicador', 'dipIndicador'];
+
+/**
+ * De quanto a ponta do indicador se afasta de `ANCORA` sob uma pose.
+ *
+ * É a medida que faltava entre "onde o ator diz que o dedo está" e "onde o
+ * dedo é desenhado". As duas coisas divergem por dois motivos somados: a
+ * tampa redonda da falange avança além da extremidade do osso, e a flexão
+ * da pose encurta cada falange (o `scaleY(cos θ)`), puxando a ponta de
+ * volta para a palma. Com o indicador a 158 unidades do nó, uma flexão de
+ * 16° no nó já move a ponta 22 unidades — mais que a altura de uma tecla.
+ *
+ * O ator subtrai este vetor do alvo (ver hand-actor.js), e com isso o dedo
+ * desenhado cai na tecla em QUALQUER pose, inclusive nas que ainda vão
+ * existir. Sem isso, cada pose nova exige recalibrar a mira à mão, e a
+ * calibração errada não quebra nada: só faz o dedo apertar o ar.
+ */
+export function deslocamentoDaPonta(pose) {
+  const t = transformacoesNumericas(pose);
+  let m = identidade();
+  for (const junta of CADEIA_DO_INDICADOR) m = multiplicar(m, matrizDaJunta(junta, t[junta]));
+  const fim = aplicar(m, ANCORA);
+  return { x: fim.x - ANCORA.x, y: fim.y - ANCORA.y };
 }
 

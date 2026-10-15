@@ -15,7 +15,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { markupDaMao, PIVOS, PONTAS, PONTA, OSSOS, DEDOS, PALMA } from '../public/js/hand/hand-svg.js';
+import { markupDaMao, PIVOS, PONTAS, PONTA, ANCORA, OSSOS, DEDOS, PALMA } from '../public/js/hand/hand-svg.js';
 
 /** Lê os atributos de posição que o markup declara em cada falange. */
 function ossosDoMarkup(html) {
@@ -134,11 +134,11 @@ test('a âncora da mão é a ponta do indicador', () => {
   assert.equal(distal.ate, 'pontaIndicador');
 });
 
-test('a âncora de fallback do CSS é a mesma de PONTA', () => {
+test('a âncora de fallback do CSS é a mesma de ANCORA', () => {
   /*
    * O CSS precisa de um valor para `--ponta-x`/`--ponta-y` antes de o JS
    * escrever os reais. Esse valor é a âncora do desenho, então sai de
-   * PONTA — e quando os dedos se movem ele fica para trás em silêncio: o
+   * ANCORA — e quando os dedos se movem ele fica para trás em silêncio: o
    * desenho continua certo, só a âncora mente, e a mão inteira aparece
    * deslocada na cena sem nenhum erro no console. Foi o que aconteceu:
    * o CSS ainda dizia 214/118 com a ponta do indicador em 141.7/153.1.
@@ -157,8 +157,21 @@ test('a âncora de fallback do CSS é a mesma de PONTA', () => {
   assert.equal(ys.length, 2, 'esperava a âncora declarada no .mao e no .mao__sombra');
 
   const arredondado = (v) => Math.round(v * 100) / 100;
-  for (const x of xs) assert.equal(x, arredondado(PONTA.x), `--ponta-x do CSS: ${x}`);
-  for (const y of ys) assert.equal(y, arredondado(PONTA.y), `--ponta-y do CSS: ${y}`);
+  for (const x of xs) assert.equal(x, arredondado(ANCORA.x), `--ponta-x do CSS: ${x}`);
+  for (const y of ys) assert.equal(y, arredondado(ANCORA.y), `--ponta-y do CSS: ${y}`);
+});
+
+test('a âncora fica meia largura além da extremidade do osso', () => {
+  /*
+   * A distinção que custou 30 frames de dedo apertando o ar: PONTA é onde o
+   * OSSO termina, ANCORA é onde o DESENHO termina. A tampa redonda da
+   * falange avança meia largura além do osso, e é essa a ponta que a câmera
+   * mostra. Se as duas voltarem a ser o mesmo ponto, a mão inteira desloca
+   * meia largura de dedo na cena e nada mais reclama.
+   */
+  const d = Math.hypot(ANCORA.x - PONTA.x, ANCORA.y - PONTA.y);
+  assert.ok(Math.abs(d - DEDOS.Indicador.largura / 2) < 0.01,
+    `a âncora está a ${d.toFixed(2)} da ponta do osso, esperado ${DEDOS.Indicador.largura / 2}`);
 });
 
 test('os dedos nascem da palma, não do ar', () => {
@@ -249,14 +262,18 @@ test('a falange desenhada tem a largura e o comprimento do osso', () => {
     const largura = Math.max(...atraves) - Math.min(...atraves);
 
     /*
-     * Os dois números são exatos, e não faixas: a largura é a do osso, e
-     * o comprimento do polígono de controle é o do osso mais o bojo das
-     * duas pontas (o ponto de controle de cada `Q`, que fica a
-     * `largura * 0,42` além da ponta). Uma falange afinada falha aqui.
+     * Os dois números são exatos, e não faixas: a largura é a do osso, e o
+     * comprimento do polígono de controle é o do osso mais o bojo das duas
+     * pontas. Os bojos são DIFERENTES de propósito (ver hand-svg.js): a
+     * ponta avança uma largura inteira, para o ápice da quadrática cair em
+     * meia largura e o dedo terminar em meia-circunferência; a base avança
+     * `largura * 0,42`, só o bastante para cobrir a junta por trás do pivô.
+     * Uma falange afinada, ou com a ponta reta de antes, falha aqui.
      */
-    const bojo = osso.largura * 0.42;
-    assert.ok(Math.abs(comprimento - (osso.comprimento + 2 * bojo)) < 0.5,
-      `${nome}: comprimento desenhado ${comprimento.toFixed(1)}, esperado ${(osso.comprimento + 2 * bojo).toFixed(1)}`);
+    const bojoPonta = osso.largura;
+    const bojoBase = osso.largura * 0.42;
+    assert.ok(Math.abs(comprimento - (osso.comprimento + bojoPonta + bojoBase)) < 0.5,
+      `${nome}: comprimento desenhado ${comprimento.toFixed(1)}, esperado ${(osso.comprimento + bojoPonta + bojoBase).toFixed(1)}`);
     assert.ok(Math.abs(largura - osso.largura) < 0.5,
       `${nome}: largura desenhada ${largura.toFixed(1)}, esperada ${osso.largura}`);
   }

@@ -1,10 +1,27 @@
-import { POSES, interpolarPose } from './hand/poses.js';
+import { POSES, interpolarPose, deslocamentoDaPonta } from './hand/poses.js';
 import { Timeline, Ticker, PoolDeTimelines } from './anim/timeline.js';
 import { FilaDeAnimacao } from './anim/queue.js';
 import { construirSequenciaDeVoto } from './vote-sequence.js';
+import { CLASSES_DE_ESTADO } from './urna.js';
 
 /** Onde a mão espera entre um voto e outro: abaixo da borda do palco. */
 export const MAO_FORA_DE_CENA = { x: 540, y: 2000 };
+
+/**
+ * O tamanho da mão em unidades do palco.
+ *
+ * O desenho tem 420 de largura sobre uma urna de 460: em escala 1 a mão
+ * cobre o teclado inteiro e boa parte do gabinete, e a urna — que é a
+ * personagem principal da cena — some atrás dela. Em 0,8 o dedo continua
+ * grande e legível na transmissão, a tecla que ele aperta continua à vista,
+ * e a mão lê como uma mão sobre uma máquina em vez de uma luva colada na
+ * lente.
+ *
+ * A escala é aplicada em torno da PONTA DO DEDO (ver hand.css), então
+ * mexer nela não desloca a mira: a ponta continua caindo exatamente no
+ * centro da tecla.
+ */
+export const ESCALA_DA_MAO = 0.8;
 
 /**
  * Amostra um arco entre dois pontos. Não é uma reta: uma mão que se move
@@ -37,6 +54,18 @@ export function calcularCaminho(origem, destino, { arco = 70, amostras = 18 } = 
 }
 
 /**
+ * Roda um passo do encerramento sem deixar o erro escapar.
+ *
+ * O encerramento de um voto mexe em DOM que pode ter sido remontado no meio
+ * da live — um resize do OBS troca os elementos da mão. Nenhuma dessas
+ * falhas pode impedir o `resolve()`, e é por isso que cada passo tem o seu
+ * próprio `try` em vez de um só em volta dos três.
+ */
+function tentar(oQue, fn) {
+  try { fn(); } catch (erro) { console.error(`[ator] falha ao ${oQue}`, erro); }
+}
+
+/**
  * O ator é a ponte entre o motor puro e o DOM.
  *
  * Ele é dono da fila e do ticker, e é o único que sabe onde a mão está
@@ -60,8 +89,10 @@ export class AtorDaMao {
     this._contadorPercurso = 0;
 
     camada.append(renderizador.sombra, renderizador.el);
-    renderizador.posicionar(this.posicao.x, this.posicao.y, { escala: 1 });
-    renderizador.aplicarPose(this.poseAtual);
+    // Recolher é o estado inicial, e é a mesma operação do fim de cada
+    // voto: uma segunda forma de escrever "mão fora de cena" só serviria
+    // para as duas divergirem.
+    this.recolher();
     this.ticker.iniciar();
 
     // Redimensionar invalida as coordenadas medidas — sem isto o dedo
@@ -120,9 +151,40 @@ export class AtorDaMao {
         const ponto = caminho[idx];
         this.posicao = ponto;
         const altura = Math.sin(p * Math.PI) * 70;
-        const rot = (poseAlvo.pulso?.rot ?? 0) * p;
-        this.render.posicionar(ponto.x, ponto.y, { rot, escala: 1, altura });
-        this.poseAtual = interpolarPose(posePartida, poseAlvo, Math.min(1, p * 1.6));
+
+        /*
+         * A pose é interpolada ANTES de posicionar, e o giro do pulso sai
+         * dela. Antes o giro era calculado à parte, como `alvo.pulso.rot · p`:
+         * isso o fazia valer zero no primeiro frame de todo percurso, então
+         * a cada movimento o pulso voltava ao meio antes de ir para o alvo
+         * seguinte — um solavanco no instante em que o dedo começa a andar,
+         * que é justamente quando o olho está olhando. Lido da pose
+         * interpolada, o giro é contínuo entre um movimento e o próximo,
+         * pela mesma razão que as juntas são.
+         */
+        const avanco = Math.min(1, p * 1.6);
+        this.poseAtual = interpolarPose(posePartida, poseAlvo, avanco);
+
+        /*
+         * O alvo é da PONTA DESENHADA, não da âncora.
+         *
+         * A âncora é um ponto fixo do desenho; a ponta que o olho vê se move
+         * com a pose, porque a flexão encurta cada falange. Em `pressionando`
+         * a diferença chega a 48 unidades do viewBox — quase três vezes a
+         * altura de uma tecla — e o portão visual flagrou o resultado: 30
+         * frames de tecla afundada com o dedo desenhado fora dela.
+         *
+         * A correção é recalculada a cada frame, a partir da pose
+         * interpolada, e é isso que faz o dedo ficar PARADO na tecla
+         * enquanto o resto da mão se acomoda em volta — que é o que uma mão
+         * de verdade faz ao apertar um botão.
+         */
+        const desvio = deslocamentoDaPonta(this.poseAtual);
+        this.render.posicionar(
+          ponto.x - desvio.x * ESCALA_DA_MAO,
+          ponto.y - desvio.y * ESCALA_DA_MAO,
+          { rot: this.poseAtual.pulso.rot, escala: ESCALA_DA_MAO, altura },
+        );
         this.render.aplicarPose(this.poseAtual);
       },
     });
@@ -141,28 +203,37 @@ export class AtorDaMao {
         votos,
         timeline,
         callbacks: {
-          aoDestacar: () => urna.el.classList.add('is-destacada'),
+          aoDestacar: () => urna.el.classList.add(CLASSES_DE_ESTADO.destacada),
           aoMoverMao: ({ alvo, pose, duracao }) => this.moverPara({ alvo, pose, duracao, timeline }),
           aoTeclar: (t) => { urna.pressionarTecla(t); urna.acenderLed(t, true); },
           aoSoltarTecla: (t) => { urna.soltarTecla(t); setTimeout(() => urna.acenderLed(t, false), 140); },
           aoMostrarTela: (estado) => urna.definirTela({ numero, nome: urna.config.nome, ...estado }),
           aoSairCedula: () => {
             urna.mostrarCedula({ usuario, presente, votos });
-            urna.el.classList.add('is-cedula-saindo');
+            urna.el.classList.add(CLASSES_DE_ESTADO.cedulaSaindo);
           },
-          aoDepositarCedula: () => urna.el.classList.add('is-cedula-entrando'),
+          aoDepositarCedula: () => urna.el.classList.add(CLASSES_DE_ESTADO.cedulaEntrando),
           aoContar: () => {
             urna.esconderCedula();
-            urna.el.classList.remove('is-cedula-saindo', 'is-cedula-entrando');
-            urna.el.classList.add('is-contando');
+            urna.el.classList.remove(CLASSES_DE_ESTADO.cedulaSaindo, CLASSES_DE_ESTADO.cedulaEntrando);
+            urna.el.classList.add(CLASSES_DE_ESTADO.contando);
           },
         },
       });
 
+      /*
+       * O `resolve()` é inalcançável por falha: ele fica FORA dos `tentar`.
+       * Enquanto era a última linha do callback, um erro antes dele deixava
+       * a promessa pendente para sempre — e `Timeline` engole o que sai de
+       * `aoTerminar` (timeline.js:109), então não havia nem erro na tela. O
+       * `.finally` do laço nunca rodava, `this.ocupado` ficava `true` e o
+       * passo do ator passava a sair cedo em todo frame: a fila morria em
+       * silêncio e só recarregar a página trazia a mão de volta.
+       */
       timeline.aoTerminar(() => {
-        urna.el.classList.remove('is-destacada', 'is-contando', 'is-cedula-saindo', 'is-cedula-entrando');
-        this.recolher();
-        this.pool.devolver(timeline);
+        tentar('devolver a urna ao repouso', () => urna.restaurarAoRepouso());
+        tentar('recolher a mão', () => this.recolher());
+        tentar('devolver a timeline ao pool', () => this.pool.devolver(timeline));
         resolve();
       });
 
@@ -173,8 +244,14 @@ export class AtorDaMao {
 
   recolher() {
     this.posicao = { ...MAO_FORA_DE_CENA };
-    this.render.posicionar(this.posicao.x, this.posicao.y, { escala: 1, altura: 0 });
-    this.render.aplicarPose(POSES.repouso);
+    this.poseAtual = POSES.repouso;
+    const desvio = deslocamentoDaPonta(this.poseAtual);
+    this.render.posicionar(
+      this.posicao.x - desvio.x * ESCALA_DA_MAO,
+      this.posicao.y - desvio.y * ESCALA_DA_MAO,
+      { escala: ESCALA_DA_MAO, altura: 0 },
+    );
+    this.render.aplicarPose(this.poseAtual);
   }
 
   /**
@@ -216,14 +293,14 @@ export class AtorDaMao {
   carimbar(item) {
     return new Promise((resolve) => {
       const urna = item.urna;
-      urna.el.classList.add('is-destacada', 'is-contando');
+      urna.el.classList.add(CLASSES_DE_ESTADO.destacada, CLASSES_DE_ESTADO.contando);
       urna.pressionarTecla('CONFIRMA');
       urna.acenderLed('CONFIRMA', true);
 
       setTimeout(() => {
         urna.soltarTecla('CONFIRMA');
         urna.acenderLed('CONFIRMA', false);
-        urna.el.classList.remove('is-destacada', 'is-contando');
+        urna.el.classList.remove(CLASSES_DE_ESTADO.destacada, CLASSES_DE_ESTADO.contando);
         resolve();
       }, 260 / this.fila.velocidade);
     });

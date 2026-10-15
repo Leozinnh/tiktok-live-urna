@@ -51,6 +51,7 @@ function urnaFalsa(geometria) {
     medirGeometria: () => geometria,
     pressionarTecla() {}, soltarTecla() {}, acenderLed() {},
     definirTela() {}, mostrarCedula() {}, esconderCedula() {},
+    restaurarAoRepouso() {},
   };
 }
 

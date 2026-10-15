@@ -173,6 +173,22 @@ export function markupTeclado() {
     </div>`;
 }
 
+/**
+ * As classes de estado transitório que a urna veste durante um voto.
+ *
+ * Estão aqui, e não soltas em quem as aplica, porque quem as REMOVE precisa
+ * conhecer a lista inteira. Enquanto cada `classList.add` morava no ator e a
+ * limpeza era uma lista escrita à mão ao lado dele, uma classe nova nascia
+ * sem par: a urna ficava acesa depois do voto e ninguém descobria até ver a
+ * transmissão.
+ */
+export const CLASSES_DE_ESTADO = Object.freeze({
+  destacada: 'is-destacada',
+  contando: 'is-contando',
+  cedulaSaindo: 'is-cedula-saindo',
+  cedulaEntrando: 'is-cedula-entrando',
+});
+
 export function criarUrna(config) {
   const el = document.createElement('div');
   el.className = 'urna';
@@ -185,13 +201,12 @@ export function criarUrna(config) {
   el.innerHTML = `
     <div class="urna__sombra"></div>
     <div class="urna__lado"></div>
-    <div class="urna__topo">
+    <div class="urna__topo"></div>
+    <div class="urna__corpo">
+      <div class="urna__placa">JUSTIÇA ELEITORAL</div>
       <div class="urna__slot" data-papel="entrada">
         <div class="urna__slot-boca"></div>
       </div>
-    </div>
-    <div class="urna__corpo">
-      <div class="urna__placa">JUSTIÇA ELEITORAL</div>
       <div class="urna__tela" data-tela>
         <div class="tela__conteudo" data-tela-conteudo></div>
         <div class="tela__scanlines"></div>
@@ -267,6 +282,25 @@ export function criarUrna(config) {
       cedulaEl.classList.add('is-visivel');
     },
     esconderCedula() { cedulaEl.classList.remove('is-visivel'); },
+    /**
+     * Devolve a urna ao repouso visual.
+     *
+     * Roda no fim de todo voto, inclusive quando o voto morre no meio. Sem
+     * ela, a tecla que estava afundada continua afundada e o LED do CONFIRMA
+     * continua aceso até alguém recarregar a página — para quem assiste, a
+     * urna travou.
+     *
+     * Não mexe na tela: o conteúdo dela é do motor de votos, que é quem sabe
+     * a contagem. Escrever um número aqui, por conta própria, seria inventar
+     * um placar.
+     */
+    restaurarAoRepouso() {
+      el.classList.remove(...Object.values(CLASSES_DE_ESTADO));
+      for (const btn of el.querySelectorAll('[data-tecla]')) {
+        btn.classList.remove('is-pressionada', 'is-led');
+      }
+      cedulaEl.classList.remove('is-visivel');
+    },
     cedulaEl,
   };
 }

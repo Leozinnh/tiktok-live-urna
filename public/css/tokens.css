@@ -54,6 +54,34 @@
   --urna-profundidade: 70px;
   --perspectiva:      1600px;
 
+  /*
+   * A impressora, e onde ela fica.
+   *
+   * Na urna de verdade o bocal é uma fenda à direita, acima do teclado,
+   * com a tela livre à esquerda — e é de lá que o papel sai. O eixo do
+   * bocal é o CENTRO DO TECLADO, escrito aqui como número final: o teste
+   * tests/urna-bocal.test.js refaz a conta a partir de --teclado-recuo e
+   * --teclado-largura, então mexer no teclado sem mexer aqui quebra o
+   * teste em vez de desalinhar a cena.
+   *
+   * Os comprimentos são literais, e não `calc()`: a geometria da cena é
+   * conferida por testes que resolvem `var()` mas não avaliam conta, de
+   * propósito — derivação escondida dentro do CSS não é conferível.
+   */
+  --teclado-recuo:    22px;   /* distancia da direita da urna até o teclado */
+  --teclado-largura:  178px;
+  --bocal-centro:     349px;  /* 460 - 22 - 178/2 */
+  --bocal-largura:    190px;
+  --bocal-altura:     22px;
+  --bocal-topo:       30px;
+  /* Espessura da moldura em volta da boca escura. A largura da boca é
+     --bocal-largura menos duas vezes isto, e ela precisa ser pelo menos a
+     largura do papel: papel mais largo que o buraco por onde sai aparece
+     cortado nas laterais. */
+  --bocal-borda:      10px;
+  --cedula-largura:   170px;
+  --cedula-altura:    128px;
+
   /* Camadas */
   --z-fundo:     10;
   --z-mesa:      20;

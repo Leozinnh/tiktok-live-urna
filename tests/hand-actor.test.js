@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { calcularCaminho, MAO_FORA_DE_CENA, AtorDaMao } from '../public/js/hand-actor.js';
+import { calcularCaminho, MAO_FORA_DE_CENA, ESCALA_DA_MAO, AtorDaMao } from '../public/js/hand-actor.js';
 import { Timeline, Ticker } from '../public/js/anim/timeline.js';
+import { POSES, deslocamentoDaPonta } from '../public/js/hand/poses.js';
 
 // ---------------------------------------------------------------- caminho
 
@@ -57,6 +58,7 @@ function urnaFalsa(geometria = { teclas: {}, slot: null }) {
     config: { nome: 'URNA X' },
     teclasPressionadas: [],
     contados: 0,
+    repousos: 0,
     medirGeometria: () => geometria,
     pressionarTecla(t) { this.teclasPressionadas.push(t); },
     soltarTecla() {},
@@ -65,7 +67,24 @@ function urnaFalsa(geometria = { teclas: {}, slot: null }) {
     cedulas: [],
     mostrarCedula(dados) { this.cedulas.push(dados); },
     esconderCedula() { this.cedulaEscondida = true; },
+    restaurarAoRepouso() { this.repousos++; },
   };
+}
+
+/**
+ * Leva a fila até o fim, entregando frames à mão.
+ *
+ * O mesmo laço dos testes de fila: esperar só `pendentes === 0` não basta,
+ * porque `proximo()` tira o item de `itens` e o põe em execução no mesmo
+ * frame. O estado final é a fila vazia *e* o ator livre.
+ */
+async function esvaziarFila(ator, ticker) {
+  for (let i = 0; i < 400; i++) {
+    ticker.avancar(50);
+    await proximaVolta();
+    if (ator.fila.pendentes === 0 && !ator.ocupado) break;
+  }
+  await proximaVolta();
 }
 
 function montarAtor(opcoes = {}) {
@@ -182,6 +201,72 @@ test('a fila não trava quando uma animação falha', async () => {
   assert.equal(ator.fila.pendentes, 0);
 });
 
+test('uma falha ao encerrar o voto não trava o ator para sempre', async () => {
+  /*
+   * O teste acima força a falha na MONTAGEM da sequência, onde o erro cai
+   * dentro do executor da promessa e vira rejeição. A falha que importa é a
+   * outra: o encerramento. O `resolve()` era a última linha do callback de
+   * `aoTerminar`, e `Timeline` engole o que sai de lá (linha 109) — então um
+   * erro em `recolher()` deixava a promessa pendente para sempre, o
+   * `.finally` do laço nunca rodava e `this.ocupado` ficava `true`. A partir
+   * daí o passo do ator saía cedo em todo frame. A fila morria em silêncio,
+   * sem erro na tela e sem nada para o operador ver além de uma live que
+   * parou de reagir.
+   *
+   * O gatilho é realista: um resize do OBS que remonta o palco troca os
+   * elementos da mão, e `recolher()` escreve neles.
+   */
+  const { ator, render, ticker } = montarAtor();
+  const geometria = {
+    teclas: { '2': { centro: { x: 700, y: 900 } }, CONFIRMA: { centro: { x: 820, y: 1120 } } },
+    slot: { centro: { x: 540, y: 620 } },
+  };
+  const urna = urnaFalsa(geometria);
+
+  const aplicarOriginal = render.aplicarPose.bind(render);
+  render.aplicarPose = (pose) => {
+    if (pose === POSES.repouso) throw new Error('o palco foi remontado');
+    aplicarOriginal(pose);
+  };
+
+  ator.fila.enfileirar({ id: 'a', urna, numero: '2', votos: 1 });
+  ator.fila.enfileirar({ id: 'b', urna, numero: '2', votos: 1 });
+  ator.iniciar();
+
+  const erroOriginal = console.error;
+  console.error = () => {};
+  try {
+    await esvaziarFila(ator, ticker);
+  } finally {
+    console.error = erroOriginal;
+  }
+
+  assert.equal(ator.ocupado, false, 'o ator ficou ocupado para sempre depois da falha');
+  assert.deepEqual(urna.teclasPressionadas, ['2', 'CONFIRMA', '2', 'CONFIRMA'],
+    'o voto seguinte não animou depois da falha no encerramento do primeiro');
+});
+
+test('ao encerrar o voto o ator pede que a urna volte ao repouso', async () => {
+  /*
+   * O encerramento removia quatro classes na mão, escritas aqui dentro, e
+   * mais nada: a tecla que estava afundada continuava afundada e o LED do
+   * CONFIRMA continuava aceso. Quem sabe o que é "estado a limpar" é a urna,
+   * não o ator — uma classe nova entra na urna e o ator não fica sabendo.
+   */
+  const { ator, ticker } = montarAtor();
+  const geometria = {
+    teclas: { '2': { centro: { x: 700, y: 900 } }, CONFIRMA: { centro: { x: 820, y: 1120 } } },
+    slot: { centro: { x: 540, y: 620 } },
+  };
+  const urna = urnaFalsa(geometria);
+
+  ator.fila.enfileirar({ id: 'a', urna, numero: '2', votos: 1 });
+  ator.iniciar();
+  await esvaziarFila(ator, ticker);
+
+  assert.equal(urna.repousos, 1, 'a urna não foi devolvida ao repouso depois do voto');
+});
+
 test('um voto enfileirado é contado na urna certa', async () => {
   const geometria = {
     teclas: { '2': { centro: { x: 700, y: 900 } }, CONFIRMA: { centro: { x: 820, y: 1120 } } },
@@ -233,4 +318,31 @@ test('remedir invalida a geometria guardada', () => {
   ator.remedir();
   ator.geometriaDe(urna);
   assert.equal(medidas, 2, 'remedir não invalidou o cache');
+});
+
+test('o ator desloca a âncora para a ponta DESENHADA cair no alvo', () => {
+  /*
+   * `posicao` é onde a ponta do dedo deve estar; o que se escreve no DOM é
+   * a âncora, e as duas não são o mesmo ponto — a flexão da pose encurta o
+   * dedo, e sob `pressionando` a diferença passa de 40 unidades do viewBox.
+   * O ator subtrai esse deslocamento para o dedo desenhado parar no alvo.
+   * Sem isso o dedo aperta o ar ao lado da tecla: o portão visual mediu 30
+   * frames seguidos de tecla afundada com a ponta desenhada fora dela.
+   */
+  const { ator, render } = montarAtor();
+  const t = new Timeline();
+  t.play();
+  ator.moverPara({ alvo: { x: 700, y: 900 }, pose: 'pressionando', duracao: 100, timeline: t });
+  for (let i = 0; i < 4; i++) t.tick(50);
+
+  const desvio = deslocamentoDaPonta(POSES.pressionando);
+  const ultima = render.posicoes.at(-1);
+  assert.ok(Math.abs(ultima.x - (700 - desvio.x * ESCALA_DA_MAO)) < 0.01,
+    `a âncora foi escrita em x=${ultima.x}, esperado ${700 - desvio.x * ESCALA_DA_MAO}`);
+  assert.ok(Math.abs(ultima.y - (900 - desvio.y * ESCALA_DA_MAO)) < 0.01,
+    `a âncora foi escrita em y=${ultima.y}, esperado ${900 - desvio.y * ESCALA_DA_MAO}`);
+
+  // E o que importa: a ponta, essa sim, chegou ao alvo.
+  assert.ok(Math.abs(ator.posicao.x - 700) < 0.01 && Math.abs(ator.posicao.y - 900) < 0.01,
+    `a ponta parou em ${JSON.stringify(ator.posicao)}`);
 });

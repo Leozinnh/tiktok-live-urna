@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { POSES, interpolarPose, poseParaTransformacoes, JUNTAS } from '../public/js/hand/poses.js';
-import { PIVOS, PONTAS } from '../public/js/hand/esqueleto.js';
+import { POSES, interpolarPose, poseParaTransformacoes, deslocamentoDaPonta, JUNTAS } from '../public/js/hand/poses.js';
+import { PIVOS, PONTAS, ANCORA } from '../public/js/hand/esqueleto.js';
 
 test('existem as seis poses que a coreografia usa', () => {
   for (const nome of ['repouso', 'apontando', 'pressionando', 'segurando', 'inserindo', 'retraindo']) {
@@ -194,4 +194,79 @@ test('fechar a pinça traz a ponta do polegar para dentro da mão', () => {
   const pinca = pontaEm(POSES.segurando);
   assert.ok(Math.abs(pinca.x - centro) < Math.abs(repouso.x - centro),
     `a ponta do polegar foi de x=${repouso.x} para x=${pinca.x}, longe do centro ${centro}`);
+});
+
+// ------------------------------------- a ponta que o olho vê (ANCORA ↔ pose)
+
+/** Uma pose sem flexão nenhuma: a identidade da cadeia. */
+function poseNeutra() {
+  const juntas = {};
+  for (const j of JUNTAS) juntas[j] = 0;
+  return { pulso: { x: 0, y: 0, rot: 0 }, juntas };
+}
+
+test('sem flexão nenhuma a ponta desenhada não sai da âncora', () => {
+  // Se a composição das matrizes estiver com a ordem trocada ou com o pivô
+  // errado, este é o caso que denuncia: a cadeia inteira vira identidade e
+  // o deslocamento tem de ser exatamente zero.
+  const d = deslocamentoDaPonta(poseNeutra());
+  assert.ok(Math.abs(d.x) < 1e-9 && Math.abs(d.y) < 1e-9,
+    `pose neutra deslocou a ponta: ${JSON.stringify(d)}`);
+});
+
+test('a curvatura da palma gira a ponta em torno do próprio pivô', () => {
+  /*
+   * Derivação independente, à mão: a curvatura da palma é um giro puro de
+   * `pose × 10` graus em torno de CURVATURA_PALMA, sem encurtamento. A
+   * conta esperada é um giro de verdade sobre a âncora, feita aqui fora,
+   * e não a mesma matriz que o módulo usa.
+   */
+  const pose = poseNeutra();
+  pose.juntas.curvaturaPalma = 1;          // 1 × 10 = 10 graus
+  const c = PIVOS.curvaturaPalma;
+  const r = (10 * Math.PI) / 180;
+  const girado = {
+    x: c.x + (ANCORA.x - c.x) * Math.cos(r) - (ANCORA.y - c.y) * Math.sin(r),
+    y: c.y + (ANCORA.x - c.x) * Math.sin(r) + (ANCORA.y - c.y) * Math.cos(r),
+  };
+  const esperado = { x: girado.x - ANCORA.x, y: girado.y - ANCORA.y };
+  const d = deslocamentoDaPonta(pose);
+
+  assert.ok(Math.abs(d.x - esperado.x) < 1e-6,
+    `x: o módulo diz ${d.x}, o giro à mão diz ${esperado.x}`);
+  assert.ok(Math.abs(d.y - esperado.y) < 1e-6,
+    `y: o módulo diz ${d.y}, o giro à mão diz ${esperado.y}`);
+});
+
+test('a flexão do indicador afasta a ponta desenhada da âncora', () => {
+  /*
+   * O número que o portão visual mediu: com a pose `pressionando`, a ponta
+   * desenhada fica a quase 50 unidades do viewBox fora da âncora — três
+   * vezes a altura de uma tecla. Este teste existe para que a correção do
+   * ator não seja "simplificada" para zero por parecer um detalhe: sem ela
+   * o dedo aperta o ar ao lado da tecla, e nenhum outro teste percebe.
+   */
+  for (const nome of ['pressionando', 'inserindo', 'segurando']) {
+    const d = deslocamentoDaPonta(POSES[nome]);
+    const modulo = Math.hypot(d.x, d.y);
+    assert.ok(modulo > 20,
+      `${nome}: a correção da ponta caiu para ${modulo.toFixed(1)} unidades`);
+  }
+});
+
+test('a correção da ponta varia suavemente entre duas poses', () => {
+  /*
+   * O ator recalcula a correção a cada frame, sobre a pose interpolada.
+   * Um degrau aqui é um solavanco visível da mão inteira no meio de uma
+   * descida de 80ms — o tipo de falha que só aparece em movimento.
+   */
+  let anterior = null;
+  for (let i = 0; i <= 40; i++) {
+    const d = deslocamentoDaPonta(interpolarPose(POSES.apontando, POSES.pressionando, i / 40));
+    if (anterior) {
+      const salto = Math.hypot(d.x - anterior.x, d.y - anterior.y);
+      assert.ok(salto < 2, `salto de ${salto.toFixed(2)} unidades no passo ${i}`);
+    }
+    anterior = d;
+  }
 });

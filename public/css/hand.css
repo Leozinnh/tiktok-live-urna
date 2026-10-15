@@ -22,8 +22,8 @@
      Estes dois valores são conferidos contra PONTA por
      tests/mao-geometria.test.js: mexer nos dedos sem mexer aqui quebra o
      teste em vez de deslocar a mão na cena em silêncio. */
-  --ponta-x: 141.72px;
-  --ponta-y: 153.12px;
+  --ponta-x: 148.00px;
+  --ponta-y: 130.42px;
 
   position: absolute;
   left: 0;
@@ -51,6 +51,17 @@
      drop-shadow num SVG articulado obriga o Chromium a rasterizar o
      filtro inteiro a cada frame. */
   filter: drop-shadow(0 18px 26px rgba(60, 32, 16, 0.34));
+  /* O comentário acima é uma suspeita plausível, e chegou a ser medida:
+     com a manga descendo até y=1500 a área filtrada cresce umas sete
+     vezes, e "o filtro derruba o quadro" explicaria uma cena que não fica
+     ociosa a tempo. Não explica. Medido em Chrome headless, com e sem o
+     filtro, a rajada de 12 votos: p50 16,7ms, p95 16,7ms, máximo 16,8ms,
+     zero quadros acima de 100ms nos dois casos.
+
+     Fica registrado porque a hipótese é boa demais para não ser
+     reencontrada: quem for mexer no custo de quadro deve medir de novo, e
+     não deduzir daqui. Aquela falha de ociosidade era do portão, que
+     exigia 540/2000 exatos numa variável que passou a guardar a âncora. */
 }
 
 /*
@@ -98,8 +109,8 @@
 .mao__sombra {
   /* A mesma âncora da mão — as duas compartilham o sistema de coordenadas,
      senão a elipse descola do corpo quando a mão se move. */
-  --ponta-x: 141.72px;
-  --ponta-y: 153.12px;
+  --ponta-x: 148.00px;
+  --ponta-y: 130.42px;
 
   position: absolute;
   left: 0;

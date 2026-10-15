@@ -24,14 +24,18 @@
  * a mão lia como uma palma com espetos espetados nela, e não como uma mão
  * — que foi exatamente o que a captura de diagnóstico mostrou.
  *
- * A inclinação abre um leque de 17° entre o indicador e o mindinho. Dedos
- * perfeitamente paralelos leem como pente.
+ * A inclinação abre um leque de 10° entre o indicador e o mindinho. Dedos
+ * perfeitamente paralelos leem como pente, mas 17° — o valor anterior —
+ * abriam um leque de mão espalmada: com 158 unidades de dedo, a ponta do
+ * mindinho ia parar a 46 unidades da do indicador, e na captura de 2x a
+ * mão lia como um leque, não como uma mão apertando uma tecla. Os 10° dão
+ * a separação que o olho espera sem perder a leitura de "quatro dedos".
  */
 export const DEDOS = Object.freeze({
-  Indicador: { raiz: { x: 160, y: 302 }, largura: 44, angulo: -97, ossos: [62, 46, 42] },
-  Medio:     { raiz: { x: 203, y: 292 }, largura: 45, angulo: -91, ossos: [66, 48, 44] },
-  Anel:      { raiz: { x: 246, y: 295 }, largura: 42, angulo: -86, ossos: [62, 46, 42] },
-  Mindinho:  { raiz: { x: 287, y: 308 }, largura: 35, angulo: -80, ossos: [50, 36, 34] },
+  Indicador: { raiz: { x: 160, y: 302 }, largura: 44, angulo: -94,   ossos: [62, 46, 42] },
+  Medio:     { raiz: { x: 203, y: 292 }, largura: 45, angulo: -91,   ossos: [66, 48, 44] },
+  Anel:      { raiz: { x: 246, y: 295 }, largura: 42, angulo: -87.5, ossos: [62, 46, 42] },
+  Mindinho:  { raiz: { x: 287, y: 308 }, largura: 35, angulo: -84,   ossos: [50, 36, 34] },
 });
 
 /**
@@ -131,6 +135,23 @@ export const PONTAS = Object.freeze(
  * ser a ponta do dedo e não o canto da caixa do desenho.
  */
 export const PONTA = PONTAS.Indicador;
+
+/**
+ * Onde o DEDO DESENHADO termina, em repouso.
+ *
+ * Não é a mesma coisa que PONTA, e a diferença já custou caro. PONTA é a
+ * extremidade do osso; o desenho da falange fecha a ponta com uma meia-volta
+ * que avança meia largura ALÉM dela (ver `kPonta` em hand-svg.js). Enquanto a
+ * âncora da mão foi PONTA, o ator mirava o centro da tecla com um ponto que
+ * ficava 22 unidades atrás da ponta visível — e o portão visual mediu o
+ * resultado: 30 frames de tecla afundada com o dedo desenhado FORA dela.
+ *
+ * A âncora da cena é esta, e é ela que o CSS de fallback repete.
+ */
+export const ANCORA = Object.freeze({
+  x: PONTA.x + Math.cos((DEDOS.Indicador.angulo * Math.PI) / 180) * (DEDOS.Indicador.largura / 2),
+  y: PONTA.y + Math.sin((DEDOS.Indicador.angulo * Math.PI) / 180) * (DEDOS.Indicador.largura / 2),
+});
 
 /**
  * Para que lado cada dedo tomba ao fletir.

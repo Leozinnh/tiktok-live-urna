@@ -224,9 +224,9 @@
 
 .urna__teclado {
   position: absolute;
-  right: 22px;
+  right: var(--teclado-recuo);
   top: 92px;
-  width: 178px;
+  width: var(--teclado-largura);
 }
 
 /* Recesso onde o teclado mora — dá profundidade ao conjunto */
@@ -438,15 +438,30 @@
     inset 0 -1px 0 rgba(255, 255, 255, 0.5);
 }
 
-/* ---------- Abertura de cédula (no topo) ---------- */
+/* ---------- Boca da impressora ---------- */
 
+/*
+ * A fenda fica na FACE DA FRENTE, sobre o teclado.
+ *
+ * Ela morava no tampo, que gira `rotateX(-72deg)`. Duas consequências, e
+ * as duas apareceram na tela: a rotação projetava a fenda lá para y~14,
+ * então o papel saía em y=150 sem abertura nenhuma por perto; e a mão,
+ * que mira a caixa medida do elemento, encostava num ponto do tampo a
+ * mais de cem pixels do papel. Na face da frente não há projeção entre o
+ * que se mede e o que se vê.
+ */
 .urna__slot {
   position: absolute;
-  left: 50%;
-  top: 26px;
-  width: 190px;
-  height: 22px;
+  left: var(--bocal-centro);
+  top: var(--bocal-topo);
+  width: var(--bocal-largura);
+  height: var(--bocal-altura);
   transform: translateX(-50%);
+  /* Acima da cédula (z-index 5). O papel nasce com o topo na borda de
+     CIMA da fenda, então os primeiros 22px dele passam por dentro da boca
+     e é esta camada que os esconde: é o que faz o papel entrar no buraco
+     em vez de deslizar por cima da fenda. */
+  z-index: 6;
   border-radius: 5px;
   background: linear-gradient(180deg, #cfccc5 0%, #a5a29a 100%);
   box-shadow:
@@ -457,7 +472,7 @@
 /* A boca escura por onde a cédula entra */
 .urna__slot-boca {
   position: absolute;
-  inset: 4px 10px;
+  inset: 4px var(--bocal-borda);
   border-radius: 3px;
   background: linear-gradient(180deg, var(--urna-recesso-2) 0%, #000 100%);
   box-shadow:
@@ -523,28 +538,46 @@
  * A cédula nasce com altura zero e cresce. `overflow: hidden` no
  * compartimento é o que faz o papel *sair* de dentro da urna em vez de
  * aparecer flutuando na frente dela.
+ *
+ * O `transform` aqui não desloca o papel na vertical, e a ausência é o
+ * ponto: o topo da caixa É a borda de cima da fenda desde o primeiro
+ * quadro. Havia um `translateY(-30px)`, herança de quando a fenda ficava no
+ * tampo; com ele o papel começava desenhado acima da fenda, por cima da
+ * placa, e descia até o lugar. Medido no navegador: um quadro em que a
+ * conta de layout já dizia "o papel chegou na fenda" enquanto o papel
+ * desenhado estava 16px acima do topo dela, a 83% de opacidade — ou seja,
+ * quem assistia via o papel entrar deslizando por fora do buraco.
  */
 .urna__cedula {
   position: absolute;
-  left: 18px;
-  top: 150px;
-  width: 200px;
+  left: var(--bocal-centro);
+  top: var(--bocal-topo);
+  width: var(--cedula-largura);
   height: 0;
   overflow: hidden;
   opacity: 0;
-  transform: translateY(-30px) rotate(-2deg);
+  transform: translateX(-50%);
   transition:
     opacity 180ms linear,
-    transform 520ms var(--ease-padrao),
     height 520ms var(--ease-padrao);
   z-index: 5;
   pointer-events: none;
 }
 
+/*
+ * O topo da caixa é a borda de CIMA da fenda, e a altura é que cresce.
+ *
+ * É isso que faz o papel sair da boca. O topo dele nasce dentro da fenda,
+ * escondido pela camada de cima, e o que se vê aparecer é o papel descendo
+ * atrás da moldura — como papel saindo de uma impressora de verdade.
+ * Enquanto a caixa estivesse em outro lugar, crescer altura seria um
+ * retângulo brotando do plástico, que foi exatamente o que se viu: 192x114
+ * pixels de papel pintados por cima do LCD, a 135px de qualquer abertura.
+ */
 .urna__cedula.is-visivel {
-  height: 128px;
+  height: var(--cedula-altura);
   opacity: 1;
-  transform: translateY(0) rotate(-2deg);
+  transform: translateX(-50%);
 }
 
 /* No CONFIRMA o papel sai mais rápido: é o momento de tensão da cena, e
@@ -552,13 +585,23 @@
 .urna.is-cedula-saindo .urna__cedula {
   transition:
     opacity 140ms linear,
-    transform 340ms var(--ease-pressao),
     height 340ms var(--ease-pressao);
 }
 
+/*
+ * O papel sai torto: a inclinação de 2 graus mora AQUI, no cartão, e não na
+ * janela de recorte que o contém.
+ *
+ * Girada na janela, a inclinação levantava o canto de cima do retângulo de
+ * recorte (largura/2)·sen(2°) ≈ 3px acima do topo da fenda, e esse pedaço
+ * de papel ficava pintado sobre o plástico acima da boca em todos os quadros
+ * da saída — o mesmo defeito de "papel aparecendo fora do buraco", reduzido
+ * a uma lasca. Dentro da janela, o que a inclinação torce é o desenho, e a
+ * borda de cima continua sendo exatamente a borda de cima da fenda.
+ */
 .cedula__borda {
-  width: 200px;
-  height: 128px;
+  width: var(--cedula-largura);
+  height: var(--cedula-altura);
   padding: 8px 10px;
   border-radius: 3px;
   background: linear-gradient(174deg, #ffffff 0%, #f6f4ee 62%, #e8e4da 100%);
@@ -569,6 +612,7 @@
   font-family: "Consolas", "Courier New", monospace;
   color: #2a2a2a;
   position: relative;
+  transform: rotate(-2deg);
 }
 
 .cedula__titulo   { font-size: 9px;  letter-spacing: 0.3em; color: #8a8578; }
@@ -590,15 +634,25 @@
     rgba(0, 0, 0, 0.18) 3px 4px);
 }
 
-/* A cédula sendo empurrada para dentro da abertura no topo */
+/*
+ * A cédula sendo puxada de volta para dentro da boca.
+ *
+ * Quem enfia o papel é a ALTURA indo a zero: a janela de recorte sobe pela
+ * borda de baixo da fenda e o papel some dentro dela, de baixo para cima.
+ *
+ * Não há `translateY` aqui, e a ausência é deliberada. Havia (-190px), de
+ * quando a fenda ficava no tampo. Movendo a caixa para cima agora, a janela
+ * de recorte sai da face da frente e entra no tampo — e como o papel tem
+ * `z-index: 5` e o tampo não tem nenhum, o papel apareceria POR CIMA da
+ * tampa em vez de sumir na fenda.
+ */
 .urna.is-cedula-entrando .urna__cedula {
   height: 0;
   opacity: 0;
-  transform: translateY(-190px) scaleY(0.5) rotate(-2deg);
+  transform: translateX(-50%);
   transition:
-    opacity 260ms linear 260ms,
-    transform 560ms var(--ease-padrao),
-    height 560ms var(--ease-padrao) 200ms;
+    opacity 200ms linear 320ms,
+    height 520ms var(--ease-pressao);
 }
 
 /* Pulso da urna ao contabilizar */
