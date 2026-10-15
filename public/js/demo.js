@@ -10,11 +10,12 @@ import { montarCenario } from './scene.js';
 import { criarUrna } from './urna.js';
 import { criarPlacar } from './placar.js';
 import { criarPainel } from './painel.js';
+import { criarSom } from './som.js';
 import { criarCronometro } from './cronometro.js';
 import { criarPresentes, PRESENTES_PADRAO } from './presentes.js';
 import { criarMaoSvg } from './hand/hand-svg.js';
 import { AtorDaMao } from './hand-actor.js';
-import { carregarConfig, aplicarConfig } from './config.js';
+import { carregarConfig, aplicarConfig, aplicarConfigDoPlacar } from './config.js';
 
 const cenario = montarCenario(document.getElementById('cena'));
 const { camadaUrnas, camadaMao, camadaPlacar, camadaEfeitos } = cenario;
@@ -95,9 +96,25 @@ const presentes = PRESENTES_PADRAO.map((p) => {
 });
 criarPresentes(camadaEfeitos, presentes);
 
+/*
+ * O som da disputa.
+ *
+ * Criado aqui e não lá dentro do placar: o placar não deve saber que existe
+ * áudio, e o som não deve saber contar voto. Quem liga os dois é esta linha
+ * de `aoVirarLideranca`.
+ */
+const som = criarSom();
+const MENSAGENS = aplicarConfigDoPlacar(configDoUsuario);
+
 const placar = criarPlacar(camadaPlacar, CONFIG_URNAS.map((c) => ({
   id: c.id, nome: c.nome, numero: c.numero, votos: 0, cor: c.corPrimaria,
-})));
+})), {
+  modelos: MENSAGENS,
+  aoVirarLideranca: ({ tipo }) => {
+    if (tipo === 'empate') som.tocarEmpate();
+    else som.tocarVirada();
+  },
+});
 
 /*
  * A rodada.
@@ -320,4 +337,13 @@ barra.addEventListener('click', (evento) => {
   enfileirar(btn.dataset.votar, btn.dataset.presente);
 });
 
-export { urnas, mao, ator, enfileirar };
+/*
+ * O placar e o cronômetro saem daqui junto com o resto.
+ *
+ * Não é API do site: é o mesmo motivo pelo qual `urnas` e `ator` já saíam —
+ * a sonda do navegador precisa alcançar o placar que está NO AR, e não uma
+ * cópia montada só para o teste. Dirigir o de verdade é a diferença entre
+ * conferir que os cartões trocam de lugar e conferir que os cartões DESTA
+ * página trocam de lugar.
+ */
+export { urnas, mao, ator, enfileirar, placar, cronometro };

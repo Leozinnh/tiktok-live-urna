@@ -149,6 +149,68 @@ export function ordemDosCartoes(placar) {
   return [placar.lider, ...ids.filter((id) => id !== placar.lider)];
 }
 
+/*
+ * As mensagens da faixa, com os padrões da spec (seção 6).
+ *
+ * `{urna}` é o NOME da urna e `{numero}` é o número dela. Os dois marcadores
+ * existem porque são coisas diferentes: "URNA 2" é como o Leonardo chama a
+ * urna, e "13" é o que o espectador digita. Quem escreve a mensagem escolhe
+ * qual dos dois nomes a frase pede.
+ */
+export const PLACAR_PADRAO = Object.freeze({
+  mensagemLideranca: '{urna} ASSUMIU A LIDERANÇA!',
+  mensagemEmpate: 'EMPATE NA DISPUTA!',
+  mensagemVitoria: '{urna} VENCEU!',
+});
+
+const SEM_VOTOS = 'sem votos ainda';
+
+/** Troca `{urna}` e `{numero}` pelo que a urna for. */
+export function preencherMensagem(modelo, cartao) {
+  return String(modelo ?? '')
+    .replace(/\{urna\}/g, cartao?.nome ?? '')
+    .replace(/\{numero\}/g, cartao?.numero ?? '');
+}
+
+/**
+ * O que a faixa diz agora — a única decisão de texto do placar.
+ *
+ * Devolve `{ texto, cor, vazio }`. `cor: null` é "não há cor de ninguém para
+ * vestir", que é o caso do empate e do placar zerado: pintar a faixa do
+ * empate com a cor de uma das urnas diria que ela está na frente.
+ *
+ * `aviso` é o momento que está no ar: `{ tipo: 'lideranca', cartao }` ou
+ * `{ tipo: 'empate' }`. Sem ele, a faixa diz o estado — quem está à frente,
+ * ou que ninguém está.
+ */
+export function textoDaFaixa(placar, { aviso = null, modelos = PLACAR_PADRAO } = {}) {
+  if (aviso?.tipo === 'empate') {
+    return { texto: preencherMensagem(modelos.mensagemEmpate, null), cor: null, vazio: false };
+  }
+
+  // No aviso de liderança a faixa veste a urna que ACABOU de assumir, e não a
+  // que o placar aponta: as duas são a mesma, mas depender disso amarraria o
+  // aviso a um cálculo que pode ter mudado no meio do caminho.
+  const cartao = aviso?.cartao ?? placar.cartoes.find((c) => c.id === placar.lider);
+
+  if (cartao) {
+    return aviso
+      ? { texto: preencherMensagem(modelos.mensagemLideranca, cartao), cor: cartao.cor, vazio: false }
+      : { texto: `${cartao.numero} À FRENTE`, cor: cartao.cor, vazio: false };
+  }
+
+  /*
+   * Chegou aqui: ninguém lidera. Isso é empate OU placar zerado, e as duas
+   * coisas nunca se pareceram tanto quanto nesta linha — o placar zerado não
+   * tem o que anunciar, e o empate tem o seu próprio anúncio, que o código
+   * antigo engolia. Cinco a cinco na tela dizia "sem votos ainda".
+   */
+  if (placar.empate) {
+    return { texto: preencherMensagem(modelos.mensagemEmpate, null), cor: null, vazio: false };
+  }
+  return { texto: SEM_VOTOS, cor: null, vazio: true };
+}
+
 function markupDiferenca(c) {
   if (c.posicao === 'empate') {
     return '<span class="cartao__diferenca cartao__diferenca--empate">empatadas</span>';
@@ -170,22 +232,33 @@ const RAIO = `<svg class="cartao__raio" viewBox="0 0 12 16" aria-hidden="true">
         <path d="M7.4 0 0 9.2h3.9L3.2 16 12 6.4H7.2L7.4 0Z" fill="currentColor"/>
       </svg>`;
 
-function markupCartao(c) {
-  // A largura da barra vai em % inline: é o único valor que muda a cada
-  // voto, e uma classe por nível de 0 a 100 seria uma lista sem fim.
-  const largura = (c.fracaoBarra * 100).toFixed(2);
+/*
+ * O cabeçalho e o rodapé do cartão saem em funções próprias porque são
+ * reescritos a cada voto, enquanto o `<article>` em volta é preservado — é
+ * ele que a animação de ultrapassagem move, e é o `.cartao__barra-cheia`
+ * dentro dele que desliza de uma largura para a outra. Recriar o article
+ * jogaria fora os dois.
+ */
+function markupTopo(c) {
   const selo = c.posicao === 'lider'
     ? `<span class="cartao__selo">${RAIO}na frente</span>`
     : '';
   return `
-      <article class="cartao cartao--${c.posicao}" data-urna="${esc(c.id)}"
-               style="--cor-urna:${esc(c.cor ?? '#666')}">
-        <header class="cartao__topo">
           <span class="cartao__lugar">${esc(c.lugar)}º</span>
           <span class="cartao__numero">${esc(c.numero)}</span>
           <span class="cartao__nome">${esc(c.nome)}</span>
           ${selo}
-        </header>
+        `;
+}
+
+function markupCartao(c) {
+  // A largura da barra vai em % inline: é o único valor que muda a cada
+  // voto, e uma classe por nível de 0 a 100 seria uma lista sem fim.
+  const largura = (c.fracaoBarra * 100).toFixed(2);
+  return `
+      <article class="cartao cartao--${c.posicao}" data-urna="${esc(c.id)}"
+               style="--cor-urna:${esc(c.cor ?? '#666')}">
+        <header class="cartao__topo">${markupTopo(c)}</header>
         <div class="cartao__corpo">
           <span class="cartao__votos" data-votos="${esc(c.id)}">${esc(c.votos)}</span>
           <span class="cartao__unidade">votos</span>
@@ -200,7 +273,7 @@ function markupCartao(c) {
       </article>`;
 }
 
-export function renderizarPlacar(placar) {
+export function renderizarPlacar(placar, { aviso = null, modelos } = {}) {
   const espectadores = placar.espectadores === null
     ? ''
     : `<div class="placar__bloco">
@@ -208,14 +281,13 @@ export function renderizarPlacar(placar) {
           <span class="placar__valor placar__valor--menor">${esc(placar.espectadores)}</span>
         </div>`;
 
-  // Quando ninguém lidera, a faixa não anuncia ninguém: um "0 À FRENTE"
-  // piscando num placar zerado é ruído que parece defeito.
-  const lider = placar.cartoes.find((c) => c.id === placar.lider);
-  const faixa = lider
-    ? `<div class="placar__faixa" style="--cor-urna:${esc(lider.cor ?? '#666')}">
-         ${esc(lider.numero)} À FRENTE
-       </div>`
-    : '<div class="placar__faixa placar__faixa--vazia">sem votos ainda</div>';
+  const banda = textoDaFaixa(placar, { aviso, modelos });
+  const classes = ['placar__faixa'];
+  if (banda.vazio) classes.push('placar__faixa--vazia');
+  if (aviso) classes.push('placar__faixa--aviso');
+  const faixa
+    = `<div class="${classes.join(' ')}"${banda.cor ? ` style="--cor-urna:${esc(banda.cor)}"` : ''}>`
+    + `\n         ${esc(banda.texto)}\n       </div>`;
 
   return `
     <div class="placar__status">
@@ -231,41 +303,159 @@ export function renderizarPlacar(placar) {
     </div>`;
 }
 
+/** Quanto tempo a mensagem da ultrapassagem fica no ar antes de a faixa voltar. */
+export const DURACAO_DO_AVISO = 3400;
+
 /**
  * O placar em cena: monta uma vez e depois só atualiza os pedaços que mudam.
  *
  * Redesenhar o HTML inteiro a cada voto seria mais simples de escrever e pior
- * de assistir: o navegador joga fora e reconstrói os elementos, e a barra que
- * deveria deslizar de 44% para 45% pisca em vez de deslizar. Aqui o markup é
- * montado uma vez e o que muda por voto é texto e largura.
+ * de assistir. Duas coisas quebrariam junto:
+ *
+ *   - a barra que deveria deslizar de 44% para 45% pisca em vez de deslizar,
+ *     porque o elemento que carrega a transição nasce de novo já na largura
+ *     final;
+ *   - a troca de lugar dos cartões na ultrapassagem não teria o que animar,
+ *     porque não haveria "antes" — os dois cartões seriam elementos novos.
+ *
+ * Daí a regra: o `<article>` de cada urna e a `.cartao__barra-cheia` dentro
+ * dele nunca são recriados. O que é reescrito por voto é só o texto do topo,
+ * o número de votos e o rodapé.
  */
-export function criarPlacar(camada, linhas) {
+export function criarPlacar(camada, linhas, {
+  aoVirarLideranca,
+  modelos,
+  duracaoDoAviso = DURACAO_DO_AVISO,
+} = {}) {
   const el = document.createElement('div');
   el.className = 'placar';
   camada.append(el);
 
   let placar = calcularPlacar(linhas);
-  el.innerHTML = renderizarPlacar(placar);
+  el.innerHTML = renderizarPlacar(placar, { modelos });
+
+  const container = el.querySelector('.placar__cartoes');
+  const cartoes = new Map();
+  for (const no of container.querySelectorAll('.cartao')) {
+    cartoes.set(no.dataset.urna, no);
+  }
+
+  let aviso = null;
+  let timerDoAviso = null;
+
+  /** O que muda de um desenho para o outro dentro de um cartão. */
+  function pintarCartao(no, c) {
+    no.className = `cartao cartao--${c.posicao}`;
+    no.style.setProperty('--cor-urna', c.cor ?? '#666');
+    no.querySelector('.cartao__topo').innerHTML = markupTopo(c);
+    no.querySelector('.cartao__votos').textContent = c.votos;
+    no.querySelector('.cartao__barra-cheia').style.width
+      = `${(c.fracaoBarra * 100).toFixed(2)}%`;
+    no.querySelector('.cartao__rodape').innerHTML
+      = `<span class="cartao__percentual">${esc(c.percentual)}</span>${markupDiferenca(c)}`;
+  }
+
+  function pintarFaixa() {
+    const no = el.querySelector('.placar__faixa');
+    const banda = textoDaFaixa(placar, { aviso, modelos });
+    no.className = ['placar__faixa', banda.vazio && 'placar__faixa--vazia',
+      aviso && 'placar__faixa--aviso'].filter(Boolean).join(' ');
+    no.textContent = banda.texto;
+    if (banda.cor) no.style.setProperty('--cor-urna', banda.cor);
+    else no.style.removeProperty('--cor-urna');
+  }
+
+  /**
+   * Troca os cartões de lugar, animando a travessia.
+   *
+   * A ordem é montada em DOM e depois invertida com um `translateX` do quanto
+   * cada cartão andou; o navegador anima esse deslocamento até zero e o
+   * cartão parece deslizar de uma coluna para a outra. Fazer isso com
+   * `left`/`order` daria o mesmo resultado visual gastando layout a cada
+   * quadro; com `transform` o trabalho fica no compositor.
+   *
+   * `Element.animate` e não `transition` mais classe: a animação some sozinha
+   * quando termina, sem ficar uma classe presa no elemento esperando alguém
+   * lembrar de tirá-la.
+   *
+   * O `append` que reordena TIRA e RECOLOCA o cartão, e isso cancela qualquer
+   * transição de CSS que estivesse correndo dentro dele: no voto que vira a
+   * liderança, a barra de proporção chega na largura nova de uma vez, sem
+   * deslizar. Foi medido — no voto comum, que não reordena, ela desliza.
+   *
+   * Fica assim de propósito. Dá para trocar o `append` por `order` no grid e
+   * não cancelar nada, mas aí a ordem no DOM deixa de ser a ordem na tela e
+   * passa a ser preciso guardar a ordem visual à parte — mais estado, para
+   * consertar algo que não se vê: a barra pularia dentro de um cartão que
+   * está atravessando 538px na frente dele.
+   */
+  function trocarDeLugar() {
+    const ordem = ordemDosCartoes(placar);
+    const atual = [...container.querySelectorAll('.cartao')].map((n) => n.dataset.urna);
+    if (ordem.join() === atual.join()) return;
+
+    const antes = new Map();
+    for (const [id, no] of cartoes) antes.set(id, no.getBoundingClientRect().left);
+
+    for (const id of ordem) container.append(cartoes.get(id));
+
+    for (const [id, no] of cartoes) {
+      const andou = antes.get(id) - no.getBoundingClientRect().left;
+      if (Math.abs(andou) < 1) continue;
+      no.animate(
+        [{ transform: `translateX(${andou}px)` }, { transform: 'none' }],
+        { duration: 620, easing: 'cubic-bezier(0.22, 0.61, 0.36, 1)' },
+      );
+    }
+  }
+
+  function fecharAviso() {
+    clearTimeout(timerDoAviso);
+    timerDoAviso = null;
+    aviso = null;
+    pintarFaixa();
+  }
+
+  function abrirAviso(mudanca) {
+    const cartao = placar.cartoes.find((c) => c.id === mudanca.para) ?? null;
+    aviso = mudanca.tipo === 'empate' ? { tipo: 'empate' } : { tipo: 'lideranca', cartao };
+    pintarFaixa();
+
+    clearTimeout(timerDoAviso);
+    timerDoAviso = setTimeout(fecharAviso, duracaoDoAviso);
+
+    aoVirarLideranca?.({ ...mudanca, cartao });
+  }
+
+  function desenhar(novasLinhas, opcoes) {
+    const anterior = placar;
+    placar = calcularPlacar(novasLinhas, opcoes);
+
+    const mudanca = mudancaDeLideranca(anterior, placar);
+
+    el.querySelector('[data-total]').textContent = placar.total;
+    for (const c of placar.cartoes) {
+      const no = cartoes.get(c.id);
+      if (no) pintarCartao(no, c);
+    }
+
+    if (mudanca.tipo === 'nada') {
+      pintarFaixa();
+    } else {
+      // O aviso entra ANTES da troca de lugar: quem escuta o evento já pode
+      // tocar o som no mesmo quadro em que os cartões começam a andar.
+      abrirAviso(mudanca);
+      trocarDeLugar();
+    }
+    return placar;
+  }
 
   return {
     el,
     get estado() { return placar; },
+    get aviso() { return aviso; },
 
     /** Redesenha a partir das contagens atuais. */
-    atualizar(novasLinhas, opcoes) {
-      placar = calcularPlacar(novasLinhas, opcoes);
-      el.innerHTML = renderizarPlacar(placar);
-      return placar;
-    },
-
-    /**
-     * Atualiza só a contagem da urna que acabou de receber um voto, e deixa
-     * o resto da árvore em paz.
-     */
-    atualizarContagem(novasLinhas) {
-      placar = calcularPlacar(novasLinhas, { espectadores: placar.espectadores ?? undefined });
-      el.innerHTML = renderizarPlacar(placar);
-      return placar;
-    },
+    atualizar: desenhar,
   };
 }

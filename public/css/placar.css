@@ -97,6 +97,33 @@
   white-space: nowrap;
 }
 
+/*
+ * A faixa quando ela está anunciando um momento, e não um estado.
+ *
+ * Ela dá um empurrão e volta ao tamanho de sempre, uma vez só, enquanto a
+ * mensagem está no ar. Uma pulsação contínua competiria com os cartões
+ * trocando de lugar — e é a troca que a audiência precisa olhar.
+ *
+ * Só `transform`, e só de escala: assim a animação roda na placa de vídeo e
+ * não disputa quadro com o FLIP dos cartões, que está acontecendo no mesmo
+ * instante e é o que importa.
+ *
+ * `min-width` maior porque a mensagem é uma frase ("BRUNO TAVARES ASSUMIU A
+ * LIDERANÇA!") e a faixa de estado é um número com uma palavra ("22 À
+ * FRENTE"). Sem ele a pílula esticaria para os lados no meio da animação.
+ */
+.placar__faixa--aviso {
+  min-width: 460px;
+  animation: faixa-anuncia 3400ms var(--ease-padrao) both;
+}
+
+@keyframes faixa-anuncia {
+  0%   { transform: scale(0.94); }
+  9%   { transform: scale(1.07); }
+  20%  { transform: scale(1); }
+  100% { transform: scale(1); }
+}
+
 .placar__faixa--vazia {
   background: #2b3448;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10);
@@ -145,6 +172,30 @@
     rgba(255, 255, 255, 0.20) 0%,
     rgba(255, 255, 255, 0) 60%),
     var(--cor-urna, #666);
+}
+
+/*
+ * O lugar na disputa, antes do número.
+ *
+ * Discreto de propósito: quem já entendeu o placar não precisa dele, e quem
+ * acabou de chegar na live precisa. Um "1º" pequeno responde a pergunta sem
+ * competir com a contagem, que é o número que a audiência veio ver.
+ *
+ * Ele ganha importância quando os cartões TROCAM de lugar: com as posições
+ * mudando, "1º" é o que diz que a troca de lado não foi um erro de desenho.
+ */
+.cartao__lugar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  min-width: 44px;
+  height: 44px;
+  padding: 0 8px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.28);
+  font-size: 24px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
 }
 
 .cartao__numero {

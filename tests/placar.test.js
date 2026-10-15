@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { calcularPlacar, renderizarPlacar, mudancaDeLideranca, ordemDosCartoes } from '../public/js/placar.js';
+import { calcularPlacar, renderizarPlacar, mudancaDeLideranca, ordemDosCartoes, textoDaFaixa } from '../public/js/placar.js';
 
 const U1 = { id: 'u1', nome: 'URNA 1', numero: '22', votos: 61, cor: '#1a5fd0' };
 const U2 = { id: 'u2', nome: 'URNA 2', numero: '13', votos: 48, cor: '#e02020' };
@@ -222,4 +222,90 @@ test('o lugar aparece escrito no cartão', () => {
   const html = renderizarPlacar(comVotos(61, 48));
   assert.match(html, /cartao__lugar">1º</);
   assert.match(html, /cartao__lugar">2º</);
+});
+
+// ---- A faixa, que é onde o momento vira palavra ------------------------
+
+const CARTAO_U1 = { id: 'u1', nome: 'URNA 1', numero: '22', cor: '#1a5fd0' };
+const CARTAO_U2 = { id: 'u2', nome: 'URNA 2', numero: '13', cor: '#e02020' };
+
+test('sem ninguém na frente a faixa não anuncia ninguém', () => {
+  const f = textoDaFaixa(comVotos(0, 0));
+  assert.equal(f.vazio, true);
+  assert.equal(f.cor, null);
+});
+
+test('com um líder, a faixa diz quem está na frente e na cor dele', () => {
+  const f = textoDaFaixa(comVotos(61, 48));
+  assert.equal(f.texto, '22 À FRENTE');
+  assert.equal(f.cor, '#1a5fd0');
+});
+
+test('empatados NÃO é a mesma coisa que sem votos', () => {
+  /*
+   * Defeito que já estava na tela: 5 a 5 tem `lider: null`, e a faixa caía no
+   * mesmo caso do placar zerado — anunciava "sem votos ainda" com dez votos
+   * apurados e os dois cartões cheios logo abaixo. A faixa é o primeiro lugar
+   * onde o olho procura o estado da disputa, e era o único que mentia.
+   */
+  const f = textoDaFaixa(comVotos(5, 5));
+  assert.equal(f.vazio, false);
+  assert.match(f.texto, /EMPATE/);
+  assert.equal(f.cor, null, 'num empate não há cor de ninguém para vestir');
+});
+
+test('a ultrapassagem troca o texto da faixa pela mensagem da spec', () => {
+  const f = textoDaFaixa(comVotos(61, 62), {
+    aviso: { tipo: 'lideranca', cartao: CARTAO_U2 },
+  });
+  assert.equal(f.texto, 'URNA 2 ASSUMIU A LIDERANÇA!');
+  assert.equal(f.cor, '#e02020');
+});
+
+test('o aviso de empate tem texto próprio', () => {
+  const f = textoDaFaixa(comVotos(61, 61), { aviso: { tipo: 'empate' } });
+  assert.equal(f.texto, 'EMPATE NA DISPUTA!');
+});
+
+test('as mensagens são configuráveis, com o nome da urna no lugar do marcador', () => {
+  // O `{urna}` sai do arquivo de configuração e vira o NOME da urna — "URNA
+  // 2" e não "13". Quem lê a faixa de longe precisa saber QUAL urna virou,
+  // e o número é o que o espectador digita, não o que ele chama a urna.
+  const f = textoDaFaixa(comVotos(61, 62), {
+    aviso: { tipo: 'lideranca', cartao: CARTAO_U2 },
+    modelos: { mensagemLideranca: '{urna} VIROU!', mensagemEmpate: 'X' },
+  });
+  assert.equal(f.texto, 'URNA 2 VIROU!');
+});
+
+test('o marcador {numero} também funciona, para quem preferir', () => {
+  const f = textoDaFaixa(comVotos(61, 62), {
+    aviso: { tipo: 'lideranca', cartao: CARTAO_U2 },
+    modelos: { mensagemLideranca: 'O {numero} PASSOU!' },
+  });
+  assert.equal(f.texto, 'O 13 PASSOU!');
+});
+
+test('uma mensagem sem marcador nenhum sai como está', () => {
+  const f = textoDaFaixa(comVotos(61, 62), {
+    aviso: { tipo: 'lideranca', cartao: CARTAO_U2 },
+    modelos: { mensagemLideranca: 'VIROU!' },
+  });
+  assert.equal(f.texto, 'VIROU!');
+});
+
+test('o aviso manda no texto, mas o desenho continua sendo o do placar', () => {
+  // Enquanto o aviso está no ar, `renderizarPlacar` precisa usar o texto
+  // dele e não o "À FRENTE" de sempre — senão a mensagem existe só no
+  // objeto e nunca chega à tela.
+  const p = comVotos(61, 62);
+  const comAviso = renderizarPlacar(p, { aviso: { tipo: 'lideranca', cartao: CARTAO_U2 } });
+  assert.match(comAviso, /URNA 2 ASSUMIU A LIDERANÇA!/);
+  assert.doesNotMatch(comAviso, /13 À FRENTE/);
+});
+
+test('o empate também chega ao desenho', () => {
+  const html = renderizarPlacar(comVotos(5, 5));
+  assert.match(html, /EMPATE NA DISPUTA!/);
+  assert.doesNotMatch(html, /sem votos ainda/);
 });

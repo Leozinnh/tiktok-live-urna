@@ -22,7 +22,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { urlDaFoto, aplicarConfig } from '../public/js/config.js';
+import { urlDaFoto, aplicarConfig , aplicarConfigDoPlacar } from '../public/js/config.js';
 
 test('a foto aceita link da internet, caminho do servidor e nome de arquivo', () => {
   // Os dois jeitos que o Leonardo escolheu, mais o nome solto — que é o mais
@@ -138,4 +138,43 @@ test('cor e número inválidos não derrubam a urna', () => {
 
   const numeroLongo = aplicarConfig(padroes, { urnas: { u1: { numero: '123456789' } } });
   assert.equal(numeroLongo[0].numero, '22', 'número fora do formato entrou na urna');
+});
+
+// ---- As mensagens do placar -------------------------------------------
+
+test('sem nada no arquivo, as mensagens do placar são as da spec', () => {
+  const p = aplicarConfigDoPlacar({});
+  assert.equal(p.mensagemLideranca, '{urna} ASSUMIU A LIDERANÇA!');
+  assert.equal(p.mensagemEmpate, 'EMPATE NA DISPUTA!');
+  assert.equal(p.mensagemVitoria, '{urna} VENCEU!');
+});
+
+test('o arquivo pode reescrever uma mensagem e deixar as outras', () => {
+  // Mesmo remendo campo a campo das urnas: trocar o texto da vitória não
+  // pode apagar o da ultrapassagem.
+  const p = aplicarConfigDoPlacar({ placar: { mensagemVitoria: '{urna} GANHOU!' } });
+  assert.equal(p.mensagemVitoria, '{urna} GANHOU!');
+  assert.equal(p.mensagemLideranca, '{urna} ASSUMIU A LIDERANÇA!');
+  assert.equal(p.mensagemEmpate, 'EMPATE NA DISPUTA!');
+});
+
+test('mensagem em branco é ignorada, e não apaga o padrão', () => {
+  // Um `""` no arquivo deixaria a faixa vazia no ar, sem nada dentro, e o
+  // momento mais importante da disputa passaria em silêncio.
+  const p = aplicarConfigDoPlacar({ placar: { mensagemLideranca: '   ' } });
+  assert.equal(p.mensagemLideranca, '{urna} ASSUMIU A LIDERANÇA!');
+});
+
+test('placar escrito como texto solto não derruba nada', () => {
+  const p = aplicarConfigDoPlacar({ placar: 'DISPUTA' });
+  assert.equal(p.mensagemVitoria, '{urna} VENCEU!');
+});
+
+test('o padrão passado não é modificado', () => {
+  // `aplicarConfigDoPlacar` devolve um objeto novo: quem guardou o padrão
+  // numa constante congelada não pode vê-lo mudar por baixo.
+  const padrao = { mensagemEmpate: 'EMPATE NA DISPUTA!' };
+  const p = aplicarConfigDoPlacar({ placar: { mensagemEmpate: 'IGUAIS!' } }, padrao);
+  assert.equal(p.mensagemEmpate, 'IGUAIS!');
+  assert.equal(padrao.mensagemEmpate, 'EMPATE NA DISPUTA!');
 });

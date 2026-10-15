@@ -10,6 +10,7 @@
  * para poderem ser testadas sem rede, e é nelas que mora toda a decisão.
  */
 import { COR_VALIDA } from './urna.js';
+import { PLACAR_PADRAO } from './placar.js';
 
 /** Onde o servidor publica o arquivo. Ver server/index.js. */
 export const URL_DA_CONFIG = '/config/local.json';
@@ -121,6 +122,26 @@ export function aplicarConfig(padroes, cfg) {
 
     return novo;
   });
+}
+
+/**
+ * As mensagens da faixa do placar, por cima dos padrões da spec.
+ *
+ * Separada de `aplicarConfig` porque devolve outra coisa — um objeto de
+ * textos, e não a lista de urnas — mas a regra é a mesma: remendo campo a
+ * campo, e o que não serve é ignorado em vez de aplicado. Uma mensagem em
+ * branco no arquivo apagaria a faixa no ar, e a faixa é onde o momento mais
+ * importante da disputa vira palavra.
+ */
+export function aplicarConfigDoPlacar(cfg, padroes = PLACAR_PADRAO) {
+  const novo = { ...padroes };
+  const bruto = ehObjeto(cfg) ? cfg.placar : null;
+  if (!ehObjeto(bruto)) return novo;
+
+  for (const campo of ['mensagemLideranca', 'mensagemEmpate', 'mensagemVitoria']) {
+    if (textoUtil(bruto[campo])) novo[campo] = bruto[campo];
+  }
+  return novo;
 }
 
 /**
