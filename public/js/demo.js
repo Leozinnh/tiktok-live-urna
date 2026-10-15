@@ -7,6 +7,8 @@
 
 import { montarCenario } from './scene.js';
 import { criarUrna } from './urna.js';
+import { criarMaoSvg } from './hand/hand-svg.js';
+import { POSES } from './hand/poses.js';
 
 export const cena = montarCenario(document.getElementById('cena'));
 
@@ -26,3 +28,10 @@ u2.definirTela({ tipo: 'digitando', numero: '13', nome: 'URNA 2', numeroDigitado
 u1.pressionarTecla('5');
 u1.acenderLed('5', true);
 u2.acenderLed('CONFIRMA', true);
+
+// A mão, parada em repouso sobre a mesa. A coreografia que a move entra
+// na tarefa seguinte; aqui é só o renderizador, para conferir os pivôs.
+export const mao = criarMaoSvg();
+cena.camadaMao.append(mao.sombra, mao.el);
+mao.posicionar(540, 1290, { escala: 1 });
+mao.aplicarPose(POSES.repouso);

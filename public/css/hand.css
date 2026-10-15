@@ -1,1 +1,129 @@
-/* Mão — construída na Task 11. */
+/*
+ * A mão.
+ *
+ * Coordenadas: o palco tem 1080x1920 e a mão é posicionada por --x/--y
+ * (canto superior esquerdo), com --rot e --escala aplicados em torno do
+ * centro. O ator escreve essas quatro variáveis a cada frame; nada aqui
+ * anima sozinho — se o CSS animasse, a coreografia e o CSS brigariam
+ * pelo mesmo transform.
+ */
+
+.mao {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 420px;
+  height: 620px;
+  pointer-events: none;
+  transform:
+    translate3d(var(--x, 0px), var(--y, 0px), 0)
+    rotate(var(--rot, 0deg))
+    scale(var(--escala, 1));
+  transform-origin: 50% 50%;
+  /* A mão fica acima das urnas e abaixo dos efeitos de confete. */
+  z-index: var(--z-mao, 50);
+  will-change: transform;
+}
+
+.mao__svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  /* A sombra do SVG é resolvida pelo elemento .mao__sombra: desenhar
+     drop-shadow num SVG articulado obriga o Chromium a rasterizar o
+     filtro inteiro a cada frame. */
+  filter: drop-shadow(0 18px 26px rgba(60, 32, 16, 0.34));
+}
+
+/*
+ * Cada junta é um <g> que gira em torno do próprio pivô.
+ *
+ * `transform-box: view-box` faz o `transform-origin` ser lido em unidades
+ * do viewBox (0 0 420 620) em vez de em relação à caixa do próprio grupo.
+ * Sem isso o pivô seria relativo ao bounding box da falange, que muda de
+ * tamanho conforme o dedo dobra — e o dedo passaria a girar em volta de
+ * um ponto que se move sozinho. O valor exato de `transform-origin` vem
+ * escrito no markup por hand-svg.js, casado com a tabela PIVOS.
+ */
+.mao [data-junta] {
+  transform-box: view-box;
+  transition: none;
+}
+
+.mao .falange,
+.mao .palma {
+  /* Contorno tênue: sem ele as falanges de mesma cor se fundem numa
+     mancha única quando o dedo dobra sobre a palma. */
+  stroke: #9c6642;
+  stroke-width: 1.4;
+  stroke-opacity: 0.35;
+}
+
+.mao .unha {
+  stroke: #c99b7e;
+  stroke-width: 0.8;
+  stroke-opacity: 0.5;
+}
+
+.mao .manga__punho {
+  opacity: 0.9;
+}
+
+/*
+ * Sombra projetada — o elemento que vende o volume da mão.
+ *
+ * É um irmão da mão, não um filho: se fosse filho, giraria junto com ela
+ * e o giro apareceria na sombra, o que achataria a leitura. Fica fora do
+ * .mao para receber da ator as mesmas --x/--y já corrigidas pela altura
+ * da mão sobre a mesa.
+ */
+.mao__sombra {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 420px;
+  height: 620px;
+  pointer-events: none;
+  transform:
+    translate3d(var(--sx, 0px), var(--sy, 0px), 0)
+    rotate(var(--rot, 0deg))
+    scale(var(--sombra-escala, 1));
+  transform-origin: 50% 50%;
+  z-index: calc(var(--z-mao, 50) - 1);
+  will-change: transform;
+}
+
+.mao__sombra-elipse {
+  position: absolute;
+  left: 50%;
+  top: 58%;
+  width: 260px;
+  height: 120px;
+  margin: -60px 0 0 -130px;
+  border-radius: 50%;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(48, 26, 12, var(--sombra-opacidade, 0.55)) 0%,
+    rgba(48, 26, 12, calc(var(--sombra-opacidade, 0.55) * 0.55)) 42%,
+    rgba(48, 26, 12, 0) 74%
+  );
+  filter: blur(var(--sombra-blur, 14px));
+}
+
+/* Estado inicial: a mão começa fora de cena, abaixo da mesa. */
+.mao[data-estado="oculta"] {
+  opacity: 0;
+}
+
+.mao__sombra[data-estado="oculta"] {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* A coreografia continua rodando (é o produto), mas sem o borrão da
+     sombra, que é o que mais pesa na rasterização por frame. */
+  .mao__sombra-elipse {
+    filter: blur(8px);
+  }
+}
