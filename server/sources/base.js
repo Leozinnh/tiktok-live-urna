@@ -123,6 +123,18 @@ export function criarFonte({ modo, detalhe = '', iniciar = null, parar = null })
   const ouvintes = new Set();
   const ouvintesDeStatus = new Set();
   let conectada = false;
+  /**
+   * A fonte está LIGADA — que não é a mesma coisa que estar conectada.
+   *
+   * No simulador as duas andam juntas, e foi por isso que elas viveram
+   * misturadas até a fonte da TikTok existir. Mas a fonte da live real fica
+   * ligada e sem conexão o tempo todo: a live ainda não começou, a live
+   * acabou, o Webcast bloqueou. Se `parar()` perguntasse à conexão, ele
+   * responderia "não há nada para parar" e deixaria um processo Python
+   * rodando depois de o operador ter mandado parar — sem nada na tela
+   * explicando de onde ele veio.
+   */
+  let ligada = false;
   let texto = detalhe;
 
   function avisarStatus() {
@@ -171,23 +183,43 @@ export function criarFonte({ modo, detalhe = '', iniciar = null, parar = null })
       return true;
     },
 
-    /** Marca o estado da conexão e avisa quem estiver olhando. */
+    /**
+     * Marca o estado da conexão e avisa quem estiver olhando.
+     *
+     * O aviso sai quando o estado MUDA **ou** quando o motivo muda — e a
+     * segunda metade não é detalhe.
+     *
+     * No simulador as duas andam juntas, e foi por isso que isto passou tanto
+     * tempo despercebido. Na live real não andam: a fonte pode ficar sem
+     * conexão a noite inteira, e a única coisa que muda é POR QUE. Um @ errado
+     * nunca conecta, então `conectada` nunca sai de `false` — e uma base que
+     * só olhasse para ele deixaria o painel dizendo "sem live conectada" para
+     * sempre, sem nunca contar que o nome da live estava errado. É a única
+     * mensagem que o operador precisa ler, e era a única que não chegava.
+     */
     definirConectada(novo, novoDetalhe = texto) {
+      const mudouOMotivo = novoDetalhe !== texto;
       texto = novoDetalhe;
-      if (conectada === novo) return;
+      if (conectada === novo && !mudouOMotivo) return;
       conectada = novo;
       avisarStatus();
     },
 
     iniciar() {
-      if (conectada) return false;
+      if (ligada) return false;
       const resultado = iniciar?.(this) ?? true;
-      return resultado === false ? false : true;
+      // O adaptador pode recusar: falta o nome da live, falta a chave. Nesse
+      // caso a fonte não fica ligada, e um `parar()` depois disso não tem o
+      // que parar.
+      if (resultado === false) return false;
+      ligada = true;
+      return true;
     },
 
     parar() {
-      if (!conectada) return false;
+      if (!ligada) return false;
       parar?.(this);
+      ligada = false;
       return true;
     },
   };

@@ -7,6 +7,7 @@ import { abrirBanco } from './db.js';
 import { criarTally } from './tally.js';
 import { criarHub } from './hub.js';
 import { criarSimulador } from './sources/simulator.js';
+import { criarFonteTiktok } from './sources/tiktok.js';
 import { criarVoz } from './voz.js';
 import { carregar, salvar, caminhoDaConfig } from './config.js';
 import { descobrirPidDaPorta, mensagemDePortaOcupada } from './porta.js';
@@ -156,18 +157,34 @@ async function servirArquivo(res, pasta, nome, conferirNome) {
  * `caminhoDoBanco` é parâmetro porque a suíte não pode escrever no banco da
  * live: um teste que apaga a rodada do Leonardo é pior do que nenhum teste.
  */
-export function montarMotor({ config, caminhoDoBanco = ':memory:', aoSalvar = null, voz = null }) {
+export function montarMotor({
+  config, caminhoDoBanco = ':memory:', aoSalvar = null, voz = null, fonte = null,
+}) {
   const db = abrirBanco(caminhoDoBanco);
   const tally = criarTally({ db, config });
-  const fonte = criarSimulador();
-  const hub = criarHub({ tally, fonte, config, aoSalvar, voz });
-  fonte.iniciar();
+  /*
+   * Qual fonte roda é decisão da CONFIGURAÇÃO, e não de quem sobe o servidor.
+   *
+   * O padrão é o simulador porque é ele que não tem como falhar: quem abrir o
+   * projeto pela primeira vez precisa de uma tela que responde, e não de um
+   * Python pedindo o nome de uma live que a pessoa ainda não tem. A live real
+   * se escolhe no painel, e é uma escolha que grava.
+   *
+   * O parâmetro `fonte` existe pelo mesmo motivo que o `voz`: a suíte precisa
+   * de uma fonte com um processo de mentira para poder testar a costura sem
+   * entrar numa live de verdade.
+   */
+  const ativa = fonte ?? (config?.integracao?.modo === 'tiktok'
+    ? criarFonteTiktok({ usuario: config.integracao.usuario })
+    : criarSimulador());
+  const hub = criarHub({ tally, fonte: ativa, config, aoSalvar, voz });
+  ativa.iniciar();
   /*
    * A rodada já nasce aberta. Sem ela o motor não tem onde contar — a seção
    * 4.5 grava o voto numa rodada, e um voto sem rodada não existe no banco.
    */
   tally.abrirRodada();
-  return { db, tally, fonte, hub };
+  return { db, tally, fonte: ativa, hub };
 }
 
 /** O cabeçalho do upgrade, montado à mão porque são quatro linhas. */
