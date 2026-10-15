@@ -1,3 +1,10 @@
-// Ponto de entrada da página de demonstração.
-// Ganha conteúdo a partir da Task 2, quando o cenário existe.
-console.log('Live Vote Arena');
+/**
+ * Ponto de entrada da página de demonstração.
+ *
+ * Por enquanto só monta o cenário. As urnas, a mão e a coreografia
+ * entram nas tarefas seguintes, sempre por cima desta mesma cena.
+ */
+
+import { montarCenario } from './scene.js';
+
+export const cena = montarCenario(document.getElementById('cena'));
