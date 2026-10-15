@@ -71,7 +71,7 @@ export const PADRAO = Object.freeze({
   }),
   presentes: Object.freeze([
     Object.freeze({
-      id: 'p1', nome: 'Joinha', giftId: '1', moedas: 1, urnaId: 'u1', votos: 1,
+      id: 'p1', nome: 'Heart Me', giftId: '1', moedas: 1, urnaId: 'u1', votos: 1,
       ativo: true, efeito: 'faisca', prioridade: 0, cooldownMs: 0,
     }),
     Object.freeze({

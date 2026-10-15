@@ -25,7 +25,7 @@ const CONFIG_DE_TESTE = {
     u2: { id: 'u2', nome: 'URNA 2', candidato: { nome: 'Bruno', partido: 'B', foto: '' } },
   },
   presentes: [
-    { id: 'p1', nome: 'Joinha', giftId: '1', urnaId: 'u1' },
+    { id: 'p1', nome: 'Heart Me', giftId: '1', urnaId: 'u1' },
     { id: 'p2', nome: 'Rosa', giftId: '2', urnaId: 'u2' },
   ],
   rodada: { duracaoSegundos: 300 },

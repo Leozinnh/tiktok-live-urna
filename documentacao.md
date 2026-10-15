@@ -31,7 +31,7 @@ cd C:\xampp\htdocs\tiktok-live-urna
 npm start          # sobe o servidor
 npm run dev        # sobe e recarrega sozinho quando um arquivo do servidor muda
 npm run reiniciar  # derruba quem está na porta 3000 e sobe de novo
-npm test           # a suíte inteira (701 testes, poucos segundos)
+npm test           # a suíte inteira (703 testes, poucos segundos)
 ```
 
 | Endereço | O que é |
@@ -325,7 +325,7 @@ npm test                              # tudo
 node --test tests/voz.test.js         # um arquivo
 ```
 
-**701 testes**, `node --test`, sem navegador. A regra do projeto é **TDD**:
+**703 testes**, `node --test`, sem navegador. A regra do projeto é **TDD**:
 teste que falha primeiro, pelo motivo certo, depois o código.
 
 **Nada de DOM falso.** As funções puras são testadas direto. O que só existe
@@ -450,8 +450,8 @@ transmissão com as instruções de captura no OBS.
 ### O que a suíte diz hoje
 
 ```
-ℹ tests 701
-ℹ pass 701
+ℹ tests 703
+ℹ pass 703
 ℹ fail 0
 ```
 

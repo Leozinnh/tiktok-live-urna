@@ -161,9 +161,9 @@ test('índice numérico vira lista, porque lista se manda inteira', () => {
   const patch = patchDe(
     [{ caminho: 'presentes.0.nome', rotulo: 'Nome', tipo: 'texto' },
       { caminho: 'presentes.1.nome', rotulo: 'Nome', tipo: 'texto' }],
-    { 'presentes.0.nome': 'Rosa', 'presentes.1.nome': 'Joinha' },
+    { 'presentes.0.nome': 'Rosa', 'presentes.1.nome': 'Heart Me' },
   );
-  assert.deepEqual(patch.presentes, [{ nome: 'Rosa' }, { nome: 'Joinha' }]);
+  assert.deepEqual(patch.presentes, [{ nome: 'Rosa' }, { nome: 'Heart Me' }]);
 });
 
 test('a volta não inventa campo que não foi lido', () => {

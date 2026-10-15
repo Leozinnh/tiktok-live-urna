@@ -24,7 +24,7 @@ const CONFIG = normalizar({
     u2: { id: 'u2', nome: 'Urna 2', numero: '13', multiplicador: 1 },
   },
   presentes: [
-    { id: 'p1', nome: 'Joinha', giftId: '1', urnaId: 'u1', votos: 1 },
+    { id: 'p1', nome: 'Heart Me', giftId: '1', urnaId: 'u1', votos: 1 },
     { id: 'p2', nome: 'Rosa', giftId: '2', urnaId: 'u2', votos: 1 },
     { id: 'p3', nome: 'Leão', giftId: '3', urnaId: 'u1', votos: 10 },
   ],
@@ -85,7 +85,7 @@ test('o combo multiplica os votos, e não as entradas na fila', () => {
 });
 
 test('o multiplicador da urna entra na conta', () => {
-  // A urna do Joinha vale 2 nesta configuração; dez joinhas valem vinte.
+  // A urna do Heart Me vale 2 nesta configuração; dez deles valem vinte.
   const { tally } = montar();
   tally.processar(evento({ giftId: '1', combo: 10 }));
   assert.equal(tally.estado().urnas.find((u) => u.id === 'u1').votos, 20);
@@ -138,7 +138,7 @@ test('a ultrapassagem é anunciada com quem assumiu a liderança', () => {
   assert.equal(tally.processar(evento({ giftId: '2', comboIndex: 1 })).lideranca, null,
     'a primeira urna a pontuar não "assumiu" nada');
 
-  // O joinha vale 2 nesta configuração: a urna 1 passa de 0 para 2 e assume.
+  // O Heart Me vale 2 nesta configuração: a urna 1 passa de 0 para 2 e assume.
   const r = tally.processar(evento({ giftId: '1', comboIndex: 2, em: 2 }));
   assert.equal(r.lideranca?.tipo, 'virada');
   assert.equal(r.lideranca.urnaId, 'u1');

@@ -5,11 +5,17 @@
  * única pergunta que quem chega no meio da live tem: "o que eu mando para
  * votar no 22?". Sem ela, a cena mostra duas urnas e nenhuma instrução.
  *
- * Os desenhos são SVG, e não emoji nem imagem colada. Emoji muda de forma
- * em cada sistema e não aceita a cor da urna; imagem pronta seria a arte de
- * outra pessoa no meio da sua transmissão. Desenhados aqui, os dois
- * presentes ficam iguais em qualquer máquina e acompanham a identidade da
- * urna que representam.
+ * Os desenhos são ARQUIVOS, e não emoji: emoji muda de forma em cada
+ * sistema e não aceita a cor da urna, então a legenda ensinaria uma coisa no
+ * seu PC e outra no do espectador. Os `.webp` moram em `public/img/` e são
+ * arte do Leonardo.
+ *
+ * O caminho do `src` é ABSOLUTO a partir de `/` — `/img/rose.webp`, e não
+ * `public/img/rose.webp`. O servidor serve a partir de `public/`, então o
+ * caminho relativo à raiz do projeto pede `/public/img/...`, o servidor
+ * procura `public/public/img/...` e devolve 404: a imagem não aparece e não
+ * há erro nenhum além dela. É o teste `todo desenho da vitrine aponta para
+ * um arquivo que o servidor entrega` que prende isso.
  */
 
 const ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
@@ -21,48 +27,26 @@ function esc(s) {
  * A rosa: o presente mais mandado numa live, e o que a referência usa na
  * urna vermelha.
  *
- * As pétalas são três espirais concêntricas, do escuro para o claro — é o
- * que faz o botão da flor ler como volume em vez de um círculo rosa. As
- * folhas ficam atrás, com o verde escuro por baixo.
+ * Era um SVG desenhado aqui — três espirais concêntricas para dar volume ao
+ * botão da flor. Virou arquivo porque a arte pronta do Leonardo lê melhor no
+ * tamanho da cena do que o desenho vetorial que dava para escrever em CSS.
  */
 export function desenhoRosa() {
-  /*
-   * A flor é um círculo com uma espiral por cima, e não camadas de
-   * círculos preenchidos. Círculo dentro de círculo vira uma bola rosa: o
-   * olho não acha onde a pétala começa nem onde acaba. O que faz a leitura
-   * de rosa são os arcos abertos concêntricos — é assim que a rosa é
-   * desenhada de lado, e é o que o desenho do presente imita.
-   */
-  return `<img class="presente__desenho" src="public/img/rose.webp" />`;
+  return `<img class="presente__desenho" src="/img/rose.webp" alt="" />`;
 }
 
 /**
- * O joinha: o presente de entrada, o que a maioria manda.
+ * O Heart Me: o presente de entrada, o que a maioria manda.
  *
- * A mão é um punho fechado com o polegar para cima, em rosa, com a nota
- * musical ao lado — é o desenho clássico do presente de "curtida", e o
- * brilho branco nas costas é o que dá a leitura de adesivo brilhante.
+ * Chamava-se joinha, e a troca do nome é do Leonardo — é o presente que o
+ * TikTok chama de Heart Me, e é esse o nome que a vitrine, o placar e a voz
+ * do narrador mostram.
  */
-export function desenhoJoinha() {
-  /*
-   * A mão é UMA silhueta só: o punho fechado com o polegar subindo pela
-   * esquerda, no contorno clássico do joinha.
-   *
-   * A versão anterior montava a mão com peças separadas — um bloco para o
-   * punho, um para o polegar, três barras brancas por cima dos dedos. No
-   * tamanho da cena isso não lê como mão: lê como uma mancha rosa com
-   * listras. O contorno único resolve porque a silhueta do joinha é
-   * reconhecível sozinha, antes de qualquer sombreado; o que vem depois
-   * (as dobras dos dedos e a unha) é detalhe, não estrutura.
-   *
-   * A nota musical é o enfeite do presente de curtida, e o azul dela é o
-   * único ponto frio do desenho: é o que separa o joinha da rosa quando os
-   * dois estão na tela ao mesmo tempo e pequenos.
-   */
-  return `<img class="presente__desenho" src="public/img/heart_me.webp" />`;
+export function desenhoHeartMe() {
+  return `<img class="presente__desenho" src="/img/heart_me.webp" alt="" />`;
 }
 
-const DESENHOS = { rosa: desenhoRosa, joinha: desenhoJoinha };
+const DESENHOS = { rosa: desenhoRosa, heartme: desenhoHeartMe };
 
 /**
  * Um presente da vitrine: o desenho em cima, a etiqueta embaixo.
@@ -72,11 +56,11 @@ const DESENHOS = { rosa: desenhoRosa, joinha: desenhoJoinha };
  * quando o desenho é parecido com o do vizinho.
  */
 export function markupPresente({ nome = '', numero = '', cor = '#8a8f98', desenho = 'rosa' }) {
-  const svg = (DESENHOS[desenho] ?? desenhoRosa)();
+  const arte = (DESENHOS[desenho] ?? desenhoRosa)();
   return `
     <div class="presente" style="--cor-urna:${esc(cor)}">
       <div class="presente__brilho"></div>
-      ${svg}
+      ${arte}
       <div class="presente__etiqueta">
         <span class="presente__verbo">Votar</span>
         <span class="presente__numero">${esc(numero)}</span>
@@ -100,8 +84,8 @@ export function markupPresente({ nome = '', numero = '', cor = '#8a8f98', desenh
  * presente a uma urna só transformava a escolha do espectador em espera.
  */
 export const PRESENTES_PADRAO = Object.freeze([
-  { id: 'p1', nome: 'Joinha', desenho: 'joinha', urnaId: 'u1' },
-  { id: 'p2', nome: 'Rosa',   desenho: 'rosa',   urnaId: 'u2' },
+  { id: 'p1', nome: 'Heart Me', desenho: 'heartme', urnaId: 'u1' },
+  { id: 'p2', nome: 'Rosa',     desenho: 'rosa',    urnaId: 'u2' },
 ]);
 
 /** Monta a vitrine na camada dada. Devolve os elementos para ajuste fino. */

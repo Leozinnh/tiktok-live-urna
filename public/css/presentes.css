@@ -3,7 +3,7 @@
  *
  * Duas etiquetas flutuando abaixo da mesa, uma de cada lado do dedo que
  * aponta — a mesma posição da referência. É a única parte da cena que
- * ensina o que fazer: quem chega no meio da live vê o joinha ligado ao 22 e
+ * ensina o que fazer: quem chega no meio da live vê o Heart Me ligado ao 22 e
  * a rosa ligada ao 13 sem que ninguém precise escrever nada no chat.
  *
  * A faixa fica logo abaixo do tampo laranja, na altura em que os pés da
@@ -76,6 +76,11 @@
   width: 212px;
   height: 212px;
   display: block;
+  /* O desenho é um arquivo, e não mais um SVG que se esticava sozinho: o
+     `contain` é o que impede a imagem de ser esmagada quando a arte nova
+     não vier quadrada. As duas de hoje são (195x195 e 168x168), e é por
+     isso que a falta disto não apareceu ainda. */
+  object-fit: contain;
   /* O contorno neon do adesivo, feito com dois drop-shadows: o de dentro
      desenha a linha rosa colada no desenho, o de fora abre o halo. Um
      `filter` só, e não uma borda, porque o desenho é transparente em

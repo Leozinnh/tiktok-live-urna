@@ -204,7 +204,7 @@ Volte à janela do PowerShell e aperte **Ctrl+C**.
 npm test
 ```
 
-São **701 testes** cobrindo a geometria da cena, a matemática da animação, a
+São **703 testes** cobrindo a geometria da cena, a matemática da animação, a
 fila, as poses da mão, a tela da urna, o placar, o protocolo do servidor, os
 campos do painel, as duas pontas da voz e o desenho da urna contra a foto.
 A suíte roda em poucos segundos e não precisa de navegador.
@@ -216,7 +216,7 @@ painel salva chega à tela do ar. Para isso existem as sondas em
 protocolo de depuração. Elas não fazem parte do `npm test` porque precisam de
 um navegador instalado.
 
-**A suíte está inteira verde: 701 de 701.**
+**A suíte está inteira verde: 703 de 703.**
 
 ---
 
@@ -291,7 +291,7 @@ ponte/
 config/local.json       A configuração do Leonardo (nasce vazia)
 dados/                  O banco e os votos gravados
 fotos/                  Os retratos dos candidatos
-tests/                  701 testes, rodando no `node --test`
+tests/                  703 testes, rodando no `node --test`
 .superpowers/sonda/     As sondas de navegador (não rodam no `npm test`)
 docs/superpowers/       A spec do produto e o plano de implementação
 ```

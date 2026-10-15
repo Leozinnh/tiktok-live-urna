@@ -235,7 +235,7 @@ test('o placar e a cena da mesa não se sobrepõem', async () => {
 
 test('a vitrine fica abaixo do tampo e com os dois lados espelhados', async () => {
   /*
-   * A vitrine é a legenda da votação: o joinha ligado ao 22 e a rosa ligada
+   * A vitrine é a legenda da votação: o Heart Me ligado ao 22 e a rosa ligada
    * ao 13. Duas coisas podem dar errado sem que nada acuse.
    *
    * A primeira é ela subir. As urnas ocupam a faixa logo acima do tampo, e

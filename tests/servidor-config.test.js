@@ -27,6 +27,22 @@ test('sem nada configurado, valem os padrões', () => {
   }
 });
 
+test('o presente de entrada é o Heart Me, e não o joinha', () => {
+  /*
+   * O presente que a maioria manda numa live é o Heart Me — era o joinha
+   * quando este projeto começou, e o nome trocado é o que aparece embaixo
+   * do desenho na vitrine, na etiqueta do placar e na voz do narrador.
+   *
+   * O `id` fica em `p1`: ele é a chave do presente na configuração, e quem
+   * já tiver um `local.json` salvo continua com o presente ligado à mesma
+   * urna. Trocar o id junto com o nome desligaria a urna dele em silêncio.
+   */
+  const { config } = normalizar({});
+  const p1 = config.presentes.find((p) => p.id === 'p1');
+  assert.equal(p1.nome, 'Heart Me');
+  assert.equal(config.presentes.find((p) => p.id === 'p2').nome, 'Rosa');
+});
+
 test('o arquivo do usuário remenda campo a campo, sem apagar o resto', () => {
   /*
    * Quem só quer trocar a foto escreve só a foto. Se o remendo substituísse
