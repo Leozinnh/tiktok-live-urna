@@ -70,12 +70,43 @@ export function renderizarTela(estado) {
     <div class="tela__idle-votos">${esc(estado.votos ?? 0)} VOTOS</div>`;
 }
 
-const TECLAS_NUMERICAS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
-const TECLAS_ACAO = [
-  { id: 'BRANCO',   rotulo: 'BRANCO',   classe: 'tecla--branco' },
-  { id: 'CORRIGE',  rotulo: 'CORRIGE',  classe: 'tecla--corrige' },
-  { id: 'CONFIRMA', rotulo: 'CONFIRMA', classe: 'tecla--confirma' },
-];
+export const LAYOUT_TECLADO = {
+  grade: ['1', '2', '3', '4', '5', '6', '7', '8', '9'],
+  zero: '0',
+  acoes: [
+    { id: 'BRANCO',   rotulo: 'BRANCO',   classe: 'tecla--branco',   ledPersistente: false },
+    { id: 'CORRIGE',  rotulo: 'CORRIGE',  classe: 'tecla--corrige',  ledPersistente: false },
+    { id: 'CONFIRMA', rotulo: 'CONFIRMA', classe: 'tecla--confirma', ledPersistente: true  },
+  ],
+};
+
+export function todasAsTeclas() {
+  return [...LAYOUT_TECLADO.grade, LAYOUT_TECLADO.zero, ...LAYOUT_TECLADO.acoes.map((t) => t.id)];
+}
+
+/**
+ * O teclado em HTML. Função pura de propósito: o teste confere que toda
+ * tecla declarada em LAYOUT_TECLADO realmente virou um botão no DOM, e
+ * isso não deveria exigir um navegador para verificar.
+ *
+ * O zero fica sozinho na coluna do meio, como na urna de verdade.
+ */
+export function markupTeclado() {
+  const tecla = (id, classe = '', rotulo = id) => `
+    <button class="tecla ${classe}" data-tecla="${id}" type="button">
+      <span class="tecla__capa"><span class="tecla__rotulo">${esc(rotulo)}</span></span>
+      <span class="tecla__led"></span>
+    </button>`;
+
+  return `
+    <div class="teclado__grade">
+      ${LAYOUT_TECLADO.grade.map((n) => tecla(n)).join('')}
+      ${tecla(LAYOUT_TECLADO.zero, 'tecla--zero')}
+    </div>
+    <div class="teclado__acoes">
+      ${LAYOUT_TECLADO.acoes.map((t) => tecla(t.id, `tecla--acao ${t.classe}`, t.rotulo)).join('')}
+    </div>`;
+}
 
 export function criarUrna(config) {
   const el = document.createElement('div');
@@ -86,7 +117,6 @@ export function criarUrna(config) {
   el.style.setProperty('--rot', `${config.rot ?? 0}deg`);
   el.style.setProperty('--cor-urna', config.corPrimaria);
 
-  const grade = TECLAS_NUMERICAS.slice(0, 9);
   el.innerHTML = `
     <div class="urna__sombra"></div>
     <div class="urna__lado"></div>
@@ -103,20 +133,7 @@ export function criarUrna(config) {
         <div class="tela__vidro"></div>
       </div>
       <div class="urna__teclado">
-        <div class="teclado__grade">
-          ${grade.map((n) => `
-            <button class="tecla" data-tecla="${n}" type="button">
-              <span class="tecla__capa"><span class="tecla__rotulo">${n}</span></span>
-              <span class="tecla__led"></span>
-            </button>`).join('')}
-        </div>
-        <div class="teclado__acoes">
-          ${TECLAS_ACAO.map((t) => `
-            <button class="tecla tecla--acao ${t.classe}" data-tecla="${t.id}" type="button">
-              <span class="tecla__capa"><span class="tecla__rotulo">${t.rotulo}</span></span>
-              <span class="tecla__led"></span>
-            </button>`).join('')}
-        </div>
+        ${markupTeclado()}
       </div>
       <div class="urna__respiros"></div>
       <div class="urna__parafusos">

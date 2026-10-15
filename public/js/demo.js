@@ -21,3 +21,8 @@ cena.camadaUrnas.append(...urnas.map((u) => u.el));
 const [u1, u2] = urnas;
 u1.definirTela({ tipo: 'ocioso', numero: '22', nome: 'URNA 1', votos: 61 });
 u2.definirTela({ tipo: 'digitando', numero: '13', nome: 'URNA 2', numeroDigitado: '1' });
+
+// Relevo e pressão das teclas, para conferência visual.
+u1.pressionarTecla('5');
+u1.acenderLed('5', true);
+u2.acenderLed('CONFIRMA', true);

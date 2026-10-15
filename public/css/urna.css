@@ -219,3 +219,138 @@
     rgba(255, 255, 255, 0) 100%);
   mix-blend-mode: screen;
 }
+
+/* ---------- Teclado ---------- */
+
+.urna__teclado {
+  position: absolute;
+  right: 22px;
+  top: 92px;
+  width: 178px;
+}
+
+/* Recesso onde o teclado mora — dá profundidade ao conjunto */
+.teclado__grade,
+.teclado__acoes {
+  position: relative;
+  border-radius: 10px;
+  padding: 8px;
+  background: linear-gradient(180deg, #2c2e33 0%, #1a1c20 100%);
+  box-shadow:
+    inset 0 3px 8px rgba(0, 0, 0, 0.75),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.10),
+    0 1px 0 rgba(255, 255, 255, 0.45);
+}
+
+.teclado__grade {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+/* O zero fica sozinho na coluna do meio, como na urna de verdade. */
+.tecla--zero { grid-column: 2; }
+
+.teclado__acoes {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+  margin-top: 9px;
+  padding: 7px 6px;
+}
+
+/* ---------- A tecla ---------- */
+
+.tecla {
+  position: relative;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  aspect-ratio: 1 / 1;
+  transform-style: preserve-3d;
+  /* Perspectiva própria: a tecla afunda em relação a si mesma */
+  perspective: 260px;
+}
+
+.teclado__acoes .tecla { aspect-ratio: 1 / 1.15; }
+
+/*
+ * A capa é o que se move. Em repouso fica alta; pressionada, desce.
+ * A sombra dura de 5px logo abaixo (0 5px 0 #101114) é o que o olho lê
+ * como altura da tecla — quando ela afunda, essa sombra encolhe para
+ * 1px e o relevo some. É esse par que vende a pressão física.
+ */
+.tecla__capa {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  background:
+    linear-gradient(180deg,
+      var(--tecla-topo) 0%,
+      var(--tecla-base) 42%,
+      var(--tecla-base-2) 100%);
+  box-shadow:
+    /* luz de topo — o realce que dá o relevo */
+    inset 0 2px 0 rgba(255, 255, 255, 0.38),
+    inset 0 -3px 6px rgba(0, 0, 0, 0.55),
+    /* sombra projetada no recesso */
+    0 5px 0 #101114,
+    0 7px 10px rgba(0, 0, 0, 0.6);
+  transform: translateZ(0);
+  transition:
+    transform 90ms cubic-bezier(0.34, 1.4, 0.64, 1),
+    box-shadow 90ms cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+
+.tecla__rotulo {
+  font-size: 26px;
+  font-weight: 600;
+  color: var(--tecla-texto);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.7);
+  user-select: none;
+}
+
+/* Tecla pressionada: a capa afunda 5px e a sombra some */
+.tecla.is-pressionada .tecla__capa {
+  transform: translateY(5px) translateZ(-2px) scaleY(0.97);
+  box-shadow:
+    inset 0 2px 5px rgba(0, 0, 0, 0.75),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.10),
+    0 1px 0 #101114,
+    0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+/* Teclas de ação — cores características da urna brasileira */
+.tecla--branco   .tecla__capa { background: linear-gradient(180deg, #ffffff 0%, var(--tecla-branco) 45%, #cfcfc8 100%); }
+.tecla--branco   .tecla__rotulo { color: #2a2a2a; text-shadow: 0 1px 0 rgba(255,255,255,0.8); }
+.tecla--corrige  .tecla__capa { background: linear-gradient(180deg, #ffb154 0%, var(--tecla-corrige) 45%, #c96a0c 100%); }
+.tecla--confirma .tecla__capa { background: linear-gradient(180deg, #4fd177 0%, var(--tecla-confirma) 45%, #167a35 100%); }
+.tecla--acao .tecla__rotulo { font-size: 11px; letter-spacing: 0.06em; }
+
+/* ---------- LED sob cada tecla ---------- */
+.tecla__led {
+  position: absolute;
+  left: 50%;
+  bottom: -3px;
+  width: 26px;
+  height: 3px;
+  transform: translateX(-50%);
+  border-radius: 2px;
+  background: #16181c;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.9);
+  transition: background 90ms linear, box-shadow 90ms linear;
+}
+
+.tecla.is-led .tecla__led {
+  background: var(--tecla-led-cor, #7fdcff);
+  box-shadow:
+    0 0 8px var(--tecla-led-cor, #7fdcff),
+    0 0 16px var(--tecla-led-cor, #7fdcff);
+}
+
+.tecla--confirma { --tecla-led-cor: #5cff8f; }
+.tecla--corrige  { --tecla-led-cor: #ffb154; }
+.tecla--branco   { --tecla-led-cor: #ffffff; }
