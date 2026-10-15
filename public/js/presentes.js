@@ -33,26 +33,7 @@ export function desenhoRosa() {
    * de rosa são os arcos abertos concêntricos — é assim que a rosa é
    * desenhada de lado, e é o que o desenho do presente imita.
    */
-  return `<svg class="presente__desenho" viewBox="0 0 120 120" role="img" aria-hidden="true">
-    <defs>
-      <radialGradient id="rosa-petala" cx="36%" cy="28%" r="80%">
-        <stop offset="0%" stop-color="#ff8cc4"/>
-        <stop offset="50%" stop-color="#f52a83"/>
-        <stop offset="100%" stop-color="#9c0c4c"/>
-      </radialGradient>
-    </defs>
-    <path d="M60 96 C52 86 46 76 46 66" stroke="#1b7a34" stroke-width="6"
-          fill="none" stroke-linecap="round"/>
-    <path d="M62 88 C74 76 88 70 104 68 C100 82 88 92 70 95 Z" fill="#1f8a3c"/>
-    <path d="M58 84 C46 72 32 66 16 64 C20 78 32 88 50 91 Z" fill="#27a94a"/>
-    <circle cx="60" cy="52" r="38" fill="url(#rosa-petala)"/>
-    <path d="M60 20 A32 32 0 1 1 28 52" fill="none" stroke="#ff8ec6"
-          stroke-width="8" stroke-linecap="round" opacity="0.9"/>
-    <path d="M60 32 A20 20 0 1 1 40 52" fill="none" stroke="#ffb3d8"
-          stroke-width="7" stroke-linecap="round" opacity="0.92"/>
-    <path d="M60 42 A10 10 0 1 1 50 52" fill="none" stroke="#ffdcea"
-          stroke-width="6" stroke-linecap="round" opacity="0.95"/>
-  </svg>`;
+  return `<img class="presente__desenho" src="public/img/rose.webp" />`;
 }
 
 /**
@@ -78,46 +59,7 @@ export function desenhoJoinha() {
    * único ponto frio do desenho: é o que separa o joinha da rosa quando os
    * dois estão na tela ao mesmo tempo e pequenos.
    */
-  return `<svg class="presente__desenho" viewBox="0 0 120 120" role="img" aria-hidden="true">
-    <defs>
-      <linearGradient id="joinha-mao" x1="0.15" y1="0" x2="0.5" y2="1">
-        <stop offset="0%" stop-color="#fff4fb"/>
-        <stop offset="40%" stop-color="#ff9ed4"/>
-        <stop offset="100%" stop-color="#d42a90"/>
-      </linearGradient>
-    </defs>
-    <path d="M30 94 L30 120 L76 120 L76 94 Z" fill="#eef2ff"/>
-    <path d="M30 94 L30 120 L46 120 L46 94 Z" fill="#c3d0ea"/>
-    <!-- O polegar: uma coluna grossa subindo pela esquerda, com a ponta
-         arredondada. É a metade do desenho que diz "para cima". -->
-    <path d="M20 74 C10 64 9 36 19 23 C28 11 48 12 56 25 C62 34 62 46 61 56
-             L61 74 Z" fill="url(#joinha-mao)"/>
-    <!-- O punho, com os nós dos dedos como três lóbulos na borda direita.
-         É o contorno que faz a mão ler como mão fechada: um bloco de lado
-         reto vira uma caixa rosa, e três arcos viram dedos dobrados.
-
-         A sobreposição com o polegar é generosa de propósito (x de 42 a 61,
-         y de 44 a 74). Na primeira tentativa as duas peças se tocavam por
-         10px e o resultado, com o brilho por cima, era um oval rosa ao lado
-         de um bloco rosa — duas manchas, não uma mão. -->
-    <path d="M42 44 L100 44
-             A10.7 10.7 0 0 1 100 65.3 A10.7 10.7 0 0 1 100 86.7
-             A10.7 10.7 0 0 1 100 108
-             L42 108 Z" fill="url(#joinha-mao)"/>
-    <!-- As dobras entre os dedos, curtas e no vão de cada par de lóbulos,
-         sem atravessar o punho. -->
-    <path d="M92 65.3 L104 65.3" stroke="#ffffff" stroke-width="3.5" stroke-linecap="round"
-          fill="none" opacity="0.38"/>
-    <path d="M92 86.7 L104 86.7" stroke="#ffffff" stroke-width="3.5" stroke-linecap="round"
-          fill="none" opacity="0.30"/>
-    <ellipse cx="34" cy="34" rx="7" ry="10" fill="#ffffff" opacity="0.40"
-             transform="rotate(-16 34 34)"/>
-    <!-- A nota musical, no canto livre acima do punho. -->
-    <ellipse cx="88" cy="38" rx="9" ry="6.8" fill="#39d6ff" transform="rotate(-22 88 38)"/>
-    <rect x="94" y="8" width="5" height="30" rx="2.5" fill="#39d6ff"/>
-    <path d="M94 8 C103 13 107 20 105 29 C104 33 101 36 97 37
-             C101 30 101 22 94 16 Z" fill="#39d6ff"/>
-  </svg>`;
+  return `<img class="presente__desenho" src="public/img/heart_me.webp" />`;
 }
 
 const DESENHOS = { rosa: desenhoRosa, joinha: desenhoJoinha };
