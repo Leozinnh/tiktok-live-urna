@@ -124,6 +124,13 @@ export function criarHub({
   function atualizacaoDeRodada() {
     return {
       estado: tally.aberta ? 'aberta' : 'encerrada',
+      // O id vai junto pelo mesmo motivo que o número do voto vai no
+      // `vote.animate`: quem recebe precisa saber de QUE rodada se trata. O
+      // `round.update` sai a cada segundo de relógio andando e sai de novo,
+      // com a mesma cara, quando o painel zera — a única diferença entre
+      // "a rodada continua" e "começou outra" é este número, e é ele que faz
+      // a tela esconder o resultado da rodada anterior.
+      rodada: tally.estado().rodada,
       terminaEm,
       restante: terminaEm == null ? 0 : Math.max(0, terminaEm - agora()),
       tally: placar(),
@@ -281,10 +288,6 @@ export function criarHub({
       ts: agora(),
     });
 
-    // O placar sobe antes do espetáculo. Se a fila entupir, quem atrasa é a
-    // mão — nunca o número.
-    enviarATodos('tally.update', placar());
-
     const presente = cfg.presentes.find((p) => p.giftId === String(evento.giftId));
     enviarATodos('vote.animate', {
       id: r.chave,
@@ -296,11 +299,26 @@ export function criarHub({
       // número do candidato que recebeu o presente.
       numero: r.numero,
       candidato: r.candidato,
+      // O nome do presente viaja junto pelo mesmo motivo que o número: a
+      // etiqueta da fila escreve ele, e uma edição no painel entre o voto e
+      // a animação renomearia um voto que já aconteceu.
+      presente: r.presente,
       giftId: String(evento.giftId),
       usuario: r.usuario,
       votos: r.votos,
       prioridade: presente?.prioridade ?? 0,
     });
+
+    // O placar DEPOIS do pedido de animação, e não antes.
+    //
+    // Não é atraso: as duas mensagens saem no mesmo tick, e o número nunca
+    // espera a mão. É ordem de leitura. O placar da tela é de propósito mais
+    // lento que este — ele só sobe quando a cédula cai —, e a auto-correção
+    // dele assume que "fila vazia" quer dizer "nada em voo". Com o placar
+    // primeiro, existia a janela em que a página já sabia a contagem nova sem
+    // saber ainda que havia um voto a caminho, e o número subia um quadro
+    // antes de a mão aparecer. Custou uma medição no navegador para aparecer.
+    enviarATodos('tally.update', placar());
 
     if (r.lideranca) {
       enviarATodos('lead.changed', {

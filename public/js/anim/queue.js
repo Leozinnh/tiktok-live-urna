@@ -31,6 +31,19 @@ export class FilaDeAnimacao {
   get ocupada() { return this.rodando.size >= this.maxSimultaneas; }
 
   /**
+   * Há voto acontecendo: alguém esperando ou alguma mão já trabalhando.
+   *
+   * Diferente de `ocupada`, que responde "não há mão livre?" — pergunta sobre
+   * capacidade, e não sobre atividade. Com uma mão só as duas coincidiam, e
+   * por isso a diferença passou despercebida até existirem duas: com uma mão
+   * trabalhando e a outra livre, `ocupada` é FALSO e há um voto na frente da
+   * câmera.
+   *
+   * Quem pergunta "posso mexer no placar agora?" quer ESTA resposta.
+   */
+  get emVoo() { return this.itens.length > 0 || this.rodando.size > 0; }
+
+  /**
    * Quem ainda não começou, na ordem em que vai ser atendido.
    *
    * Existe para a tela poder MOSTRAR a fila sem consumi-la: `proximo()` tira o

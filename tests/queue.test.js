@@ -55,6 +55,34 @@ test('só uma animação roda por vez — a mão só existe uma', () => {
   assert.equal(f.proximo(), null, 'não deveria entregar outra enquanto ocupada');
 });
 
+test('em voo com uma mão das duas ocupadas', () => {
+  /*
+   * O defeito medido no navegador, e o motivo deste teste.
+   *
+   * `ocupada` responde "não há mão livre?", que com DUAS mãos é falso enquanto
+   * só uma trabalha. Quem perguntava "tem algo acontecendo?" usando `ocupada`
+   * recebia "não" com uma mão digitando na frente da câmera — e o placar da
+   * tela, que só pode subir quando a cédula cai, subia antes da hora.
+   *
+   * São duas perguntas diferentes, e a fila precisa saber responder as duas.
+   */
+  const f = new FilaDeAnimacao({ maxSimultaneas: 2 });
+  assert.equal(f.emVoo, false, 'fila parada não tem nada em voo');
+
+  f.enfileirar(voto('a'));
+  assert.equal(f.emVoo, true, 'um item esperando já é algo em voo');
+
+  f.proximo();
+  // A mão pegou o item: não há mais nada ESPERANDO, e ainda assim há um voto
+  // acontecendo. É exatamente aqui que `ocupada` diz não e `emVoo` diz sim.
+  assert.equal(f.pendentes, 0);
+  assert.equal(f.ocupada, false, 'com duas mãos, uma só ocupada não é fila cheia');
+  assert.equal(f.emVoo, true, 'a animação que a mão está fazendo está em voo');
+
+  f.concluir('a');
+  assert.equal(f.emVoo, false, 'concluída a última, a fila voltou ao repouso');
+});
+
 test('concluir libera a fila para o próximo', () => {
   const f = new FilaDeAnimacao();
   f.enfileirar(voto('a'));

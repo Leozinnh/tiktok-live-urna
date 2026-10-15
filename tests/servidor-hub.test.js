@@ -133,9 +133,22 @@ test('um pedido de retrato antes do hello também é atendido', () => {
 
 test('um presente vira contagem e animação para todo mundo', () => {
   /*
-   * Os dois passos 8 da seção 4.5, na ordem: `tally.update` imediato, porque
-   * o placar nunca espera, e `vote.animate` para a fila, porque a mão
-   * digitando é o espetáculo — e o espetáculo pode esperar.
+   * Os dois passos 8 da seção 4.5, nesta ordem: `vote.counted` — o fato —,
+   * `vote.animate` para a fila, e só então `tally.update`, o placar.
+   *
+   * A ordem entre os dois últimos NÃO é a que a seção 4.5 escreve, e a troca
+   * foi medida, não escolhida no gosto. O placar da tela é deliberadamente
+   * mais lento que o do servidor: o número sobe quando a cédula cai, e não
+   * quando o presente chega (ver `sincronizarContagem` em public/js/ao-vivo.js).
+   * Enquanto o placar vinha PRIMEIRO, existia uma janela real — medida a
+   * 500 ms de um presente — em que a página já sabia da contagem nova e ainda
+   * não sabia que havia um voto a caminho. O passo do ticker rodava nessa
+   * janela, via a fila vazia, e subia o número um quadro ANTES de a mão
+   * aparecer. Com a animação primeiro, "fila vazia" passa a significar mesmo
+   * "nada em voo", que é a premissa de que a auto-correção depende.
+   *
+   * O placar não atrasa por causa disto: as duas mensagens saem no mesmo
+   * tick, e quem espera é a mão, nunca o número.
    */
   const { hub, fonte } = montar();
   const a = hub.conectar(cliente('broadcast'));
@@ -143,7 +156,7 @@ test('um presente vira contagem e animação para todo mundo', () => {
   fonte.emitir({ plataforma: 'simulador', userId: 'ana', usuario: 'Ana', giftId: '2', em: 5, comboIndex: 1 });
 
   const tipos = a.recebidas.map((m) => m.tipo);
-  assert.deepEqual(tipos, ['vote.counted', 'tally.update', 'vote.animate']);
+  assert.deepEqual(tipos, ['vote.counted', 'vote.animate', 'tally.update']);
   assert.deepEqual(b.recebidas.map((m) => m.tipo), tipos, 'o painel ficou sem saber do voto');
 
   assert.equal(a.de('tally.update')[0].payload.total, 1);
@@ -169,6 +182,23 @@ test('a animação leva o número e o candidato, e não só a urna', () => {
   assert.deepEqual(a.candidato, CONFIG.urnas.u2.candidato);
   assert.equal(a.votos, 1);
   assert.equal(typeof a.prioridade, 'number');
+});
+
+test('a animação leva o nome do presente, e não só o id dele', () => {
+  /*
+   * A fila do rodapé escreve "Rosa" na etiqueta de quem está esperando, e
+   * quem espera olha para aquela etiqueta para saber que o presente dele foi
+   * recebido. O id sozinho faria a página procuRAR o nome na configuração —
+   * e uma edição no painel entre o voto e a animação trocaria o nome na
+   * etiqueta de um voto que já aconteceu.
+   *
+   * O nome já viaja no `vote.counted`; aqui é o outro consumidor, e é o
+   * caminho que a tela de transmissão realmente usa.
+   */
+  const { hub, fonte } = montar();
+  const c = hub.conectar(cliente('broadcast'));
+  fonte.emitir({ plataforma: 'simulador', userId: 'ana', usuario: 'Ana', giftId: '2', em: 5, comboIndex: 1 });
+  assert.equal(c.de('vote.animate')[0].payload.presente, 'Rosa');
 });
 
 test('a atualização do placar traz a diferença entre primeiro e segundo', () => {
@@ -236,6 +266,32 @@ test('começar a rodada anuncia o fim dela', () => {
   assert.equal(r.payload.estado, 'aberta');
   assert.equal(r.payload.terminaEm, relogio.t + 300000);
   assert.equal(r.payload.restante, 300000);
+});
+
+test('o anúncio da rodada diz DE QUAL rodada ele é', () => {
+  /*
+   * Sem o id, a tela não tem como distinguir "a rodada continua" de "uma
+   * rodada nova começou": o `round.update` sai a cada segundo enquanto o
+   * relógio anda, e sai de novo, com a mesma cara, quando o painel zera. A
+   * diferença entre os dois é a única coisa que faz a tela esconder o
+   * resultado da rodada anterior — e sem ela o resultado fica no ar por cima
+   * da disputa seguinte, para sempre.
+   */
+  const { hub, relogio } = montar();
+  const c = hub.conectar(cliente('admin'));
+  falar(c, { tipo: 'round.start' });
+  const primeira = c.ultima().payload.rodada.id;
+  assert.equal(typeof primeira, 'number', 'a rodada não veio identificada');
+
+  // O relógio andando é a MESMA rodada: o id não pode trocar a cada tique,
+  // senão a tela esconderia o resultado e zeraria a cada segundo.
+  relogio.t += 45000;
+  hub.tick();
+  assert.equal(c.ultima().payload.rodada.id, primeira);
+
+  falar(c, { tipo: 'round.reset' });
+  assert.notEqual(c.ultima().payload.rodada.id, primeira,
+    'a rodada nova ficou com o id da anterior');
 });
 
 test('o relógio anda, e o painel vê o tempo restante cair', () => {

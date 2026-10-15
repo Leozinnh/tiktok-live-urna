@@ -18,6 +18,40 @@ export const URL_DA_CONFIG = '/config/local.json';
 export const PASTA_DE_FOTOS = '/fotos/';
 
 /**
+ * Quanto dura uma rodada quando ninguém disse.
+ *
+ * Cinco minutos, o mesmo padrão da spec. É o tempo de uma disputa curta o
+ * bastante para caber num bloco de live e longo o bastante para a audiência
+ * se mexer.
+ */
+export const DURACAO_PADRAO = 300;
+
+/**
+ * O teto do que a tela aguenta contar.
+ *
+ * Vinte e quatro horas: acima disso o cronômetro vira um número que ninguém
+ * lê, e um número desses no arquivo é quase sempre um zero a mais digitado.
+ * O teto LIMITA, e não recusa — ver `duracaoDaRodada`.
+ */
+const DURACAO_MAXIMA = 86400;
+
+/**
+ * A duração da rodada, em segundos inteiros.
+ *
+ * Nunca devolve um número que não sirva para contar: a configuração vem de
+ * um arquivo que o Leonardo edita à mão e de um painel que grava o que ele
+ * digitar, e um `0` gravado por engano deixaria o cronômetro do ar nascendo
+ * em "0:00" — que, para quem assiste, quer dizer "a votação acabou" enquanto
+ * ela está aberta.
+ */
+export function duracaoDaRodada(cfg, padrao = DURACAO_PADRAO) {
+  const bruto = cfg?.rodada?.duracaoSegundos;
+  const n = Math.floor(Number(bruto));
+  if (!Number.isFinite(n) || n <= 0 || n > DURACAO_MAXIMA) return padrao;
+  return n;
+}
+
+/**
  * O número da urna, no formato que a tela sabe desenhar.
  *
  * De um a cinco dígitos: dois é o caso comum (deputado, governador), três é

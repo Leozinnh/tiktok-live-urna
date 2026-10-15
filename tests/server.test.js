@@ -54,7 +54,7 @@ test('serve CSS com o content-type correto', async () => {
 });
 
 test('serve JS com o content-type correto', async () => {
-  const r = await fetch(`${base}/js/demo.js`);
+  const r = await fetch(`${base}/js/ao-vivo.js`);
   assert.equal(r.status, 200);
   assert.match(r.headers.get('content-type'), /text\/javascript/);
 });

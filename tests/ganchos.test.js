@@ -11,7 +11,7 @@
  *
  *   - o cartão do placar (placar.js), que vem ANTES no documento e não tem
  *     ouvinte de clique nenhum;
- *   - o botão de voto da barra de demonstração (demo.js), que tem.
+ *   - o botão de voto da barra de demonstração, que tinha.
  *
  * O `querySelector` para no primeiro, então o clique morria no cartão: nenhum
  * voto entrava na fila, nenhuma exceção aparecia no console, e a mão ficava em
@@ -20,8 +20,13 @@
  * ele sobreviveu tanto tempo.
  *
  * Dois elementos respondendo pelo mesmo nome não é um deles que erra: é o
- * nome que deixou de significar uma coisa só. `data-urna` fica com o cartão
- * do placar, que é o dono antigo; o controle de voto passa a ter o seu.
+ * nome que deixou de significar uma coisa só.
+ *
+ * A barra de demonstração já não existe — a Etapa 4 a substituiu pelo painel,
+ * em outra rota —, e a regra ficou mais forte por isso: a página do ar não
+ * tem controle de operação NENHUM, e o nome `data-urna` continua tendo um
+ * dono só. O que era um teste sobre dois botões virou um teste sobre a
+ * ausência de botões, que é o que a seção 5 sempre pediu.
  *
  * Os arquivos são lidos como TEXTO, e não importados: `demo.js` monta a cena
  * no `document` ao ser carregado, então importá-lo fora do navegador não
@@ -34,7 +39,6 @@ import { readFileSync, readdirSync } from 'node:fs';
 const raiz = new URL('../public/js/', import.meta.url);
 const ler = (nome) => readFileSync(new URL(nome, raiz), 'utf8');
 
-const DEMO = ler('demo.js');
 const PLACAR = ler('placar.js');
 
 /**
@@ -89,16 +93,41 @@ test('só o cartão do placar responde por data-urna', () => {
     + 'o dono é o cartão do placar, e mais ninguém');
 });
 
-test('o botão de voto da barra tem gancho próprio', () => {
-  // O outro lado do contrato: o controle de voto precisa continuar
-  // selecionável, só que por um nome que não dispute com o cartão.
-  assert.match(DEMO, /data-votar="\$\{/,
-    'o botão de voto perdeu o gancho data-votar');
+test('nenhum controle de operação vive na página que o OBS captura', () => {
+  /*
+   * A barra de demonstração saiu daqui na Etapa 4, quando o motor de votos
+   * passou a existir: quem dispara presente de teste, abre e fecha rodada e
+   * edita a configuração é o painel, em /admin, numa aba separada. A tela do
+   * ar não desenha botão nenhum.
+   *
+   * O teste varre TODOS os módulos que a página do ar carrega, e não só o
+   * ponto de entrada: um controle administrativo nasce com a mesma
+   * facilidade dentro de um módulo de conveniência, e é justamente aí que
+   * ninguém procura.
+   *
+   * `?clean=1` não esconde nada porque não há o que esconder — e é isso que
+   * este teste prende. Um projeto em que a limpeza da captura depende de um
+   * parâmetro na URL é um projeto em que esquecer o parâmetro põe um botão no
+   * ar.
+   */
+  const GANCHOS_DE_OPERACAO = ['data-votar', 'data-presente', 'data-rajada',
+    'data-nova-rodada', 'data-zoom', 'data-sim', 'data-admin'];
+  const achados = [];
 
-  // E o ouvinte tem que ler o MESMO nome que o desenho escreveu. Trocar um
-  // lado só não dá erro: o botão para de votar em silêncio.
-  assert.match(DEMO, /dataset\.votar/,
-    'o ouvinte da barra lê dataset.urna ou coisa nenhuma: o botão não vota');
+  for (const arquivo of readdirSync(raiz, { recursive: true })) {
+    if (!String(arquivo).endsWith('.js')) continue;
+    const nome = String(arquivo).replace(/\\/g, '/');
+    // O painel é o outro lado: ele É a interface administrativa, e mora em
+    // outra rota, fora do enquadramento.
+    if (nome.startsWith('admin/') || nome === 'admin.js') continue;
+    const texto = semComentarios(readFileSync(new URL(nome, raiz), 'utf8'));
+    for (const gancho of GANCHOS_DE_OPERACAO) {
+      if (texto.includes(gancho)) achados.push(`${nome}: ${gancho}`);
+    }
+  }
+
+  assert.deepEqual(achados, [],
+    `a página do ar ganhou controle de operação: ${achados.join(', ')}`);
 });
 
 test('o cartão do placar continua com o gancho que o placar usa', () => {

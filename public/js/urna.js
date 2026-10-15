@@ -553,11 +553,47 @@ export function criarUrna(config) {
     };
   }
 
-  return {
+  /** O último estado escrito na tela, sem a identidade — ver `adotarConfig`. */
+  let telaAtual = {};
+
+  /*
+   * A urna é montada num objeto nomeado, e não devolvida direto num literal.
+   *
+   * `adotarConfig` precisa chamar `definirTela`, e dentro de um literal `return
+   * { ... }` não existe nome nenhum para chamar: `definirTela` é uma
+   * propriedade do objeto que ainda está sendo construído. Escrever
+   * `this.definirTela` funcionaria, mas só enquanto ninguém tirasse o método do
+   * objeto — e a página chama `urnas[id].adotarConfig(...)` hoje, sem garantia
+   * de amanhã. O nome resolve as duas coisas.
+   */
+  const urna = {
     el,
     config,
     teclaEl,
     medirGeometria,
+    /**
+     * Troca a identidade da urna sem remontá-la.
+     *
+     * A urna é uma MÁQUINA: o candidato, o número, o cargo e a cor são dados
+     * dela, e o painel os edita ao vivo. Remontar a urna a cada edição
+     * custaria trezentos nós de DOM no meio de um voto — e, pior, uma mão
+     * digitando numa urna que deixou de existir.
+     *
+     * `Object.assign` no MESMO objeto de configuração, e não a troca dele:
+     * `urnas-livres.js` e o ator guardam referências a este objeto, e trocar
+     * a referência deixaria a reserva de urnas perguntando a identidade
+     * antiga.
+     */
+    adotarConfig(nova) {
+      if (!nova || typeof nova !== 'object') return;
+      Object.assign(config, nova);
+      aplicarIdentidade(el, config);
+      // A tela é reescrita porque o número, o cargo e o candidato moram nela.
+      // O estado do momento (tipo, dígitos) é preservado: uma urna que está
+      // recebendo um voto agora não pode voltar ao repouso porque alguém
+      // mexeu na cor dela.
+      urna.definirTela(telaAtual);
+    },
     /**
      * Escreve a tela. O que muda por voto é só o estado (tipo, dígitos,
      * contagem); o resto — número, cargo, candidato, cor — é identidade da
@@ -569,6 +605,9 @@ export function criarUrna(config) {
      * sem candidato e sem cor, só naquele caminho.
      */
     definirTela(estado = {}) {
+      // Guardado para o `adotarConfig` poder reescrever a tela com a
+      // identidade nova sem apagar o que está acontecendo nela.
+      telaAtual = estado;
       telaConteudo.innerHTML = renderizarTela({
         numero: config.numero,
         nome: config.nome,
@@ -629,4 +668,6 @@ export function criarUrna(config) {
     },
     cedulaEl,
   };
+
+  return urna;
 }
