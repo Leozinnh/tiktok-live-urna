@@ -180,3 +180,105 @@ test('combo inválido conta como um, e não como zero', () => {
     assert.equal(pontosDoPresente({ votos: 1, ativo: true }, urna, combo), 1, `combo ${combo}`);
   }
 });
+
+/* --------------------------------------------------------------- narração */
+
+/*
+ * A configuração da voz.
+ *
+ * O narrador não pode nascer mudo: uma configuração recém-criada não tem
+ * frase nenhuma escrita, e sem os padrões do código o Leonardo teria que
+ * inventar todas antes de ouvir a primeira. Por isso "sem nada configurado"
+ * aqui quer dizer "com as frases que já vêm no projeto".
+ *
+ * O outro lado é que lista VAZIA é silêncio deliberado, e não campo
+ * esquecido: o painel mostra as frases escritas desde o começo, então apagar
+ * tudo é uma decisão — quem quer o narrador calado tem o interruptor, mas
+ * quem quer um tipo calado apaga só aquele.
+ */
+
+test('sem nada configurado, a narração vem ligada e com as frases do projeto', () => {
+  const { config } = normalizar({});
+  assert.equal(config.narracao.ativa, true);
+  assert.equal(config.narracao.voz, '');
+  assert.equal(config.narracao.volume, 1);
+  for (const tipo of ['seguidor', 'curtida', 'entrada', 'compartilhou', 'assinatura']) {
+    assert.ok(config.narracao.falas[tipo]?.length > 0, `a narração nasceu muda em ${tipo}`);
+  }
+});
+
+test('a narração pode ser desligada', () => {
+  assert.equal(normalizar({ narracao: { ativa: false } }).config.narracao.ativa, false);
+  // Qualquer coisa que não seja `false` é "ligada": o padrão de um narrador
+  // é falar, e um `undefined` vindo de um painel antigo não pode calá-lo.
+  assert.equal(normalizar({ narracao: {} }).config.narracao.ativa, true);
+  assert.equal(normalizar({ narracao: { ativa: 'sim' } }).config.narracao.ativa, true);
+});
+
+test('a velocidade da voz fica dentro do que o Windows aceita', () => {
+  /*
+   * O SAPI vai de -10 a 10. Um `99` vindo de um campo mal digitado não
+   * estoura nada — o `[int]` do PowerShell pega e o `Rate` reclama —, mas o
+   * número que o painel mostraria não seria o que está valendo, e isso é
+   * pior: ele mexeria no campo e nada mudaria, sem entender por quê.
+   */
+  assert.equal(normalizar({ narracao: { velocidade: 3 } }).config.narracao.velocidade, 3);
+  assert.equal(normalizar({ narracao: { velocidade: -5 } }).config.narracao.velocidade, -5);
+  assert.equal(normalizar({ narracao: { velocidade: 99 } }).config.narracao.velocidade, 10);
+  assert.equal(normalizar({ narracao: { velocidade: -99 } }).config.narracao.velocidade, -10);
+  assert.equal(normalizar({ narracao: { velocidade: 'rápido' } }).config.narracao.velocidade, 0);
+  assert.equal(normalizar({ narracao: {} }).config.narracao.velocidade, 0);
+});
+
+test('o volume fica entre o mudo e o máximo', () => {
+  // Zero é um valor legítimo — é o mudo. O que não pode passar é 7, que o
+  // `<audio>` da página obedeceria clipando, e o painel mostraria 7.
+  assert.equal(normalizar({ narracao: { volume: 0 } }).config.narracao.volume, 0);
+  assert.equal(normalizar({ narracao: { volume: 0.5 } }).config.narracao.volume, 0.5);
+  assert.equal(normalizar({ narracao: { volume: 7 } }).config.narracao.volume, 1);
+  assert.equal(normalizar({ narracao: { volume: -1 } }).config.narracao.volume, 0);
+  assert.equal(normalizar({ narracao: {} }).config.narracao.volume, 1);
+});
+
+test('a lista de frases vazia é silêncio, e não o padrão de volta', () => {
+  /*
+   * A distinção que faz o painel funcionar: uma lista APAGADA cala aquele
+   * tipo, e uma lista AUSENTE herda o projeto. Sem ela, o Leonardo apagaria
+   * as frases de entrada e elas voltariam sozinhas no próximo salvamento.
+   */
+  const { config } = normalizar({ narracao: { falas: { entrada: [] } } });
+  assert.deepEqual(config.narracao.falas.entrada, []);
+  assert.ok(config.narracao.falas.seguidor.length > 0, 'apagar uma calou as outras');
+});
+
+test('frase em branco na lista não vira fala vazia', () => {
+  // O painel é uma caixa de texto: uma linha em branco no meio é o jeito mais
+  // natural de separar grupos, e viraria uma fala muda na fila — atrasando a
+  // fala seguinte em um silêncio que ninguém pediu.
+  const { config } = normalizar({
+    narracao: { falas: { seguidor: ['Valeu, {nome}!', '', '   ', 'Mais um: {nome}'] } },
+  });
+  assert.deepEqual(config.narracao.falas.seguidor, ['Valeu, {nome}!', 'Mais um: {nome}']);
+});
+
+test('frase que não é texto não entra na lista', () => {
+  // Um número solto na lista viraria `String(7)` no preenchedor e a live
+  // ouviria "7". Recusar é mais barato do que explicar depois.
+  const { config } = normalizar({
+    narracao: { falas: { seguidor: ['Boa, {nome}', 7, null, { x: 1 }] } },
+  });
+  assert.deepEqual(config.narracao.falas.seguidor, ['Boa, {nome}']);
+});
+
+test('a narração não inventa tipo de fala que não existe', () => {
+  // A lista de tipos é fechada no `narracao.js`. Uma chave a mais no arquivo
+  // seria uma frase que ninguém nunca fala, guardada para sempre.
+  const { config } = normalizar({ narracao: { falas: { dancou: ['Dançou, {nome}'] } } });
+  assert.equal(config.narracao.falas.dancou, undefined);
+});
+
+test('o padrão da narração é congelado como o resto', () => {
+  // Pelo mesmo motivo das urnas: um remendo que escrevesse nos padrões
+  // envenenaria todas as leituras seguintes do processo.
+  assert.throws(() => { 'use strict'; PADRAO.config.narracao.ativa = false; }, TypeError);
+});

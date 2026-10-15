@@ -20,6 +20,7 @@
  */
 
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { FALAS_PADRAO } from './narracao.js';
 import { dirname, join } from 'node:path';
 
 /** A mesma expressão de public/js/urna.js: o que o CSS aceita como cor. */
@@ -87,6 +88,25 @@ export const PADRAO = Object.freeze({
     mensagemEmpate: 'EMPATE NA DISPUTA!',
   }),
   integracao: Object.freeze({ modo: 'simulador', usuario: '' }),
+  narracao: Object.freeze({
+    ativa: true,
+    // Vazio escolhe a primeira voz pt-BR instalada. Um nome de voz errado no
+    // arquivo deixaria a live muda com o narrador "ligado" — o painel mostra
+    // qual foi escolhida justamente para isso ter onde aparecer.
+    voz: '',
+    // A escala do SAPI, de -10 a 10.
+    velocidade: 0,
+    volume: 1,
+    /*
+     * As frases vêm do `narracao.js` e ficam ESCRITAS AQUI, no padrão, e não
+     * só no código dele. O painel mostra o que está na configuração: se
+     * `falas` nascesse vazio, o Leonardo abriria a aba e veria caixas em
+     * branco, tendo que inventar todas as frases antes de ouvir a primeira.
+     */
+    falas: Object.freeze(
+      Object.fromEntries(Object.entries(FALAS_PADRAO).map(([tipo, lista]) => [tipo, Object.freeze([...lista])])),
+    ),
+  }),
 });
 
 /**
@@ -221,6 +241,46 @@ function conferirEscolha(valor, permitidos, padrao, rotulo, avisos) {
 }
 
 /**
+ * As frases do narrador — a lista de cada tipo social.
+ *
+ * A distinção que faz o painel funcionar: lista APAGADA cala aquele tipo,
+ * lista AUSENTE herda o projeto. Sem ela, o Leonardo apagaria as frases de
+ * entrada, salvaria, e elas voltariam sozinhas no salvamento seguinte.
+ *
+ * Os tipos são os do `narracao.js` e a lista é FECHADA: uma chave a mais no
+ * arquivo seria uma frase que ninguém nunca fala, guardada para sempre.
+ */
+function conferirFalas(bruto, avisos) {
+  const fonte = ehObjeto(bruto) ? bruto : {};
+  const saida = {};
+  for (const tipo of Object.keys(FALAS_PADRAO)) {
+    const lista = fonte[tipo];
+    if (!Array.isArray(lista)) {
+      // Ausente, ou coisa que não é lista: herda o projeto.
+      saida[tipo] = [...FALAS_PADRAO[tipo]];
+      continue;
+    }
+    // A linha em branco é o jeito mais natural de separar grupos numa caixa
+    // de texto do painel. Deixá-la passar viraria uma fala muda na fila,
+    // atrasando a seguinte num silêncio que ninguém pediu.
+    saida[tipo] = lista
+      .filter((f) => typeof f === 'string' && f.trim())
+      .map((f) => f.trim());
+  }
+  const desconhecidos = Object.keys(fonte).filter((k) => !(k in FALAS_PADRAO));
+  if (desconhecidos.length) {
+    avisos.push(`narracao.falas: "${desconhecidos.join(', ')}" não é um tipo de fala conhecido; ignorei`);
+  }
+  return saida;
+}
+
+/** Entre dois números, sem deixar `NaN` passar pela comparação. */
+function limitar(valor, minimo, maximo, padrao) {
+  if (!numeroFinito(valor)) return padrao;
+  return Math.min(maximo, Math.max(minimo, valor));
+}
+
+/**
  * Confere a configuração e devolve `{ config, avisos }`.
  *
  * Nunca lança. A regra é a da seção 7 da especificação: configuração
@@ -275,7 +335,21 @@ export function normalizar(bruto = {}) {
     usuario: texto(base.integracao?.usuario),
   };
 
-  return { config: { urnas, presentes, rodada, animacao, placar, integracao }, avisos };
+  const narracao = {
+    // Só o `false` explícito desliga. Um narrador nasce falando, e um
+    // `undefined` vindo de um painel antigo não pode calá-lo.
+    ativa: base.narracao?.ativa !== false,
+    voz: texto(base.narracao?.voz),
+    // O SAPI vai de -10 a 10. Um `99` não estoura nada, mas o número que o
+    // painel mostraria não seria o que está valendo — e aí ele mexeria no
+    // campo, nada mudaria, e ele não entenderia por quê.
+    velocidade: limitar(base.narracao?.velocidade, -10, 10, PADRAO.narracao.velocidade),
+    // Zero é um valor legítimo: é o mudo.
+    volume: limitar(base.narracao?.volume, 0, 1, PADRAO.narracao.volume),
+    falas: conferirFalas(base.narracao?.falas, avisos),
+  };
+
+  return { config: { urnas, presentes, rodada, animacao, placar, integracao, narracao }, avisos };
 }
 
 /**
