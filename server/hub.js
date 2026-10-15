@@ -217,6 +217,27 @@ export function criarHub({
         });
         break;
 
+      case 'sim.social':
+        /*
+         * O botão de teste da narração.
+         *
+         * O campo se chama `social` porque `tipo` já é o nome da mensagem —
+         * o mesmo motivo que fez o papel do cliente se chamar `papel` aqui
+         * em cima.
+         *
+         * Nada de `giftId` atravessa: a porta daqui fala alto, e não conta
+         * voto. Quem impede isso não é esta linha, é a normalização lá
+         * embaixo — e é ela que continua valendo no dia em que alguém
+         * mandar um `social: 'presente'`.
+         */
+        fonte.social?.({
+          tipo: msg.social,
+          userId: msg.userId ?? 'painel',
+          userName: msg.userName ?? 'Painel',
+          quantidade: msg.quantidade,
+        });
+        break;
+
       case 'round.start':
         tally.abrirRodada({ iniciadaEm: agora() });
         terminaEm = agora() + Math.max(1, cfg.rodada.duracaoSegundos) * 1000;

@@ -1,0 +1,102 @@
+/*
+ * A faixa da narração — quem acabou de chegar.
+ *
+ * Ela flutua acima do painel do rodapé, e o lugar não é arbitrário: o alto do
+ * palco é do cronômetro, abaixo dele vem o placar, e mais abaixo as urnas com
+ * as mãos digitando. A faixa do rodapé é a única área do enquadramento que
+ * nenhuma animação disputa — e é onde o olho já está, porque é ali que a fila
+ * e o ranking aparecem.
+ *
+ * Ocupa a largura toda e é CENTRADA: o texto tem comprimentos muito
+ * diferentes ("Fala, Ana!" e um apelido de quarenta caracteres), e uma caixa
+ * de largura fixa ficaria ora vazia demais, ora apertada.
+ *
+ * Sem `color-mix()` e sem `cos()`: o OBS 30 embarca um Chromium 103, e
+ * `color-mix` só existe a partir do 111. As cores daqui são hexadecimais e
+ * `rgba()`, como no resto do projeto.
+ */
+
+.narrador {
+  position: absolute;
+  left: 50%;
+  /*
+   * 186px: logo acima do painel do rodapé, que ocupa os últimos 40px mais a
+   * altura dele. É o número que decide onde a faixa encosta — subir demais
+   * cobre a vitrine dos presentes.
+   */
+  bottom: 186px;
+  transform: translate(-50%, 24px);
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  max-width: 940px;
+  padding: 18px 34px 18px 26px;
+
+  /* Escuro e translúcido: a faixa passa por cima da mesa laranja, e um fundo
+     claro sobre ela viraria uma segunda superfície disputando atenção. */
+  background: rgba(14, 12, 20, 0.88);
+  border: 3px solid var(--narracao-cor, #4a5468);
+  border-radius: 999px;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.45);
+
+  font-size: 30px;
+  font-weight: 700;
+  color: #ffffff;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+
+  /* Fora de cena por padrão. `visibility` junto com `opacity` porque o
+     `opacity: 0` sozinho continuaria pintando a sombra e a borda. */
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity var(--transicao-media) var(--ease-padrao),
+    transform var(--transicao-media) var(--ease-padrao),
+    visibility 0s linear var(--transicao-media);
+}
+
+.narrador--visivel {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, 0);
+  transition-delay: 0s;
+}
+
+/*
+ * A marca: a barrinha colorida à esquerda.
+ *
+ * É o que diz de que tipo é o aviso antes de o olho ler a frase — e o que dá
+ * à faixa uma âncora visual, para ela não parecer um texto solto flutuando
+ * sobre a mesa.
+ */
+.narrador__marca {
+  flex: 0 0 auto;
+  width: 12px;
+  height: 40px;
+  border-radius: 6px;
+  background: var(--narracao-cor, #4a5468);
+}
+
+.narrador__texto {
+  /* O texto encolhe antes da faixa: um apelido comprido corta aqui, com
+     reticências, em vez de empurrar a borda para fora da tela. */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 3px 10px rgba(0, 0, 0, 0.6);
+}
+
+/* ---- A cor de cada tipo de aviso ---- */
+
+/*
+ * Cada tipo tem a sua, e não uma só para tudo: numa live movimentada a faixa
+ * troca várias vezes por minuto, e a cor é o que faz "mais um seguidor"
+ * distinguir-se de "chegou gente" antes de a frase ser lida.
+ */
+.narrador--seguidor    { --narracao-cor: #22a04a; }
+.narrador--curtida     { --narracao-cor: #e02020; }
+.narrador--entrada     { --narracao-cor: #1a5fd0; }
+.narrador--compartilhou { --narracao-cor: #f08a1e; }
+.narrador--assinatura  { --narracao-cor: #a855f7; }
+.narrador--social      { --narracao-cor: #4a5468; }

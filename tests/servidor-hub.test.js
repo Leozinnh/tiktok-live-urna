@@ -700,3 +700,87 @@ test('duas falas seguidas chegam na ordem em que aconteceram', () => {
     assert.match(textos[1], /Bia/);
   });
 });
+
+/*
+ * O botão de teste do painel.
+ *
+ * Sem esta porta, a única maneira de saber se a voz e a faixa funcionam seria
+ * esperar alguém seguir de verdade — e descobrir na frente da audiência que o
+ * caminho não estava pronto. A voz sintetizada é a parte mais frágil do
+ * sistema inteiro (um processo externo, um arquivo em disco, um elemento de
+ * áudio), e é a única que não dá para conferir olhando a tela do painel.
+ *
+ * O evento entra pela MESMA porta que a TikTok vai usar, e não por um atalho
+ * que chamasse o narrador direto: o que o Leonardo vê no teste é o que vai
+ * acontecer na live — inclusive o tempo da voz e o caminho do arquivo.
+ */
+test('o painel tem como testar a narração antes da live', () => {
+  const voz = vozDeMentira({ arquivo: 'C:\\dados\\voz\\a1b2c3d4e5f60718.wav' });
+  const { hub } = montar({ voz });
+  const tela = hub.conectar(cliente('broadcast'));
+  const painel = hub.conectar(cliente('admin'));
+  falar(painel, { tipo: 'sim.social', social: 'seguidor', userId: 'ana', userName: 'Ana' });
+
+  return respirar().then(() => {
+    const f = tela.de('narrate');
+    assert.equal(f.length, 1, 'o botão de teste não falou nada');
+    assert.equal(f[0].payload.tipo, 'seguidor');
+    assert.match(f[0].payload.texto, /Ana/);
+    assert.equal(f[0].payload.wav, '/voz/a1b2c3d4e5f60718.wav', 'o teste não passou pela voz');
+    assert.equal(tela.de('vote.counted').length, 0, 'um teste virou voto no placar');
+  });
+});
+
+test('a porta da narração não conta voto, e não fala do que não existe', () => {
+  /*
+   * A mesma porta serve para testar a fala, e só para isso. Três pedidos
+   * atravessam-na aqui, e nenhum deles pode virar voto: um `presente`, que
+   * contaria um voto que ninguém pagou; um tipo inventado, que é uma versão
+   * futura do painel falando com um servidor antigo; e um pedido sem tipo
+   * nenhum.
+   *
+   * A última asserção é o que impede este teste de passar por acidente. Sem
+   * ela, tudo o que ele confere é que nada acontece — e nada acontece
+   * também quando a porta não existe. Foi assim que ele nasceu verde, antes
+   * de o `sim.social` ser escrito: as três recusas valiam, e não provavam
+   * coisa nenhuma.
+   */
+  const { hub, tally } = montar();
+  const tela = hub.conectar(cliente('broadcast'));
+  const painel = hub.conectar(cliente('admin'));
+  falar(painel, { tipo: 'sim.social', social: 'presente', giftId: '1', userId: 'ana' });
+  falar(painel, { tipo: 'sim.social', social: 'dancou', userId: 'ana', userName: 'Ana' });
+  falar(painel, { tipo: 'sim.social', userId: 'ana', userName: 'Ana' });
+
+  return respirar()
+    .then(() => {
+      assert.equal(tela.de('vote.counted').length, 0, 'a porta da narração contou um voto');
+      assert.equal(tally.estado().total, 0);
+      assert.equal(tela.de('narrate').length, 0, 'falou de um evento que não existe');
+      // E o que é social de verdade continua falando — senão este teste
+      // estaria só medindo o silêncio de uma porta fechada.
+      falar(painel, { tipo: 'sim.social', social: 'seguidor', userId: 'bia', userName: 'Bia' });
+      return respirar();
+    })
+    .then(() => {
+      const f = tela.de('narrate');
+      assert.equal(f.length, 1, 'a porta não deixou passar o que era para passar');
+      assert.match(f[0].payload.texto, /Bia/);
+      assert.equal(tela.de('vote.counted').length, 0, 'o seguidor da Bia virou voto');
+    });
+});
+
+test('a tela não inventa um seguidor', () => {
+  /*
+   * O papel do cliente não é uma credencial, mas isto não é sobre ataque: é
+   * sobre a janela errada. A página da transmissão é a que fica aberta no
+   * OBS, e uma tecla apertada nela não pode pôr um nome inventado na boca do
+   * narrador, no ar.
+   */
+  const { hub } = montar();
+  const tela = hub.conectar(cliente('broadcast'));
+  falar(tela, { tipo: 'sim.social', social: 'seguidor', userName: 'Trapaça' });
+  return respirar().then(() => {
+    assert.equal(tela.de('narrate').length, 0, 'a tela falou pela live');
+  });
+});

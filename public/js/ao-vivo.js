@@ -28,6 +28,7 @@ import { criarCronometro } from './cronometro.js';
 import { criarPresentes, PRESENTES_PADRAO } from './presentes.js';
 import { criarEquipeDeMaos } from './hand-team.js';
 import { criarReservaDeUrnas } from './urnas-livres.js';
+import { criarNarrador } from './narrador.js';
 import { carregarConfig, aplicarConfig, aplicarConfigDoPlacar, duracaoDaRodada } from './config.js';
 import { criarRede } from './net.js';
 
@@ -289,6 +290,17 @@ atualizarPainel();
 const resultado = criarResultado(cenario.camadaResultado);
 
 /*
+ * A faixa de quem chegou.
+ *
+ * Na camada de efeitos, que é onde mora tudo o que passa por cima da cena sem
+ * ser urna nem mão. O som vem pronto do servidor — o OBS não tem motor de fala
+ * —, e a faixa aparece mesmo quando ele não vem: perder a fala é um detalhe,
+ * perder as boas-vindas é a tela parecer morta para quem acabou de seguir.
+ */
+const narrador = criarNarrador(cenario.camadaEfeitos);
+narrador.definirVolume(configDoUsuario?.narracao?.volume ?? 1);
+
+/*
  * O segundo tempo do fim da rodada: quando é que a fila acabou de passar.
  *
  * No ticker da mão, junto com o painel, e não num `setInterval` próprio: é o
@@ -422,6 +434,9 @@ function aplicarConfigNova(nova) {
   });
 
   MENSAGENS = aplicarConfigDoPlacar(nova, MENSAGENS);
+  // O volume acompanha o painel: ele mexe no controle e ouve a diferença na
+  // fala seguinte, sem recarregar a fonte do OBS.
+  if (nova.narracao) narrador.definirVolume(nova.narracao.volume);
   cronometro.comecar(duracaoDaRodada(nova));
   atualizarPlacar();
   montarVitrine();
@@ -436,6 +451,7 @@ function tratarMensagem({ tipo, payload }) {
     case 'round.update': return aplicarRodada(payload);
     case 'round.finished': return encerrarRodada(payload);
     case 'config.changed': return aplicarConfigNova(payload?.config);
+    case 'narrate': return narrador.narrar(payload);
     default:
       // Tipo desconhecido é ignorado, e não erro: uma versão mais nova do
       // servidor pode mandar mensagem que esta página ainda não conhece, e a
@@ -582,4 +598,4 @@ rede.abrir();
  * montada só para o teste. `rede` e `verdade` entram agora porque a única
  * maneira de conferir que a tela obedece ao servidor é olhar os dois.
  */
-export { urnas, mao, ator, equipe, rede, placar, cronometro, resultado, verdade };
+export { urnas, mao, ator, equipe, rede, placar, cronometro, resultado, verdade, narrador };

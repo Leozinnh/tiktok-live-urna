@@ -68,6 +68,24 @@ export function criarSimulador() {
     },
 
     /**
+     * Um evento social do painel: seguiu, curtiu, entrou, compartilhou,
+     * assinou. É o que faz o narrador falar sem ninguém precisar seguir de
+     * verdade no meio da live.
+     *
+     * Ele passa pela MESMA normalização que o `enviar`, e pelo mesmo motivo
+     * de sempre: um caminho de teste que montasse o evento pronto estaria
+     * concordando consigo mesmo. E é a normalização que garante o que
+     * interessa aqui — sem `giftId`, um evento social não tem como virar
+     * voto, então este botão é seguro de apertar com a live no ar.
+     */
+    social({ tipo, userId = 'painel', userName = 'Painel', quantidade, em } = {}) {
+      if (!fonte.conectada) return false;
+      return fonte.emitir(normalizarEvento({
+        tipo, userId, userName, quantidade, em,
+      }, 'simulador'));
+    },
+
+    /**
      * N toques seguidos, todos no mesmo instante.
      *
      * O `em` igual para todos não é preguiça: é o que uma rajada de verdade
