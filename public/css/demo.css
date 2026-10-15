@@ -1,0 +1,30 @@
+/*
+ * Controles de demonstração.
+ *
+ * Este arquivo inteiro some na Etapa 6, quando o modo de teste de verdade
+ * substituir os botões. Ele existe separado de tokens.css por isso: a
+ * paleta e o palco não têm nada a ver com uma barra de botões provisória,
+ * e apagar um arquivo é mais seguro do que caçar um bloco no meio de outro.
+ */
+
+.demo-barra {
+  position: fixed;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 10px;
+  z-index: 999;
+}
+
+.demo-barra button {
+  padding: 10px 18px;
+  border: 1px solid #3a3a44;
+  border-radius: 8px;
+  background: #1b1b22;
+  color: #eee;
+  font: 500 14px/1 "Segoe UI", system-ui, sans-serif;
+  cursor: pointer;
+}
+
+.demo-barra button:hover { background: #2a2a34; }
