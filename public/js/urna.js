@@ -27,6 +27,51 @@ export function paraCoordenadasDoPalco(rect, palcoRect) {
   };
 }
 
+const COR_PADRAO = '#8a8f98';
+const COR_VALIDA = /^#[0-9a-f]{3}$|^#[0-9a-f]{6}$|^#[0-9a-f]{8}$/i;
+
+/**
+ * Hex para rgba.
+ *
+ * Existe porque `color-mix()` só chegou ao Chromium 111 e o OBS 30 embarca
+ * o 103: com color-mix o halo da urna simplesmente não apareceria, sem erro
+ * nenhum no console, para quem estivesse numa versão mais antiga do OBS.
+ * Aqui o valor sai pronto e funciona em qualquer navegador embutido.
+ */
+export function corParaRgba(cor, alfa) {
+  const hex = cor.slice(1);
+  const cheio = hex.length === 3 ? hex.split('').map((c) => c + c).join('') : hex;
+  const r = parseInt(cheio.slice(0, 2), 16);
+  const g = parseInt(cheio.slice(2, 4), 16);
+  const b = parseInt(cheio.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alfa})`;
+}
+
+/**
+ * As variáveis CSS que dão identidade a uma urna.
+ *
+ * `--tecla-led-cor` sai no elemento raiz da urna, não em cada tecla: as
+ * teclas numéricas herdam a cor da urna, e BRANCO, CORRIGE e CONFIRMA
+ * continuam com as cores características declaradas por classe.
+ */
+export function variaveisDeIdentidade(config) {
+  const primaria = COR_VALIDA.test(config.corPrimaria ?? '') ? config.corPrimaria : COR_PADRAO;
+  const secundaria = COR_VALIDA.test(config.corSecundaria ?? '') ? config.corSecundaria : primaria;
+  return {
+    '--cor-urna': primaria,
+    '--cor-urna-2': secundaria,
+    '--cor-urna-fraca': corParaRgba(primaria, 0.55),
+    '--cor-urna-media': corParaRgba(primaria, 0.65),
+    '--tecla-led-cor': primaria,
+  };
+}
+
+export function aplicarIdentidade(el, config) {
+  for (const [nome, valor] of Object.entries(variaveisDeIdentidade(config))) {
+    el.style.setProperty(nome, valor);
+  }
+}
+
 const ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ESCAPES[c]);
@@ -115,7 +160,7 @@ export function criarUrna(config) {
   el.style.setProperty('--x', `${config.x}px`);
   el.style.setProperty('--y', `${config.y}%`);
   el.style.setProperty('--rot', `${config.rot ?? 0}deg`);
-  el.style.setProperty('--cor-urna', config.corPrimaria);
+  aplicarIdentidade(el, config);
 
   el.innerHTML = `
     <div class="urna__sombra"></div>

@@ -354,3 +354,148 @@
 .tecla--confirma { --tecla-led-cor: #5cff8f; }
 .tecla--corrige  { --tecla-led-cor: #ffb154; }
 .tecla--branco   { --tecla-led-cor: #ffffff; }
+
+/* ---------- Placa de identificação ---------- */
+
+.urna__placa {
+  position: absolute;
+  left: 26px;
+  top: 44px;
+  padding: 5px 14px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  color: #5a5750;
+  background: linear-gradient(180deg, #d9d6cf 0%, #bcb8b0 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.18),
+    0 1px 2px rgba(0, 0, 0, 0.22);
+}
+
+/* ---------- Parafusos ---------- */
+
+.urna__parafusos span {
+  position: absolute;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 30%,
+    #f2f2f0 0%, var(--urna-metal) 42%, var(--urna-metal-2) 100%);
+  box-shadow:
+    inset 0 -1px 1px rgba(0, 0, 0, 0.45),
+    0 1px 1px rgba(0, 0, 0, 0.35);
+}
+
+/* A fenda do parafuso */
+.urna__parafusos span::after {
+  content: '';
+  position: absolute;
+  inset: 44% 2px auto 2px;
+  height: 1.5px;
+  background: rgba(40, 38, 34, 0.75);
+}
+
+.urna__parafusos span:nth-child(1) { left: 16px;  top: 16px;    transform: rotate(24deg); }
+.urna__parafusos span:nth-child(2) { right: 16px; top: 16px;    transform: rotate(-38deg); }
+.urna__parafusos span:nth-child(3) { left: 16px;  bottom: 16px; transform: rotate(72deg); }
+.urna__parafusos span:nth-child(4) { right: 16px; bottom: 16px; transform: rotate(8deg); }
+
+/* ---------- Respiros ---------- */
+
+.urna__respiros {
+  position: absolute;
+  left: 26px;
+  bottom: 30px;
+  width: 120px;
+  height: 34px;
+  border-radius: 4px;
+  background:
+    repeating-linear-gradient(180deg,
+      rgba(0, 0, 0, 0.42) 0 2px,
+      rgba(0, 0, 0, 0) 2px 5px),
+    linear-gradient(180deg, #b8b5ae 0%, #9c988f 100%);
+  box-shadow:
+    inset 0 2px 5px rgba(0, 0, 0, 0.5),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.5);
+}
+
+/* ---------- Abertura de cédula (no topo) ---------- */
+
+.urna__slot {
+  position: absolute;
+  left: 50%;
+  top: 26px;
+  width: 190px;
+  height: 22px;
+  transform: translateX(-50%);
+  border-radius: 5px;
+  background: linear-gradient(180deg, #cfccc5 0%, #a5a29a 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.75),
+    0 2px 4px rgba(0, 0, 0, 0.35);
+}
+
+/* A boca escura por onde a cédula entra */
+.urna__slot-boca {
+  position: absolute;
+  inset: 4px 10px;
+  border-radius: 3px;
+  background: linear-gradient(180deg, var(--urna-recesso-2) 0%, #000 100%);
+  box-shadow:
+    inset 0 3px 6px rgba(0, 0, 0, 1),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.12);
+}
+
+/* ---------- Luz de identidade vazando na mesa ---------- */
+
+/*
+ * O rgba vem pronto do JS (--cor-urna-fraca) em vez de sair de um
+ * color-mix() aqui: color-mix só existe a partir do Chromium 111 e o
+ * OBS 30 embarca o 103, onde o halo sumiria sem erro nenhum.
+ */
+.urna__glow {
+  position: absolute;
+  left: 6%;
+  right: 6%;
+  bottom: -26px;
+  height: 90px;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(50% 50% at 50% 50%,
+    var(--cor-urna-fraca, transparent) 0%,
+    transparent 72%);
+  filter: blur(18px);
+  opacity: 0.5;
+  transition: opacity var(--transicao-media) var(--ease-padrao);
+}
+
+/* Estado de destaque — a urna "acende" quando recebe um voto */
+.urna.is-destacada .urna__glow { opacity: 0.95; }
+
+.urna.is-destacada .urna__corpo {
+  box-shadow:
+    inset 0 3px 0 rgba(255, 255, 255, 0.95),
+    inset 0 -8px 18px rgba(60, 58, 52, 0.42),
+    0 26px 48px rgba(40, 26, 10, 0.45),
+    0 0 0 3px var(--cor-urna-media, transparent),
+    0 0 42px var(--cor-urna-fraca, transparent);
+}
+
+/* Filete de identidade na base do gabinete */
+.urna__corpo::after {
+  content: '';
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  bottom: 12px;
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    var(--cor-urna) 22%,
+    var(--cor-urna) 78%,
+    transparent 100%);
+  opacity: 0.85;
+}
