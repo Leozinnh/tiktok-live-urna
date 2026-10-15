@@ -1,0 +1,254 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { abrirBanco } from '../server/db.js';
+import { criarTally, chaveDoEvento } from '../server/tally.js';
+import { normalizar } from '../server/config.js';
+
+/*
+ * O motor de votos — seção 4.5 da especificação.
+ *
+ * A ordem do processamento é a da especificação, e ela é a razão de este
+ * arquivo existir: evento -> normalizar -> deduplicar -> mapear presente em
+ * urna -> gravar no banco -> aplicar na contagem em memória -> conferir a
+ * liderança. Cada passo tem um teste, porque cada um já foi um defeito em
+ * potencial.
+ *
+ * A separação que a seção 3 pede — "verdade e teatro" — aparece aqui: o
+ * motor conta e não desenha. Ele diz que houve um voto e de quem ele é; quem
+ * põe a mão para digitar é a fila da página.
+ */
+
+const CONFIG = normalizar({
+  urnas: {
+    u1: { id: 'u1', nome: 'Urna 1', numero: '22', multiplicador: 2 },
+    u2: { id: 'u2', nome: 'Urna 2', numero: '13', multiplicador: 1 },
+  },
+  presentes: [
+    { id: 'p1', nome: 'Joinha', giftId: '1', urnaId: 'u1', votos: 1 },
+    { id: 'p2', nome: 'Rosa', giftId: '2', urnaId: 'u2', votos: 1 },
+    { id: 'p3', nome: 'Leão', giftId: '3', urnaId: 'u1', votos: 10 },
+  ],
+}).config;
+
+function montar(config = CONFIG) {
+  const db = abrirBanco(':memory:');
+  const tally = criarTally({ db, config });
+  tally.abrirRodada({ iniciadaEm: 1000 });
+  return { db, tally };
+}
+
+const evento = (extra = {}) => ({
+  plataforma: 'simulador', userId: 'ana', usuario: 'ana',
+  giftId: '2', em: 1700000000000, comboIndex: 0, ...extra,
+});
+
+test('o mesmo evento duas vezes conta um voto só', () => {
+  // Teste crítico 1 da seção 8. É o WebSocket que cai e volta, e é a TikTok
+  // reenviando o que não foi confirmado.
+  const { tally } = montar();
+  assert.equal(tally.processar(evento()).contado, true);
+  const segundo = tally.processar(evento());
+  assert.equal(segundo.contado, false);
+  assert.equal(segundo.motivo, 'duplicado');
+  assert.equal(tally.estado().total, 1);
+});
+
+test('a chave de deduplicação é a da especificação', () => {
+  /*
+   * plataforma:userId:giftId:timestamp:comboIndex. O comboIndex entra porque
+   * o combo manda VÁRIOS eventos com o mesmo instante — sem ele, a segunda
+   * rosa de uma rajada seria descartada como repetição da primeira.
+   */
+  assert.equal(
+    chaveDoEvento({ plataforma: 'tiktok', userId: 'ana', giftId: '2', em: 5, comboIndex: 3 }),
+    'tiktok:ana:2:5:3',
+  );
+  assert.notEqual(
+    chaveDoEvento({ plataforma: 'tiktok', userId: 'ana', giftId: '2', em: 5, comboIndex: 1 }),
+    chaveDoEvento({ plataforma: 'tiktok', userId: 'ana', giftId: '2', em: 5, comboIndex: 2 }),
+  );
+});
+
+test('o combo multiplica os votos, e não as entradas na fila', () => {
+  /*
+   * Teste crítico 2 da seção 8: combo 5 são 5 votos e UMA entrada na fila.
+   * Cinco mãos em fila para o mesmo presente seria a fila crescendo por um
+   * motivo que não existe — quem mandou cinco rosas de uma vez mandou um
+   * presente, não cinco.
+   */
+  const { tally } = montar();
+  const r = tally.processar(evento({ combo: 5 }));
+  assert.equal(r.contado, true);
+  assert.equal(r.votos, 5);
+  assert.equal(r.animar, true, 'o combo devia pedir UMA animação');
+  assert.equal(tally.estado().total, 5);
+});
+
+test('o multiplicador da urna entra na conta', () => {
+  // A urna do Joinha vale 2 nesta configuração; dez joinhas valem vinte.
+  const { tally } = montar();
+  tally.processar(evento({ giftId: '1', combo: 10 }));
+  assert.equal(tally.estado().urnas.find((u) => u.id === 'u1').votos, 20);
+});
+
+test('presente sem mapeamento não conta, e o motivo fica registrado', () => {
+  /*
+   * Seção 7: presente sem mapeamento é registrado no log, não conta voto, e
+   * o admin é notificado. Contar para a urna errada seria pior do que não
+   * contar — o placar subiria para quem não recebeu o presente.
+   */
+  const { tally } = montar();
+  const r = tally.processar(evento({ giftId: '999' }));
+  assert.equal(r.contado, false);
+  assert.equal(r.motivo, 'sem-mapeamento');
+  assert.equal(tally.estado().total, 0);
+  assert.equal(tally.avisos().length, 1);
+  assert.match(tally.avisos()[0].texto, /999/);
+});
+
+test('presente desativado no painel não conta', () => {
+  const { tally } = montar(normalizar({
+    presentes: [{ id: 'p2', nome: 'Rosa', giftId: '2', urnaId: 'u2', votos: 1, ativo: false }],
+  }).config);
+  const r = tally.processar(evento());
+  assert.equal(r.contado, false);
+  assert.equal(r.motivo, 'presente-inativo');
+});
+
+test('o voto entra na contagem ANTES de a animação ser pedida', () => {
+  /*
+   * A seção 3 é explícita: o placar nunca espera a animação. O voto vale no
+   * instante em que chega; a mão digitando é o espetáculo, e o espetáculo
+   * pode atrasar ou degradar sem que o número mude.
+   */
+  const { tally } = montar();
+  const r = tally.processar(evento());
+  assert.equal(r.contado, true);
+  assert.equal(tally.estado().total, 1, 'o número não subiu junto com o voto');
+  assert.equal(r.animar, true);
+});
+
+test('a ultrapassagem é anunciada com quem assumiu a liderança', () => {
+  /*
+   * O clímax da disputa: a urna que estava atrás passa na frente. O motor
+   * diz QUE aconteceu e QUEM passou; o texto na tela e o som são da página,
+   * e saem da configuração do placar.
+   */
+  const { tally } = montar();
+  assert.equal(tally.processar(evento({ giftId: '2', comboIndex: 1 })).lideranca, null,
+    'a primeira urna a pontuar não "assumiu" nada');
+
+  // O joinha vale 2 nesta configuração: a urna 1 passa de 0 para 2 e assume.
+  const r = tally.processar(evento({ giftId: '1', comboIndex: 2, em: 2 }));
+  assert.equal(r.lideranca?.tipo, 'virada');
+  assert.equal(r.lideranca.urnaId, 'u1');
+  assert.equal(r.lideranca.anterior, 'u2');
+});
+
+test('o empate é anunciado como empate', () => {
+  const { tally } = montar();
+  tally.processar(evento({ giftId: '1', comboIndex: 1, em: 1 })); // u1 = 2
+  const r = tally.processar(evento({ giftId: '2', comboIndex: 2, em: 2 }));
+  assert.equal(r.lideranca, null, 'a urna que só alcançou não virou líder');
+  const r2 = tally.processar(evento({ giftId: '2', comboIndex: 3, em: 3 })); // u2 = 2
+  assert.equal(r2.lideranca?.tipo, 'empate');
+});
+
+test('a rodada fechada recusa voto', () => {
+  /*
+   * Seção 6.3: os votos recebidos ANTES do fechamento são sempre contados, e
+   * os que chegam depois não. A política padrão é `processar-recebidos`.
+   */
+  const { tally } = montar();
+  tally.processar(evento({ comboIndex: 1 }));
+  tally.fecharRodada({ em: 2000 });
+  const r = tally.processar(evento({ comboIndex: 2, em: 2 }));
+  assert.equal(r.contado, false);
+  assert.equal(r.motivo, 'rodada-fechada');
+  assert.equal(tally.estado().total, 1, 'o voto que chegou depois entrou na conta');
+});
+
+test('a rodada nova zera a contagem e começa outra no banco', () => {
+  const { tally } = montar();
+  tally.processar(evento({ comboIndex: 1 }));
+  const primeira = tally.estado().rodada.id;
+  tally.fecharRodada({ em: 2000 });
+  tally.abrirRodada({ iniciadaEm: 3000 });
+  assert.notEqual(tally.estado().rodada.id, primeira);
+  assert.equal(tally.estado().total, 0);
+});
+
+test('a contagem reconstruída do banco bate com a da memória', () => {
+  /*
+   * Teste crítico 5 da seção 8: recarregar a página no meio da rodada
+   * reconstrói tudo do banco. É por isso que o motor sabe se reconstruir —
+   * a página nova não recebe o histórico por push, ela pede o estado.
+   */
+  const { db, tally } = montar();
+  tally.processar(evento({ giftId: '1', comboIndex: 1, usuario: 'ana' }));
+  tally.processar(evento({ giftId: '2', comboIndex: 2, usuario: 'bia', em: 2 }));
+
+  const outro = criarTally({ db, config: CONFIG });
+  outro.reconstruir();
+  assert.deepEqual(
+    outro.estado().urnas.map((u) => [u.id, u.votos]),
+    tally.estado().urnas.map((u) => [u.id, u.votos]),
+  );
+  assert.equal(outro.estado().total, tally.estado().total);
+  assert.deepEqual(outro.estado().apoiadores, tally.estado().apoiadores);
+});
+
+test('e a chave de deduplicação sobrevive à reconstrução', () => {
+  // Sem isto, o servidor reiniciado no meio da live aceitaria de novo um
+  // evento que a TikTok reenvia, e o voto contaria duas vezes.
+  const { db, tally } = montar();
+  tally.processar(evento());
+  const outro = criarTally({ db, config: CONFIG });
+  outro.reconstruir();
+  assert.equal(outro.processar(evento()).contado, false);
+});
+
+test('o estado traz o que o placar precisa desenhar', () => {
+  const { tally } = montar();
+  tally.processar(evento({ giftId: '1', comboIndex: 1, usuario: 'ana' }));
+  tally.processar(evento({ giftId: '2', comboIndex: 2, usuario: 'bia', em: 2 }));
+
+  const e = tally.estado();
+  assert.equal(e.total, 3, 'u1 vale 2 e u2 vale 1');
+  assert.equal(e.rodada.aberta, true);
+  const u1 = e.urnas.find((u) => u.id === 'u1');
+  assert.equal(u1.votos, 2);
+  assert.equal(u1.numero, '22');
+  assert.equal(u1.percentual, Math.round((2 / 3) * 100));
+  assert.equal(u1.lider, true);
+  assert.equal(e.urnas.find((u) => u.id === 'u2').lider, false);
+  assert.deepEqual(e.apoiadores.map((a) => a.usuario), ['ana', 'bia']);
+});
+
+test('o último voto recebido aparece no estado', () => {
+  // O cartão do placar mostra "último voto recebido" — é o que faz a tela
+  // parecer viva entre uma ultrapassagem e outra.
+  const { tally } = montar();
+  tally.processar(evento({ usuario: 'ana' }));
+  tally.processar(evento({ usuario: 'bia', comboIndex: 9, em: 9 }));
+  const u2 = tally.estado().urnas.find((u) => u.id === 'u2');
+  assert.equal(u2.ultimoVoto.usuario, 'bia');
+});
+
+test('o evento sem remetente não derruba o motor', () => {
+  // A TikTok às vezes manda presente sem apelido — conta anônima, ou campo
+  // que não veio. O voto vale; o nome é que fica em branco, e o ranking não
+  // inventa uma linha vazia.
+  const { tally } = montar();
+  const r = tally.processar({ plataforma: 'tiktok', giftId: '2', em: 7 });
+  assert.equal(r.contado, true);
+  assert.equal(tally.estado().total, 1);
+  assert.deepEqual(tally.estado().apoiadores, [], 'o ranking ganhou uma linha sem nome');
+});
+
+test('o combate a lixo: um evento sem giftId não conta', () => {
+  const { tally } = montar();
+  const r = tally.processar({ plataforma: 'tiktok', userId: 'ana', em: 1 });
+  assert.equal(r.contado, false);
+  assert.equal(r.motivo, 'evento-invalido');
+});
