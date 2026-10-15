@@ -152,11 +152,20 @@ test('o visor não vira placar', () => {
  * ou seja, a urna afirmava que o 99 é a Ana Prado. É a mesma família de
  * defeito do placar no visor: a tela dizendo uma coisa que não é verdade.
  *
- * A regra é o COMEÇO do número, e não o número inteiro: com "22" na urna,
- * digitar "2" mantém o candidato. Se a regra exigisse os dois dígitos, a
- * ficha sumiria no primeiro toque e voltaria no segundo — um piscar que
- * parece defeito. Assim ela só some quando o que foi digitado já não pode
- * mais virar o número do candidato.
+ * A regra é o número INTEIRO, e não o começo dele.
+ *
+ * Houve aqui uma versão que aceitava o começo — com "22" na urna, digitar
+ * "2" já mostrava a ficha. A ideia era não fazer a ficha piscar entre um
+ * toque e o outro, e ela estava errada por um motivo que só apareceu na
+ * live: no instante em que o voto começa, a urna limpa o número e mostra os
+ * campos vazios. Com a regra do começo, "vazio" também COMEÇA o número do
+ * candidato — então a tela apagava o número e deixava a foto, o nome e o
+ * partido no lugar, afirmando um voto que ninguém tinha digitado ainda.
+ *
+ * O piscar que a regra do começo evitava nem existia: ele só acontecia
+ * porque a ficha já estava na tela com o número vazio. Tirada daí, a ficha
+ * aparece uma vez, quando o número fica completo — que é o que a urna de
+ * verdade faz, e é quando o eleitor confere em quem está votando.
  */
 
 const CANDIDATO = { nome: 'Ana Prado', partido: 'PARTIDO A', foto: '/fotos/ana.jpg' };
@@ -170,13 +179,36 @@ test('número que não bate não mostra candidato nenhum', () => {
   assert.ok(!/<img/.test(html), 'a urna mostrou a foto dela para o número errado');
 });
 
-test('o número do candidato mantém a ficha, mesmo digitado pela metade', () => {
+/*
+ * O defeito que o Leonardo viu na live.
+ *
+ * O voto começa com o número apagado, e era exatamente aí que a ficha
+ * aparecia: campo de dígito vazio ao lado da cara do candidato. Ele descreveu
+ * como "apaga o número mas continua a foto do candidato".
+ */
+test('com o número ainda vazio a urna não mostra candidato nenhum', () => {
+  for (const numero of ['22', '13']) {
+    const html = renderizarTela({
+      tipo: 'digitando', numero, numeroDigitado: '', candidato: CANDIDATO,
+    });
+    assert.ok(!/Ana Prado/.test(html), `a urna mostrou o nome com o ${numero} apagado`);
+    assert.ok(!/PARTIDO A/.test(html), `a urna mostrou o partido com o ${numero} apagado`);
+    assert.ok(!/<img/.test(html), `a urna mostrou a foto com o ${numero} apagado`);
+  }
+});
+
+test('a ficha só aparece com o número do candidato inteiro na tela', () => {
   for (const parcial of ['2', '22']) {
     const html = renderizarTela({
       tipo: 'digitando', numero: '22', numeroDigitado: parcial, candidato: CANDIDATO,
     });
-    assert.match(html, /Ana Prado/, `a ficha sumiu com "${parcial}" digitado`);
-    assert.match(html, /<img/, `a foto sumiu com "${parcial}" digitado`);
+    if (parcial === '22') {
+      assert.match(html, /Ana Prado/, 'com o número inteiro a ficha tem que estar lá');
+      assert.match(html, /<img/, 'com o número inteiro a foto tem que estar lá');
+    } else {
+      assert.ok(!/Ana Prado/.test(html), `a ficha apareceu com "${parcial}", antes do número inteiro`);
+      assert.ok(!/<img/.test(html), `a foto apareceu com "${parcial}", antes do número inteiro`);
+    }
   }
 });
 

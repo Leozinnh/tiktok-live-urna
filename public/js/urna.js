@@ -190,21 +190,28 @@ function markupFaixa(estado) {
 }
 
 /**
- * O que foi digitado ainda pode virar o número do candidato?
+ * O número do candidato já está inteiro na tela?
  *
- * Compara o COMEÇO, e não o número inteiro: com "22" na urna, o "2" do
- * primeiro toque já mantém a ficha. Exigir os dois dígitos faria o retrato
- * sumir no primeiro toque e voltar no segundo — um piscar que parece
- * defeito, e logo no momento em que o eleitor está olhando para a tela.
+ * Compara o número INTEIRO. Houve aqui uma versão que comparava só o começo,
+ * para a ficha não piscar entre um toque e o outro — e ela estava errada por
+ * um motivo que só apareceu na live: no primeiro quadro do voto a urna limpa
+ * o número, e "vazio" também começa qualquer número. A tela apagava os
+ * dígitos e deixava a foto, o nome e o partido no lugar, afirmando em quem
+ * o eleitor estava votando antes de ele ter digitado coisa alguma.
  *
- * O contrário — "21" digitado numa urna de "22" — não tem mais como virar o
- * número dele, e a ficha sai. É o que o Leonardo pediu: número que não é do
- * candidato não mostra a cara dele.
+ * O piscar que a versão antiga evitava não existia fora desse defeito: a
+ * ficha só sumia porque já estava lá com o número vazio. Aparecendo uma vez
+ * só, no número completo, não há o que piscar — e é assim que a urna de
+ * verdade se comporta: a cara do candidato é a CONFERÊNCIA de quem já foi
+ * digitado, não um enfeite de fundo.
+ *
+ * O `alvo !== ''` é para a urna sem número configurado, em que os dois lados
+ * seriam vazios e a ficha apareceria para ninguém.
  */
 function numeroCombina(estado) {
   const alvo = String(estado.numero ?? '');
   const digitado = String(estado.numeroDigitado ?? '');
-  return alvo.startsWith(digitado);
+  return alvo !== '' && digitado === alvo;
 }
 
 /*
