@@ -34,6 +34,12 @@ const estadoEl = el('estado');
 const estadoTextoEl = el('estado-texto');
 const rodadaEstadoEl = el('rodada-estado');
 const rodadaRelogioEl = el('rodada-relogio');
+const fonteEl = el('fonte');
+const fonteModoEl = el('fonte-modo');
+const fonteDetalheEl = el('fonte-detalhe');
+
+/** Como cada modo se chama na tela do operador. */
+const NOME_DO_MODO = { simulador: 'Simulador', tiktok: 'TikTok ao vivo' };
 
 /** A configuração que está valendo AGORA no servidor. */
 let config = null;
@@ -88,7 +94,12 @@ function tratar({ tipo, payload }) {
     case 'state.full':
       if (payload?.config) aplicarConfig(payload.config);
       if (payload?.rodada) mostrarRodada(payload.rodada);
+      if (payload?.fonte) mostrarFonte(payload.fonte);
       anotar('retrato do servidor recebido');
+      break;
+    case 'source.status':
+      mostrarFonte(payload);
+      anotar(`fonte: ${payload?.detalhe ?? payload?.modo ?? '?'}`);
       break;
     case 'config.changed':
       if (payload?.config) aplicarConfig(payload.config);
@@ -127,6 +138,26 @@ function aplicarConfig(nova) {
   // sempre apagaria o que o operador está digitando no momento em que um
   // voto de outra pessoa chegasse — e no meio de uma live isso é constante.
   if (abaAtual !== 'teste') desenhar();
+}
+
+/**
+ * De onde os eventos estão vindo, e o que está acontecendo com a fonte.
+ *
+ * Isto fica no topo, junto do estado da conexão, porque é a mesma pergunta: o
+ * operador olha uma vez e sabe se o sistema está de pé. Sem esta linha, a
+ * fonte da live pode estar caída há dez minutos com o painel inteiro verde —
+ * e a única pista seria a ausência de votos, que é indistinguível de uma live
+ * parada.
+ *
+ * O detalhe é o que o servidor mandou, escrito por quem sabe: "não existe
+ * usuário @fulano no TikTok", "a live está offline", "conectando…". Inventar
+ * um texto aqui seria trocar a única informação útil por uma palavra bonita.
+ */
+function mostrarFonte(f) {
+  if (!f) return;
+  fonteEl.dataset.fonteEstado = f.conectado ? 'ligada' : 'off';
+  fonteModoEl.textContent = NOME_DO_MODO[f.modo] ?? f.modo ?? '—';
+  fonteDetalheEl.textContent = f.detalhe || (f.conectado ? 'conectada' : 'sem conexão');
 }
 
 function mostrarRodada(r) {

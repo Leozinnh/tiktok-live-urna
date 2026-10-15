@@ -276,6 +276,15 @@ export function criarHub({
           const { config: nova, avisos } = normalizar(mesclar(cfg, remendo), cfg);
           cfg = nova;
           tally.definirConfig(cfg);
+          /*
+           * A configuração mudou, e a fonte pode depender dela.
+           *
+           * Quem decide se isso significa trocar de fonte é a própria fonte —
+           * o hub só avisa. Sem esta linha, escolher "TikTok ao vivo" no
+           * painel gravaria a escolha e deixaria o simulador contando, que é
+           * o defeito que o Leonardo só descobriria no ar.
+           */
+          fonte.aplicarConfig?.(cfg);
           aoSalvar?.(cfg);
           enviarATodos('config.changed', { config: cfg, avisos });
         } else {

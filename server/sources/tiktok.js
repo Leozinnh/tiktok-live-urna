@@ -252,5 +252,17 @@ export function criarFonteTiktok({
     },
   });
 
+  /*
+   * O nome da live desta fonte, pendurado nela.
+   *
+   * Exposto porque quem troca de fonte precisa saber se ela mudou de verdade:
+   * salvar o painel sem mexer no nome não pode derrubar a conexão de pé.
+   *
+   * Definido com `defineProperty`, e não com um espalhamento `{...fonte}` —
+   * o espalhamento LÊ os getters uma vez e guarda o valor, e `conectada` e
+   * `status` deixariam de acompanhar a fonte: o painel mostraria para sempre
+   * o estado do instante em que ela nasceu.
+   */
+  Object.defineProperty(fonte, 'usuario', { get: () => nome, enumerable: true });
   return fonte;
 }

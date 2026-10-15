@@ -65,6 +65,32 @@ body.admin {
   color: var(--texto-fraco);
 }
 
+/* De onde vêm os eventos. Fica ao lado do estado da conexão porque responde à
+   mesma pergunta — o sistema está de pé? —, e a cor é o que se lê de longe. */
+.admin__fonte {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--texto-fraco);
+  min-width: 0;
+}
+
+.admin__fonte strong {
+  color: var(--texto);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.admin__fonte span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin__fonte[data-fonte-estado="ligada"] strong { color: var(--ok); }
+.admin__fonte[data-fonte-estado="ligada"] span { color: var(--texto-fraco); }
+
 .admin__rodada { margin-left: auto; }
 .admin__rodada strong { color: var(--texto); font-variant-numeric: tabular-nums; font-size: 16px; }
 

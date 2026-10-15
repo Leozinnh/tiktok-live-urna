@@ -23,8 +23,13 @@ import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 
 import { criarFonteTiktok } from '../server/sources/tiktok.js';
+import { criarTrocaDeFontes } from '../server/sources/troca.js';
 import { montarMotor } from '../server/index.js';
-import { carregar } from '../server/config.js';
+import { criarHub } from '../server/hub.js';
+import { criarTally } from '../server/tally.js';
+import { abrirBanco } from '../server/db.js';
+import { carregar, normalizar } from '../server/config.js';
+import { criarFonte } from '../server/sources/base.js';
 
 /**
  * Um processo de mentira com canos de VERDADE.
@@ -377,4 +382,114 @@ test('um presente da ponte conta voto de verdade no placar', async () => {
     motor.fonte.parar();
     motor.db.fechar();
   }
+});
+
+/* ------------------------------------ trocar de fonte com a live no ar */
+
+/**
+ * A troca de fonte pelo painel, com o hub no meio.
+ *
+ * O caminho testado é o do Leonardo, e não um atalho: ele abre a aba
+ * Integração, muda o modo, salva — e a live passa a contar pela fonte nova
+ * sem ninguém reiniciar nada. Ele já disse que não quer reiniciar, e o meio
+ * de uma transmissão é o pior momento possível para descobrir que precisa.
+ *
+ * As fontes são de mentira, mas a troca, o hub e a contagem são de verdade.
+ */
+function montarComTroca() {
+  const db = abrirBanco(':memory:');
+  const { config } = normalizar({});
+  const tally = criarTally({ db, config });
+  tally.abrirRodada({ iniciadaEm: 1000 });
+
+  const criadas = [];
+  const troca = criarTrocaDeFontes({
+    config,
+    criar: (cfg) => {
+      const f = criarFonte({
+        modo: cfg?.integracao?.modo === 'tiktok' ? 'tiktok' : 'simulador',
+      });
+      f.usuario = String(cfg?.integracao?.usuario ?? '');
+      f.paradas = 0;
+      f.iniciada = false;
+      f.iniciar = () => { f.iniciada = true; return true; };
+      f.parar = () => { f.paradas += 1; return true; };
+      criadas.push(f);
+      return f;
+    },
+  });
+
+  const hub = criarHub({ tally, fonte: troca, config, aoSalvar: null, agora: () => 1000 });
+  troca.iniciar();
+  return { db, tally, troca, hub, criadas };
+}
+
+test('mudar o modo no painel troca a fonte sem reiniciar o servidor', () => {
+  const { hub, troca, criadas } = montarComTroca();
+  assert.equal(troca.modo, 'simulador');
+
+  const admin = { papel: 'admin', recebidas: [], enviar(t) { this.recebidas.push(JSON.parse(t)); } };
+  const cliente = hub.conectar(admin);
+  cliente.receber(JSON.stringify({
+    tipo: 'config.update',
+    config: { integracao: { modo: 'tiktok', usuario: 'fulano' } },
+  }));
+
+  assert.equal(troca.modo, 'tiktok', 'o painel salvou e a fonte continuou a antiga');
+  assert.equal(criadas.length, 2);
+});
+
+test('a fonte antiga é parada quando a nova entra', () => {
+  const { hub, criadas } = montarComTroca();
+  const admin = { papel: 'admin', recebidas: [], enviar(t) { this.recebidas.push(JSON.parse(t)); } };
+  const cliente = hub.conectar(admin);
+  cliente.receber(JSON.stringify({
+    tipo: 'config.update',
+    config: { integracao: { modo: 'tiktok', usuario: 'fulano' } },
+  }));
+
+  assert.equal(criadas[0].paradas, 1,
+    'a fonte antiga ficou de pé: dois processos contando o mesmo presente');
+  assert.equal(criadas[1].iniciada, true, 'a fonte nova não foi ligada');
+});
+
+test('corrigir o nome da live levanta a ponte de novo, sem reiniciar', () => {
+  const { hub, troca, criadas } = montarComTroca();
+  const admin = { papel: 'admin', recebidas: [], enviar(t) { this.recebidas.push(JSON.parse(t)); } };
+  const cliente = hub.conectar(admin);
+
+  // O Leonardo erra o nome e salva.
+  cliente.receber(JSON.stringify({
+    tipo: 'config.update',
+    config: { integracao: { modo: 'tiktok', usuario: 'fulano_errado' } },
+  }));
+  assert.equal(criadas.length, 2);
+
+  // Depois corrige. A fonte de antes desistiu do nome errado e está parada;
+  // sem esta troca, ele teria que reiniciar o servidor com a live no ar.
+  cliente.receber(JSON.stringify({
+    tipo: 'config.update',
+    config: { integracao: { modo: 'tiktok', usuario: 'fulano' } },
+  }));
+
+  assert.equal(troca.modo, 'tiktok');
+  assert.equal(criadas.length, 3, 'corrigir o nome não levantou a ponte de novo');
+  assert.equal(criadas.at(-1).usuario, 'fulano');
+});
+
+test('salvar de novo o mesmo nome não derruba a conexão que está de pé', () => {
+  const { hub, criadas } = montarComTroca();
+  const admin = { papel: 'admin', recebidas: [], enviar(t) { this.recebidas.push(JSON.parse(t)); } };
+  const cliente = hub.conectar(admin);
+  const salvar = (cfg) => cliente.receber(JSON.stringify({ tipo: 'config.update', config: cfg }));
+
+  salvar({ integracao: { modo: 'tiktok', usuario: 'fulano' } });
+  assert.equal(criadas.length, 2);
+  // Salvar qualquer OUTRA coisa — o tempo da rodada, uma frase — não pode
+  // derrubar a live: o `config.changed` chega a cada mudança de aba salva.
+  salvar({ rodada: { duracaoSegundos: 120 } });
+  salvar({ integracao: { modo: 'tiktok', usuario: 'fulano' } });
+
+  assert.equal(criadas.length, 2,
+    'salvar sem mudar nada derrubou a conexão — e o Leonardo salva o tempo todo');
 });

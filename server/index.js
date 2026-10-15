@@ -7,7 +7,7 @@ import { abrirBanco } from './db.js';
 import { criarTally } from './tally.js';
 import { criarHub } from './hub.js';
 import { criarSimulador } from './sources/simulator.js';
-import { criarFonteTiktok } from './sources/tiktok.js';
+import { criarTrocaDeFontes } from './sources/troca.js';
 import { criarVoz } from './voz.js';
 import { carregar, salvar, caminhoDaConfig } from './config.js';
 import { descobrirPidDaPorta, mensagemDePortaOcupada } from './porta.js';
@@ -174,9 +174,15 @@ export function montarMotor({
    * de uma fonte com um processo de mentira para poder testar a costura sem
    * entrar numa live de verdade.
    */
-  const ativa = fonte ?? (config?.integracao?.modo === 'tiktok'
-    ? criarFonteTiktok({ usuario: config.integracao.usuario })
-    : criarSimulador());
+  /*
+   * A fonte do motor é a fonte que TROCA de fonte.
+   *
+   * É o que permite ao painel passar do simulador para a live — e voltar —
+   * sem reiniciar o servidor. Uma fonte injetada não passa por aqui: quem
+   * injeta uma já decidiu qual quer, e a suíte injeta justamente para não ter
+   * um processo de verdade no meio.
+   */
+  const ativa = fonte ?? criarTrocaDeFontes({ config });
   const hub = criarHub({ tally, fonte: ativa, config, aoSalvar, voz });
   ativa.iniciar();
   /*
