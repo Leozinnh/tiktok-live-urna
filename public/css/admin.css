@@ -162,7 +162,13 @@ body.admin {
 }
 
 .campo input:focus,
-.campo select:focus { outline: 2px solid var(--acento); outline-offset: 1px; }
+.campo select:focus,
+.campo textarea:focus { outline: 2px solid var(--acento); outline-offset: 1px; }
+
+/* A caixa das frases cresce para baixo, e só para baixo: ela ocupa a linha
+   inteira da grade, e uma alça na horizontal empurraria o campo para fora do
+   painel. */
+.campo textarea { resize: vertical; line-height: 1.45; }
 
 .campo input[type="color"] {
   width: 100%;

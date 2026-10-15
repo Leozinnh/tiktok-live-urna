@@ -173,6 +173,71 @@ test('a volta não inventa campo que não foi lido', () => {
   assert.deepEqual(patch, { urnas: { u1: { numero: '13' } } });
 });
 
+/* ------------------------------------------------------------- a lista de falas */
+
+/*
+ * A caixa de texto que é uma lista.
+ *
+ * As frases da narração são um `string[]`, e a caixa de texto do painel é
+ * texto puro. A volta entre as duas é o lugar onde a edição some: o operador
+ * escreve cinco frases, salva, e a live fala uma — ou fala a lista inteira
+ * como se fosse uma frase só, que é o defeito mais feio dos dois.
+ */
+
+const LISTA = [{ caminho: 'narracao.falas.seguidor', rotulo: 'Frases', tipo: 'lista' }];
+
+test('a lista abre uma frase por linha', () => {
+  const html = montarCampos(LISTA, { narracao: { falas: { seguidor: ['Valeu, {nome}!', 'Seguiu: {nome}'] } } });
+  assert.match(html, /<textarea[^>]*data-campo="narracao\.falas\.seguidor"[^>]*>/);
+  assert.ok(html.includes('Valeu, {nome}!\nSeguiu: {nome}'), `as frases não saíram separadas: ${html}`);
+});
+
+test('a volta corta as linhas em lista, e a linha em branco não vira fala', () => {
+  /*
+   * A linha em branco é o jeito natural de separar grupos numa caixa de texto
+   * — e uma fala vazia na fila é um silêncio que ninguém pediu, atrasando a
+   * frase seguinte. O servidor também tira as vazias, e os dois tiram de
+   * propósito: o servidor protege o arquivo editado à mão, o painel protege o
+   * que o operador VÊ. Mandar três linhas e guardar duas faria a caixa mostrar
+   * uma frase que não existe.
+   */
+  const patch = patchDe(LISTA, {
+    'narracao.falas.seguidor': '  Valeu, {nome}!  \n\n   \nSeguiu: {nome}\n',
+  });
+  assert.deepEqual(patch.narracao.falas.seguidor, ['Valeu, {nome}!', 'Seguiu: {nome}']);
+});
+
+test('a lista vazia volta como lista vazia, e não como texto', () => {
+  // Lista vazia é uma decisão legítima: calar um tipo de aviso. Um `''` no
+  // lugar do `[]` seria recusado pelo servidor em silêncio — e o operador
+  // veria a caixa vazia e continuaria ouvindo a frase que ele apagou.
+  const patch = patchDe(LISTA, { 'narracao.falas.seguidor': '   \n  \n' });
+  assert.deepEqual(patch.narracao.falas.seguidor, []);
+
+  const html = montarCampos([{ ...LISTA[0], caminho: 'narracao.falas.curtida' }],
+    { narracao: { falas: {} } });
+  assert.match(html, /<textarea[^>]*><\/textarea>/, 'a caixa sem valor não nasceu vazia');
+});
+
+test('a lista de ida e volta dá no mesmo', () => {
+  /*
+   * O caminho inteiro do painel: configuração → caixa → remendo → caixa. É o
+   * que o operador vive a cada salvamento, e uma volta que não fecha aparece
+   * como uma frase que muda sozinha depois de salvar.
+   */
+  const frases = ['Bem-vindo, {nome}!', 'Oi, {nome}!', '{nome} chegou!'];
+  const html1 = montarCampos(LISTA, { narracao: { falas: { seguidor: frases } } });
+  const texto = html1.match(/<textarea[^>]*>([\s\S]*?)<\/textarea>/)[1];
+  const patch = patchDe(LISTA, { 'narracao.falas.seguidor': texto });
+  const html2 = montarCampos(LISTA, patch);
+  assert.equal(html2, html1, 'a caixa mudou depois de uma volta');
+});
+
+test('a lista com uma frase só não é confundida com texto solto', () => {
+  const patch = patchDe(LISTA, { 'narracao.falas.seguidor': 'Só esta: {nome}' });
+  assert.deepEqual(patch.narracao.falas.seguidor, ['Só esta: {nome}']);
+});
+
 /* ------------------------------------------------- o que impede de salvar */
 
 test('número em branco vira pendência, e não zero', () => {

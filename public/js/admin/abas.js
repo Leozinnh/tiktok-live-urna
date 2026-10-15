@@ -53,6 +53,80 @@ const CAMPOS_DO_PRESENTE = [
   { campo: 'giftId', rotulo: 'ID no TikTok', tipo: 'texto', dica: 'o número que o presente tem' },
 ];
 
+/**
+ * Os avisos sociais, na ordem em que o painel os oferece para teste.
+ *
+ * Esta lista é do PAINEL, e a lista de verdade é a do servidor — os dois
+ * discordando é o defeito que `tests/admin-abas.test.js` prende: um tipo
+ * social que nascesse lá sem botão aqui seria uma fala que ninguém consegue
+ * testar antes da live.
+ *
+ * O rótulo diz o que aconteceu, e não o nome técnico do tipo: quem opera isto
+ * no meio de uma transmissão não tem tempo de traduzir `compartilhou`.
+ */
+export const ACOES_SOCIAIS = Object.freeze([
+  { tipo: 'seguidor', rotulo: 'Seguiu', quantidade: 1 },
+  // Cinco, e não um: o narrador só fala de curtida quando ela vira GESTO —
+  // cinco toques em três segundos. Um botão de um toque só sairia mudo, e o
+  // silêncio do botão de teste é indistinguível de uma voz quebrada.
+  // `tests/servidor-hub.test.js` compara este número com o limiar do servidor.
+  { tipo: 'curtida', rotulo: 'Curtiu', quantidade: 5 },
+  { tipo: 'entrada', rotulo: 'Entrou', quantidade: 1 },
+  { tipo: 'compartilhou', rotulo: 'Compartilhou', quantidade: 1 },
+  { tipo: 'assinatura', rotulo: 'Assinou', quantidade: 1 },
+]);
+
+/** O que cada tipo de fala quer dizer, para o rótulo da caixa de texto. */
+const ROTULO_DA_FALA = Object.freeze({
+  seguidor: 'Quando alguém segue',
+  curtida: 'Quando alguém curte',
+  entrada: 'Quando alguém entra',
+  compartilhou: 'Quando alguém compartilha',
+  assinatura: 'Quando alguém assina',
+});
+
+/*
+ * As frases de cada tipo, uma caixa por tipo.
+ *
+ * A caixa é uma LISTA — uma frase por linha —, e não um texto corrido: são
+ * frases alternadas, sorteadas sem repetir, e é a lista que carrega essa
+ * alternância. Escritas numa linha só, elas virariam uma fala comprida que
+ * ninguém quer ouvir.
+ */
+const CAMPOS_DA_NARRACAO = [
+  {
+    caminho: 'narracao.ativa',
+    rotulo: 'Narração ligada',
+    tipo: 'booleano',
+    dica: 'desligada, a faixa continua aparecendo — só o som para',
+  },
+  {
+    caminho: 'narracao.voz',
+    rotulo: 'Voz do Windows',
+    tipo: 'texto',
+    largo: true,
+    dica: 'vazio escolhe a primeira voz em português instalada',
+  },
+  {
+    caminho: 'narracao.velocidade',
+    rotulo: 'Velocidade da voz',
+    tipo: 'numero',
+    min: -10,
+    max: 10,
+    passo: 1,
+    dica: '0 é o ritmo normal; negativo é mais devagar',
+  },
+  {
+    caminho: 'narracao.volume',
+    rotulo: 'Volume',
+    tipo: 'numero',
+    min: 0,
+    max: 1,
+    passo: 0.05,
+    dica: 'de 0 a 1; 0 é mudo, 1 é o volume cheio do arquivo',
+  },
+];
+
 export const ABAS = [
   {
     id: 'urnas',
@@ -192,20 +266,47 @@ export const ABAS = [
   {
     id: 'textos',
     rotulo: 'Textos',
-    ajuda: 'As frases da tela. {urna} é trocado pelo nome da urna.',
-    campos: () => [{
-      grupo: { titulo: 'Mensagens do placar', chave: 'placar' },
-      campos: [
-        {
-          caminho: 'placar.mensagemLideranca',
-          rotulo: 'Quando alguém assume a liderança',
-          tipo: 'texto',
-          largo: true,
-        },
-        { caminho: 'placar.mensagemVitoria', rotulo: 'Quando alguém vence', tipo: 'texto', largo: true },
-        { caminho: 'placar.mensagemEmpate', rotulo: 'Quando dá empate', tipo: 'texto', largo: true },
-      ],
-    }],
+    ajuda: 'As frases da tela e as da voz. {urna} é a urna, {nome} é quem chegou.',
+    campos: (cfg) => {
+      /*
+       * Os tipos de fala vêm da CONFIGURAÇÃO, e não de uma lista escrita
+       * aqui. É a mesma decisão da aba de presentes: um tipo novo que nasça
+       * no servidor aparece sozinho, em vez de virar uma frase que só se
+       * editaria no arquivo.
+       *
+       * E vem do `cfg` de verdade, que o servidor sempre manda completo — o
+       * `normalizar` preenche os cinco tipos mesmo quando o arquivo do
+       * Leonardo não tem nenhum.
+       */
+      const tipos = Object.keys(cfg?.narracao?.falas ?? {});
+      return [{
+        grupo: { titulo: 'Mensagens do placar', chave: 'placar' },
+        campos: [
+          {
+            caminho: 'placar.mensagemLideranca',
+            rotulo: 'Quando alguém assume a liderança',
+            tipo: 'texto',
+            largo: true,
+          },
+          { caminho: 'placar.mensagemVitoria', rotulo: 'Quando alguém vence', tipo: 'texto', largo: true },
+          { caminho: 'placar.mensagemEmpate', rotulo: 'Quando dá empate', tipo: 'texto', largo: true },
+        ],
+      }, {
+        grupo: { titulo: 'Narração', chave: 'narracao' },
+        campos: [
+          ...CAMPOS_DA_NARRACAO,
+          ...tipos.map((tipo) => ({
+            caminho: `narracao.falas.${tipo}`,
+            rotulo: ROTULO_DA_FALA[tipo] ?? tipo,
+            tipo: 'lista',
+            largo: true,
+            dica: tipo === 'curtida'
+              ? 'uma frase por linha; {nome} e {quantidade} são trocados'
+              : 'uma frase por linha; {nome} é trocado pelo apelido',
+          })),
+        ],
+      }];
+    },
   },
 ];
 

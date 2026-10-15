@@ -14,8 +14,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { ABAS, acharAba, gruposDaAba, camposDaAba } from '../public/js/admin/abas.js';
+import { ABAS, acharAba, gruposDaAba, camposDaAba, ACOES_SOCIAIS } from '../public/js/admin/abas.js';
 import { PADRAO } from '../server/config.js';
+import { TIPOS_SOCIAIS } from '../server/sources/base.js';
 
 const CONFIG_DE_TESTE = {
   urnas: {
@@ -134,4 +135,76 @@ test('a aba de teste é feita de botões, e não de campos', () => {
 test('aba desconhecida devolve nada, e não explode', () => {
   assert.deepEqual(gruposDaAba('nao-existe', CONFIG_DE_TESTE), []);
   assert.equal(acharAba('nao-existe'), undefined);
+});
+
+/* ------------------------------------------------------------- a narração */
+
+test('toda fala que o narrador sabe dizer é editável no painel', () => {
+  /*
+   * A lista de tipos do narrador mora no servidor, e o painel é a única
+   * janela para ela. Um tipo sem campo aqui é uma frase que o Leonardo só
+   * ouviria — e para trocá-la teria que editar o JSON na mão, sem saber que
+   * aquele tipo existia.
+   *
+   * A varredura é contra o PADRAO, e não contra uma configuração escrita
+   * aqui: uma lista copiada para dentro do teste passaria mesmo no dia em que
+   * o painel deixasse um tipo de fora, porque as duas cópias encolheriam
+   * juntas. O PADRAO é a lista do que o servidor fala.
+   */
+  const campos = camposDaAba('textos', PADRAO);
+  const faltando = Object.keys(PADRAO.narracao.falas).filter((tipo) => !campos.some(
+    (c) => c.caminho === `narracao.falas.${tipo}` && c.tipo === 'lista',
+  ));
+  assert.deepEqual(faltando, [], `tipos sem campo de edição: ${faltando.join(', ')}`);
+});
+
+test('um tipo de fala que o painel não conhece ainda ganha caixa', () => {
+  /*
+   * O dia em que o servidor ganhar um tipo novo — uma "meta batida", um
+   * "presente grande" —, o painel não pode simplesmente não mostrar. Sem
+   * rótulo bonito ele mostra o nome cru, e o Leonardo edita a frase do mesmo
+   * jeito, com o painel dizendo o que aquilo é pelo nome que ele lê no
+   * arquivo.
+   */
+  const cfg = { ...PADRAO, narracao: { ...PADRAO.narracao, falas: { ...PADRAO.narracao.falas, metaBatida: ['Meta!'] } } };
+  const campo = camposDaAba('textos', cfg).find((c) => c.caminho === 'narracao.falas.metaBatida');
+  assert.ok(campo, 'o tipo novo não apareceu no painel');
+  assert.equal(campo.tipo, 'lista');
+  assert.match(campo.rotulo, /\S/, 'o tipo novo ficou sem rótulo nenhum');
+});
+
+test('os controles da voz estão na mesma aba das frases', () => {
+  /*
+   * Ligar, escolher a voz, a velocidade e o volume são a mesma decisão que as
+   * frases: como o narrador soa. Separados em duas abas, o Leonardo mudaria a
+   * frase numa e o volume na outra sem ver a relação.
+   */
+  const campos = camposDaAba('textos', CONFIG_DE_TESTE);
+  const acha = (caminho) => campos.find((c) => c.caminho === caminho);
+  assert.equal(acha('narracao.ativa')?.tipo, 'booleano');
+  assert.equal(acha('narracao.voz')?.tipo, 'texto');
+  // O volume é de 0 a 1. Sem a faixa, um 7 digitado por engano seria mostrado
+  // no campo e o servidor tocaria 1 — o campo mentindo sobre o que está no ar.
+  assert.equal(acha('narracao.volume')?.max, 1);
+  assert.equal(acha('narracao.volume')?.min, 0);
+  // A escala do SAPI, a mesma do `normalizar`.
+  assert.equal(acha('narracao.velocidade')?.min, -10);
+  assert.equal(acha('narracao.velocidade')?.max, 10);
+});
+
+test('o painel tem um botão de teste para cada tipo social', () => {
+  /*
+   * A voz é a parte mais frágil do sistema e a única que não dá para conferir
+   * olhando o painel. Sem botão, o Leonardo só descobriria que ela não
+   * funciona quando alguém seguisse de verdade, no ar.
+   *
+   * A costura é a de sempre: a lista de tipos sociais é do SERVIDOR, e o
+   * botão é do painel. Um tipo que nascesse lá sem botão aqui seria uma fala
+   * que ninguém consegue testar — e o teste fica vermelho em vez de o buraco
+   * passar despercebido.
+   */
+  assert.deepEqual(ACOES_SOCIAIS.map((a) => a.tipo), [...TIPOS_SOCIAIS]);
+  for (const a of ACOES_SOCIAIS) {
+    assert.match(a.rotulo ?? '', /\S/, `o botão de ${a.tipo} ficou sem rótulo`);
+  }
 });

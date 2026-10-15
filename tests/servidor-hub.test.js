@@ -5,6 +5,8 @@ import { criarTally } from '../server/tally.js';
 import { criarHub } from '../server/hub.js';
 import { criarSimulador } from '../server/sources/simulator.js';
 import { normalizar } from '../server/config.js';
+import { ACOES_SOCIAIS } from '../public/js/admin/abas.js';
+import { LIMIAR_DA_CURTIDA } from '../server/narracao.js';
 
 /*
  * O hub — seção 5 da especificação, o protocolo WebSocket.
@@ -782,5 +784,45 @@ test('a tela não inventa um seguidor', () => {
   falar(tela, { tipo: 'sim.social', social: 'seguidor', userName: 'Trapaça' });
   return respirar().then(() => {
     assert.equal(tela.de('narrate').length, 0, 'a tela falou pela live');
+  });
+});
+
+test('todo botão de teste do painel faz o narrador falar', () => {
+  /*
+   * O teste que prende o botão à fala, tipo por tipo.
+   *
+   * Ele existe por causa da curtida, e a curtida é o caso que quase passou: o
+   * narrador só fala de curtida quando ela vira GESTO — cinco toques dentro
+   * de três segundos —, e um botão que mandasse um toque só sairia mudo. O
+   * Leonardo apertaria, não ouviria nada, e concluiria que a voz está
+   * quebrada. O botão é a única forma de conferir a voz antes da live; ele
+   * não pode ser a coisa que mente.
+   *
+   * A varredura é contra a lista do PAINEL, e não contra uma copiada aqui: é
+   * o que garante que o botão que existe é o botão que fala.
+   */
+  const { hub } = montar();
+  const tela = hub.conectar(cliente('broadcast'));
+  const painel = hub.conectar(cliente('admin'));
+  for (const acao of ACOES_SOCIAIS) {
+    falar(painel, {
+      tipo: 'sim.social',
+      social: acao.tipo,
+      quantidade: acao.quantidade,
+      userId: `teste-${acao.tipo}`,
+      userName: 'Ana',
+    });
+  }
+  return respirar(150).then(() => {
+    const faladas = tela.de('narrate').map((m) => m.payload.tipo);
+    const mudos = ACOES_SOCIAIS.map((a) => a.tipo).filter((t) => !faladas.includes(t));
+    assert.deepEqual(mudos, [], `botões que não falam nada: ${mudos.join(', ')}`);
+
+    // E o número que o botão manda não pode ficar abaixo do que o servidor
+    // exige para falar — senão o dia em que o limiar subir, o botão emudece
+    // sem que nada acuse.
+    const curtida = ACOES_SOCIAIS.find((a) => a.tipo === 'curtida');
+    assert.ok(curtida.quantidade >= LIMIAR_DA_CURTIDA,
+      `o botão de curtida manda ${curtida.quantidade}, e o narrador só fala a partir de ${LIMIAR_DA_CURTIDA}`);
   });
 });

@@ -79,6 +79,17 @@ const LIMIAR_CURTIDA = 5;
 const JANELA_CURTIDA_MS = 3_000;
 
 /**
+ * O limiar da curtida, para quem precisa MANDAR uma curtida que fale.
+ *
+ * Ele sai daqui por causa do botão de teste do painel: um botão de "curtiu"
+ * que mandasse um toque só sairia mudo, porque um toque não é um gesto — e o
+ * Leonardo apertaria, não ouviria nada, e concluiria que a voz está quebrada.
+ * `tests/servidor-hub.test.js` compara os dois números, então o limiar e o
+ * botão não podem se separar em silêncio.
+ */
+export const LIMIAR_DA_CURTIDA = LIMIAR_CURTIDA;
+
+/**
  * Troca os marcadores pelos valores.
  *
  * `{nome}` em branco vira "Alguém" porque o apelido vem da rede e chega nulo

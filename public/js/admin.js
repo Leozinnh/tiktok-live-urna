@@ -21,7 +21,7 @@
  */
 import { criarRede, urlDoSocket } from './net.js';
 import { montarCampos, patchDe, pendenciasDe, escapar } from './admin/campos.js';
-import { ABAS, acharAba, gruposDaAba, camposDaAba } from './admin/abas.js';
+import { ABAS, acharAba, gruposDaAba, camposDaAba, ACOES_SOCIAIS } from './admin/abas.js';
 
 const el = (id) => document.getElementById(id);
 const abasEl = el('abas');
@@ -41,6 +41,8 @@ let config = null;
 let abaAtual = 'urnas';
 /** O log da aba Integração. */
 const log = [];
+/** Quantos testes de narração já saíram — cada um é uma pessoa diferente. */
+let pessoasDeTeste = 0;
 
 /* --------------------------------------------------------------- recados */
 
@@ -182,6 +184,7 @@ function markupAcoes() {
     + '</div>'
     + `<div class="acoes" style="margin-top:12px">${botoes}</div>`
     + '</section>'
+    + markupNarracao()
     + '<section class="grupo"><h2 class="grupo__titulo">Rodada</h2><div class="acoes">'
     + '<button type="button" class="botao botao--principal" data-round="start">Iniciar rodada</button>'
     + '<button type="button" class="botao" data-round="stop">Encerrar</button>'
@@ -190,6 +193,30 @@ function markupAcoes() {
     + `<label class="campo"><span class="campo__rotulo">Urna da rajada</span>`
     + `<select id="urna-rajada">${urnas}</select></label>`
     + '</div></section>';
+}
+
+/**
+ * Os botões que fazem o narrador falar sem esperar a live.
+ *
+ * Eles existem porque a voz é a parte mais frágil do sistema e a única que não
+ * dá para conferir olhando o painel: um processo externo, um arquivo em disco,
+ * um elemento de áudio do outro lado. Sem estes botões, o Leonardo descobriria
+ * que ela não funciona quando alguém seguisse de verdade, no ar.
+ *
+ * O que eles mandam é um evento social de verdade, pela mesma porta que a
+ * TikTok vai usar — não um atalho que chamasse a voz direto. O que se ouve
+ * aqui é o que vai acontecer lá, com o mesmo tempo e o mesmo arquivo.
+ */
+function markupNarracao() {
+  const botoes = ACOES_SOCIAIS.map((a) => '<button type="button" class="botao"'
+    + ` data-social="${escapar(a.tipo)}">${escapar(a.rotulo)}</button>`).join('');
+  return '<section class="grupo"><h2 class="grupo__titulo">Testar a narração</h2>'
+    + '<p class="ajuda">Fala e mostra na tela o que um evento desses faria agora, '
+    + 'com o nome do campo "quem presenteia" acima. A voz sai no computador, não '
+    + 'na página — se ela não tocar, o problema está no Windows ou no volume, e '
+    + 'não na live.</p>'
+    + `<div class="acoes">${botoes}</div>`
+    + '</section>';
 }
 
 /** O log ao vivo da aba Integração. */
@@ -304,6 +331,33 @@ secoesEl.addEventListener('click', (ev) => {
   if (round) {
     rede.enviar({ tipo: `round.${round.dataset.round}` });
     anotar(`pedi round.${round.dataset.round}`);
+    return;
+  }
+
+  const social = ev.target.closest('[data-social]');
+  if (social) {
+    const acao = ACOES_SOCIAIS.find((a) => a.tipo === social.dataset.social);
+    if (!acao) return;
+    /*
+     * Cada aperto é uma PESSOA NOVA, e o contador é o que faz isso.
+     *
+     * O narrador anuncia cada pessoa uma vez por minuto, e é assim que tem que
+     * ser no ar — mas um botão de teste que ficasse mudo no segundo aperto
+     * seria indistinguível de uma voz quebrada, que é justamente o que ele
+     * existe para descobrir. O cooldown se confere com a live de verdade.
+     *
+     * A quantidade vai junto pelo mesmo motivo: sem ela o botão de curtida
+     * mandaria um toque só, e um toque não é gesto — o narrador ficaria
+     * quieto.
+     */
+    rede.enviar({
+      tipo: 'sim.social',
+      social: acao.tipo,
+      quantidade: acao.quantidade,
+      userId: `teste-${++pessoasDeTeste}`,
+      userName: el('quem')?.value || 'Painel',
+    });
+    anotar(`testei a narração: ${acao.rotulo.toLowerCase()}`);
     return;
   }
 

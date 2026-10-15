@@ -15,7 +15,7 @@
  * sem navegador. Quem lê o DOM é uma função de dez linhas em admin.js.
  */
 
-const TIPOS = new Set(['texto', 'numero', 'cor', 'booleano', 'selecao', 'area']);
+const TIPOS = new Set(['texto', 'numero', 'cor', 'booleano', 'selecao', 'area', 'lista']);
 
 /** Escapa o que o operador digitou antes de pôr dentro de marcação. */
 export function escapar(v) {
@@ -83,6 +83,18 @@ function campo(def, valor) {
     case 'area':
       return `<textarea ${atrs} rows="${def.linhas ?? 3}">${escapar(valor ?? '')}</textarea>`;
 
+    /*
+     * Uma lista de frases: uma por linha da caixa de texto.
+     *
+     * O caminho de ida é este, e o de volta é o `converter`. Os dois existem
+     * porque a configuração guarda `string[]` e a caixa de texto só sabe
+     * guardar texto — e é justamente nessa dobra que a edição do operador
+     * some, sem erro nenhum na tela.
+     */
+    case 'lista':
+      return `<textarea ${atrs} rows="${def.linhas ?? 6}"`
+        + ` spellcheck="false">${escapar(Array.isArray(valor) ? valor.join('\n') : valor ?? '')}</textarea>`;
+
     case 'texto':
     default:
       return `<input type="text" ${atrs} value="${escapar(valor ?? '')}">`;
@@ -143,6 +155,24 @@ function descer(raiz, partes, ultimo) {
 function converter(def, bruto) {
   if (def.tipo === 'numero') return Number(bruto);
   if (def.tipo === 'booleano') return Boolean(bruto);
+  /*
+   * A lista: uma frase por linha, e a linha em branco FORA.
+   *
+   * A linha vazia é o jeito natural de separar grupos na caixa, e não uma
+   * frase que alguém quer ouvir — deixá-la passar seria uma fala muda na fila,
+   * atrasando a próxima num silêncio que ninguém pediu. O `normalizar` do
+   * servidor tira as vazias também; os dois tiram de propósito, e por motivos
+   * diferentes: lá é o arquivo editado à mão, aqui é o que o operador vê.
+   *
+   * O `[]` da lista toda em branco é decisão, e não sobra: é assim que se cala
+   * um tipo de aviso sem desligar a narração inteira.
+   */
+  if (def.tipo === 'lista') {
+    return String(bruto ?? '')
+      .split('\n')
+      .map((linha) => linha.trim())
+      .filter(Boolean);
+  }
   // O resto é texto — inclusive cor, que o servidor guarda como `#rrggbb`.
   return bruto === undefined || bruto === null ? '' : String(bruto);
 }
