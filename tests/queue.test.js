@@ -150,3 +150,38 @@ test('concluir um id que não é o que está rodando é ignorado', () => {
   f.concluir('b');           // 'b' nem começou
   assert.ok(f.ocupada, 'a fila não deveria ter sido liberada');
 });
+
+test('esperando devolve quem ainda não começou, na ordem de atendimento', () => {
+  // É o que a tela mostra ao espectador que acabou de presentear. Se a ordem
+  // aqui divergir da ordem em que a mão atende, a tela mente: promete que ele
+  // é o próximo e a mão chama outro.
+  const f = new FilaDeAnimacao();
+  f.enfileirar(voto('a', { usuario: 'Ana' }));
+  f.enfileirar(voto('b', { usuario: 'Bia' }));
+  f.enfileirar(voto('raro', { usuario: 'Rui', prioridade: PRIORIDADE.maxima }));
+  assert.deepEqual(f.esperando().map((i) => i.usuario), ['Rui', 'Ana', 'Bia']);
+});
+
+test('esperando não conta quem já está na mão', () => {
+  // O que está animando não está esperando — quem olha a tela já vê o voto
+  // dele acontecendo. Contá-lo seria somar a mesma pessoa duas vezes.
+  const f = new FilaDeAnimacao();
+  f.enfileirar(voto('a'));
+  f.enfileirar(voto('b'));
+  f.proximo();
+  assert.equal(f.esperando().length, 1);
+  assert.equal(f.pendentes, 1);
+});
+
+test('esperando devolve cópia: mexer nela não estraga a fila', () => {
+  const f = new FilaDeAnimacao();
+  f.enfileirar(voto('a'));
+  f.esperando().push(voto('intruso'));
+  f.esperando()[0].usuario = 'outro';
+  assert.equal(f.pendentes, 1);
+  assert.notEqual(f.esperando()[0].usuario, 'outro');
+});
+
+test('fila vazia espera por ninguém', () => {
+  assert.deepEqual(new FilaDeAnimacao().esperando(), []);
+});

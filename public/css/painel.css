@@ -1,0 +1,138 @@
+/*
+ * O painel do rodapé: a fila e o ranking.
+ *
+ * Onde ele mora, e por quê: medido no navegador em 1080x1920, o palco já está
+ * ocupado de cima a baixo — cronômetro em 117-263, placar em 290-784, urnas
+ * em 851-1190, mesa de 1152 até o fim, pernas da mesa em 1240-1540 e a
+ * vitrine de presentes em 1152-1428. A única faixa livre, larga e inteira é
+ * embaixo das pernas: de ~1540 até a borda. É onde o painel entra.
+ *
+ * O custo disso está dito: o TikTok desenha a caixa de comentário dele sobre
+ * o rodapé do vídeo. Se o painel ficar escondido atrás dela na live, ele sobe
+ * mudando o `bottom` abaixo — é o único número que decide a altura dele.
+ */
+
+.painel-area {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 40px;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+/*
+ * Vazio, o painel some.
+ *
+ * `display: none` e não `opacity: 0`: invisível mas presente, a área continua
+ * ocupando a faixa e o `justify-content` continua centrando o nada. E o
+ * gancho `--vazio` é posto pelo JS junto com o conteúdo, não deduzido do
+ * `innerHTML` por CSS — CSS não sabe se um elemento tem filhos.
+ */
+.painel-area--vazio { display: none; }
+
+/* A mesma largura do placar — 16px de cada lado do palco. Um painel mais
+   estreito que a caixa logo acima dele parece um enfeite solto em vez de
+   parte do mesmo desenho, e o ranking perde o espaço de que precisa para o
+   nome comprido de quem mais presenteou. */
+.painel {
+  width: 100%;
+  padding: 22px 34px 26px;
+  border-radius: 34px;
+  background: linear-gradient(180deg,
+    rgba(22, 32, 58, 0.94) 0%,
+    rgba(14, 21, 38, 0.94) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 14px 30px rgba(0, 0, 0, 0.4);
+  font-family: "Segoe UI", "Inter", system-ui, sans-serif;
+  color: #ffffff;
+}
+
+.painel__titulo {
+  display: block;
+  margin-bottom: 12px;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: #8fa3c8;
+}
+
+.painel__lista {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/*
+ * A tarja à esquerda é a cor da urna daquele voto. É o que liga a linha ao
+ * objeto na tela sem precisar ler o número: o 22 é azul e a urna do 22
+ * também, e quem está na arquibancada lê a cor antes de ler o texto.
+ */
+.painel__item {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  min-height: 58px;
+  padding: 0 22px;
+  border-radius: 16px;
+  border-left: 8px solid var(--cor-urna, #4a5468);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.painel__numero {
+  flex: none;
+  min-width: 74px;
+  font-size: 34px;
+  font-weight: 800;
+  color: var(--cor-urna, #8fa3c8);
+}
+
+/*
+ * O nome é a única coisa que um espectador procura neste painel, então é o
+ * maior texto dele. `nowrap` com reticências porque apelido de TikTok tem
+ * vinte caracteres com emoji no meio, e uma linha que quebra em duas empurra
+ * todo o resto para fora da tela.
+ */
+.painel__nome {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 38px;
+  font-weight: 700;
+  line-height: 1.1;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.painel__posicao {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  font-size: 28px;
+  font-weight: 800;
+  color: #cfdcf5;
+}
+
+.painel__contagem {
+  flex: none;
+  font-size: 38px;
+  font-weight: 800;
+  color: #ffd479;
+}
+
+.painel__resto {
+  align-self: flex-end;
+  padding-right: 6px;
+  font-size: 28px;
+  font-weight: 800;
+  color: #8fa3c8;
+}

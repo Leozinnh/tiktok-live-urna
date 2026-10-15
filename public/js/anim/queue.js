@@ -30,6 +30,17 @@ export class FilaDeAnimacao {
   get emLote() { return this.itens.filter((i) => i.modo === 'lote').length; }
   get ocupada() { return this.rodando.size >= this.maxSimultaneas; }
 
+  /**
+   * Quem ainda não começou, na ordem em que vai ser atendido.
+   *
+   * Existe para a tela poder MOSTRAR a fila sem consumi-la: `proximo()` tira o
+   * item, `drenar()` esvazia, e ler `this.itens` direto entregaria a estrutura
+   * viva na mão de quem só quer desenhar — um `push` distraído ali dentro
+   * quebra a fila inteira. Aqui vai cópia, e cópia rasa item a item, para que
+   * mexer no que voltou não alcance a fila.
+   */
+  esperando() { return this.itens.map((i) => ({ ...i })); }
+
   setVelocidade(multiplicador) {
     this.velocidade = Math.max(0.05, Number(multiplicador) || 1);
   }

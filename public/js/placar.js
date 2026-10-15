@@ -63,6 +63,14 @@ export function calcularPlacar(linhas, { espectadores } = {}) {
   return {
     total,
     lider,
+    /*
+     * `lider === null` quer dizer duas coisas muito diferentes: "estão
+     * empatados" e "ainda não há votos". A tela tratava as duas como a mesma
+     * — e para desenhar um empate a zero isso serve. Para decidir se houve um
+     * EMPATE na disputa, não: zerar a rodada deixa todo mundo igual sem que
+     * ninguém tenha alcançado ninguém.
+     */
+    empate: maximo > 0 && naFrente.length > 1,
     espectadores: Number.isFinite(espectadores) ? espectadores : null,
     cartoes: cartoes.map((c) => {
       // Fração do total, não do líder: é ela que enche a barra de cada um, e
@@ -72,6 +80,11 @@ export function calcularPlacar(linhas, { espectadores } = {}) {
       const diferenca = lider === null
         ? 0
         : (c.id === lider ? c.votos - segundo : maximo - c.votos);
+      // O lugar é a contagem de quem tem MAIS votos, e não a posição na
+      // lista: num empate os dois são o primeiro lugar, que é como qualquer
+      // tabela de verdade se comporta. Um "1º" e um "2º" decididos por ordem
+      // de chegada ao array seriam uma invenção.
+      const lugar = 1 + cartoes.filter((o) => o.votos > c.votos).length;
       return {
         id: c.id,
         nome: c.nome,
@@ -83,9 +96,57 @@ export function calcularPlacar(linhas, { espectadores } = {}) {
         percentual: percentualBrasileiro(fracao),
         posicao,
         diferenca,
+        lugar,
       };
     }),
   };
+}
+
+/**
+ * O que mudou na liderança entre dois desenhos do placar.
+ *
+ * Devolve `{ tipo, de, para }`, com `tipo` em `'nada'`, `'lideranca'` ou
+ * `'empate'`. É a decisão inteira da ultrapassagem, separada do desenho: quem
+ * anima e quem toca o som pergunta a esta função se o momento aconteceu, e
+ * nenhum dos dois precisa saber contar voto.
+ *
+ * Os casos que NÃO são ultrapassagem são o miolo disto aqui:
+ *
+ *   - não havia placar antes (`anterior === null`) — é o primeiro desenho;
+ *   - não havia votos antes — o primeiro voto de uma rodada não ultrapassa
+ *     ninguém, porque não havia ninguém na frente;
+ *   - o líder é o mesmo — nada aconteceu;
+ *   - a rodada foi zerada — todo mundo volta a zero, mas isso é uma disputa
+ *     nova, não um empate.
+ */
+export function mudancaDeLideranca(anterior, atual) {
+  const nada = { tipo: 'nada', de: null, para: null };
+  if (!anterior || !atual) return nada;
+  if (anterior.lider === atual.lider) return nada;
+  if (anterior.total === 0) return nada;
+
+  // Perdeu a liderança para o empate. É um momento, e tem anúncio próprio.
+  if (atual.empate) return { tipo: 'empate', de: anterior.lider, para: null };
+
+  // Sobrou: ou alguém passou na frente, ou alguém desempatou. Nos dois casos
+  // a liderança trocou de mãos e é isso que a faixa anuncia.
+  if (atual.lider) return { tipo: 'lideranca', de: anterior.lider, para: atual.lider };
+
+  return nada;
+}
+
+/**
+ * Em que ordem os cartões aparecem na tela.
+ *
+ * Quem lidera vai para a esquerda, que é o lugar de primeiro no ocidente e o
+ * único movimento que a audiência lê como "passou na frente" numa fileira de
+ * dois. Num empate a ordem fica como veio: não há primeiro lugar para mover,
+ * e trocar os dois de lugar assim mesmo seria um tranco sem significado.
+ */
+export function ordemDosCartoes(placar) {
+  const ids = placar.cartoes.map((c) => c.id);
+  if (!placar.lider) return ids;
+  return [placar.lider, ...ids.filter((id) => id !== placar.lider)];
 }
 
 function markupDiferenca(c) {
@@ -120,6 +181,7 @@ function markupCartao(c) {
       <article class="cartao cartao--${c.posicao}" data-urna="${esc(c.id)}"
                style="--cor-urna:${esc(c.cor ?? '#666')}">
         <header class="cartao__topo">
+          <span class="cartao__lugar">${esc(c.lugar)}º</span>
           <span class="cartao__numero">${esc(c.numero)}</span>
           <span class="cartao__nome">${esc(c.nome)}</span>
           ${selo}

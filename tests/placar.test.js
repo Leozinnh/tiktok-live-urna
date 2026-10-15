@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { calcularPlacar, renderizarPlacar } from '../public/js/placar.js';
+import { calcularPlacar, renderizarPlacar, mudancaDeLideranca, ordemDosCartoes } from '../public/js/placar.js';
 
 const U1 = { id: 'u1', nome: 'URNA 1', numero: '22', votos: 61, cor: '#1a5fd0' };
 const U2 = { id: 'u2', nome: 'URNA 2', numero: '13', votos: 48, cor: '#e02020' };
@@ -138,4 +138,88 @@ test('o selo "na frente" sai só no cartão de quem lidera', () => {
 
   const empatado = renderizarPlacar(calcularPlacar([{ ...U1, votos: 5 }, { ...U2, votos: 5 }]));
   assert.ok(!/cartao__selo/.test(empatado), 'num empate ninguém está na frente');
+});
+
+// ---- A ultrapassagem --------------------------------------------------
+
+const comVotos = (a, b) => calcularPlacar([{ ...U1, votos: a }, { ...U2, votos: b }]);
+
+test('quem passa na frente provoca uma virada de liderança', () => {
+  const m = mudancaDeLideranca(comVotos(61, 48), comVotos(61, 62));
+  assert.equal(m.tipo, 'lideranca');
+  assert.equal(m.de, 'u1');
+  assert.equal(m.para, 'u2');
+});
+
+test('o primeiro voto da rodada NÃO é uma ultrapassagem', () => {
+  /*
+   * Antes do primeiro voto não havia disputa nenhuma, então ninguém foi
+   * ultrapassado. Anunciar "URNA 1 ASSUMIU A LIDERANÇA!" com um voto a zero
+   * é o mesmo que gritar em cima do silêncio: a faixa que existe para marcar
+   * o momento mais importante da disputa apareceria no momento mais vazio.
+   */
+  const m = mudancaDeLideranca(comVotos(0, 0), comVotos(1, 0));
+  assert.equal(m.tipo, 'nada');
+});
+
+test('sem mudança de líder não há nada a anunciar', () => {
+  assert.equal(mudancaDeLideranca(comVotos(61, 48), comVotos(62, 48)).tipo, 'nada');
+  assert.equal(mudancaDeLideranca(comVotos(61, 48), comVotos(61, 48)).tipo, 'nada');
+});
+
+test('quem empata tira a liderança do outro e isso é um empate, não uma virada', () => {
+  const m = mudancaDeLideranca(comVotos(61, 48), comVotos(61, 61));
+  assert.equal(m.tipo, 'empate');
+  assert.equal(m.de, 'u1');
+  assert.equal(m.para, null);
+});
+
+test('zerar a rodada não é empate', () => {
+  // Reiniciar o placar também deixa todo mundo igual, mas não há empate
+  // nenhum na disputa: há uma disputa nova. A diferença é o total.
+  assert.equal(mudancaDeLideranca(comVotos(61, 48), comVotos(0, 0)).tipo, 'nada');
+});
+
+test('desempatar é assumir a liderança', () => {
+  // Dois empatados e um passa na frente: é o momento em que a liderança
+  // deixa de ser dividida, e vale o mesmo anúncio.
+  const m = mudancaDeLideranca(comVotos(61, 61), comVotos(61, 62));
+  assert.equal(m.tipo, 'lideranca');
+  assert.equal(m.para, 'u2');
+});
+
+test('a primeira medição não anuncia nada', () => {
+  // `null` é "não havia placar antes", que é diferente de "o placar estava
+  // zerado": o primeiro desenho da tela não pode sair gritando.
+  assert.equal(mudancaDeLideranca(null, comVotos(61, 48)).tipo, 'nada');
+});
+
+test('a ordem dos cartões põe quem lidera à esquerda', () => {
+  assert.deepEqual(ordemDosCartoes(comVotos(48, 61)), ['u2', 'u1']);
+  assert.deepEqual(ordemDosCartoes(comVotos(61, 48)), ['u1', 'u2']);
+});
+
+test('empatados mantêm a ordem da configuração', () => {
+  // Num empate não há primeiro lugar para mover para a esquerda, e trocar
+  // os dois de lugar assim mesmo seria um tranco sem significado.
+  assert.deepEqual(ordemDosCartoes(comVotos(50, 50)), ['u1', 'u2']);
+  assert.deepEqual(ordemDosCartoes(comVotos(0, 0)), ['u1', 'u2']);
+});
+
+test('cada cartão carrega o seu lugar na disputa', () => {
+  const p = comVotos(61, 48);
+  assert.equal(p.cartoes.find((c) => c.id === 'u1').lugar, 1);
+  assert.equal(p.cartoes.find((c) => c.id === 'u2').lugar, 2);
+});
+
+test('num empate os dois são o primeiro lugar', () => {
+  const p = comVotos(50, 50);
+  assert.equal(p.cartoes.find((c) => c.id === 'u1').lugar, 1);
+  assert.equal(p.cartoes.find((c) => c.id === 'u2').lugar, 1);
+});
+
+test('o lugar aparece escrito no cartão', () => {
+  const html = renderizarPlacar(comVotos(61, 48));
+  assert.match(html, /cartao__lugar">1º</);
+  assert.match(html, /cartao__lugar">2º</);
 });

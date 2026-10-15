@@ -9,6 +9,7 @@
 import { montarCenario } from './scene.js';
 import { criarUrna } from './urna.js';
 import { criarPlacar } from './placar.js';
+import { criarPainel } from './painel.js';
 import { criarCronometro } from './cronometro.js';
 import { criarPresentes, PRESENTES_PADRAO } from './presentes.js';
 import { criarMaoSvg } from './hand/hand-svg.js';
@@ -136,6 +137,62 @@ const ator = new AtorDaMao({
 });
 ator.iniciar();
 
+// ---- O painel do rodapé: a fila e o ranking ---------------------------
+
+const painel = criarPainel(camadaPlacar);
+
+/*
+ * Quem já presenteou, e quanto.
+ *
+ * Separado da `contagem` de propósito: lá são VOTOS por urna, aqui são
+ * PRESENTES por pessoa. Hoje dá no mesmo, um presente vale um voto, mas o dia
+ * em que uma rosa valer cinco o ranking não pode virar "quem mandou o presente
+ * mais caro" — o que a lista promete é quem mais mandou, e é isso que ela
+ * conta.
+ *
+ * Conta na CHEGADA do presente, e não quando o voto é apurado: são os mesmos
+ * sete segundos de diferença que a fila existe para cobrir. Quem acabou de
+ * mandar quer ver o nome subir na hora, e o voto dele é certo — já está na
+ * fila, e a fila não recusa.
+ */
+const presenteados = new Map();
+
+function registrarPresente(usuario) {
+  const atual = presenteados.get(usuario);
+  if (atual) atual.presentes += 1;
+  else presenteados.set(usuario, { nome: usuario, presentes: 1 });
+}
+
+/*
+ * A assinatura é o que evita redesenhar a cada quadro.
+ *
+ * O painel precisa acompanhar a fila, e a fila anda sozinha — quem tira o
+ * próximo é o laço da mão, não um evento. Sem esta comparação, o `innerHTML`
+ * do painel seria reescrito sessenta vezes por segundo para desenhar
+ * exatamente o mesmo texto.
+ */
+let assinaturaDoPainel = null;
+
+function atualizarPainel() {
+  const fila = ator.fila.esperando();
+  const ranking = [...presenteados.values()];
+  const assinatura = fila.map((i) => i.id).join(',')
+    + '|' + ranking.map((p) => `${p.nome}:${p.presentes}`).join(',');
+
+  if (assinatura === assinaturaDoPainel) return;
+  assinaturaDoPainel = assinatura;
+  painel.atualizar({ fila, ranking });
+}
+
+/*
+ * No ticker da mão, e não num `setInterval` próprio: um segundo laço de
+ * quadro para desenhar texto brigaria com o único RAF do projeto e deixaria
+ * a fila um quadro atrás da mão. Ver o comentário do `iniciar` em
+ * hand-actor.js.
+ */
+ator.ticker.registrarPasso(atualizarPainel);
+atualizarPainel();
+
 // ---- Controles de demonstração ----------------------------------------
 // Substituídos pelo modo de teste real na Etapa 6. Servem para validar
 // visualmente as Etapas 1-3 antes de construir o motor de votação.
@@ -198,6 +255,18 @@ window.addEventListener('mousemove', mostrarBarra, { passive: true });
 
 let contador = 0;
 
+/*
+ * Nomes de quem presenteia, no simulador.
+ *
+ * Um punhado de gente que volta, e não um nome novo a cada voto: com doze
+ * espectadores diferentes mandando um presente cada, o ranking mostraria
+ * doze linhas de "1" e não provaria nada. "Espectador N" e não um nome de
+ * pessoa: isto é simulação, e um apelido realista na tela seria a única
+ * coisa aqui capaz de fazer alguém acreditar que há um espectador de
+ * verdade do outro lado.
+ */
+const PRESENTEADORES_DEMO = 5;
+
 function enfileirar(urnaId, presente) {
   // Rodada fechada recusa voto. Recusar em silêncio, e não enfileirar e
   // ignorar depois: um voto que entra na fila e não é contado é pior do que
@@ -205,16 +274,18 @@ function enfileirar(urnaId, presente) {
   if (!rodadaAberta) return false;
   const u = urnas[urnaId];
   contador += 1;
+  const usuario = `Espectador ${1 + (contador % PRESENTEADORES_DEMO)}`;
   ator.fila.enfileirar({
     id: `demo-${contador}`,
     urna: u,
     urnaId,
     numero: u.config.numero,
     votos: 1,
-    usuario: `Espectador ${contador}`,
+    usuario,
     presente,
     prioridade: 0,
   });
+  registrarPresente(usuario);
   return true;
 }
 
