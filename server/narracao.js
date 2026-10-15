@@ -94,24 +94,19 @@ export function preencher(modelo, { nome = '', quantidade = 0 } = {}) {
     .replaceAll('{quantidade}', String(quantidade));
 }
 
-/** As frases de um tipo, com o padrão do código quando o painel não tem. */
-function modelosDe(tipo, falas) {
-  const lista = falas?.[tipo];
-  // Lista VAZIA é silêncio deliberado; lista AUSENTE cai no padrão. A
-  // diferença importa: o painel mostra o padrão escrito desde o começo, então
-  // apagar tudo é uma decisão, e não um campo esquecido.
-  if (Array.isArray(lista)) return lista.filter((f) => typeof f === 'string' && f.trim());
-  return FALAS_PADRAO[tipo] ?? [];
-}
-
 /**
- * @param {object} opcoes
- * @param {object} [opcoes.falas]   as frases do painel, por tipo
+ * @param {object|Function} opcoes.falas as frases do painel, por tipo — ou uma
+ *   função que as devolve. A função existe porque o hub troca a configuração
+ *   inteira a cada salvamento do painel: um narrador que guardasse a lista do
+ *   dia em que nasceu continuaria falando as frases antigas até o servidor
+ *   reiniciar, e ninguém descobriria por quê.
  * @param {Function} [opcoes.sorteio] 0..1; existe para o teste ser determinístico
  * @param {Function} [opcoes.agora]  o relógio, em ms; idem
  * @param {Function} [opcoes.aoNarrar] avisado com o texto já montado
  */
 export function criarNarrador({ falas = {}, sorteio = Math.random, agora = Date.now, aoNarrar = null } = {}) {
+  /** As frases que valem AGORA — o painel pode ter salvado desde a última fala. */
+  const frasesDeAgora = () => (typeof falas === 'function' ? falas() : falas);
   /** tipo → { modelos, saco } — o baralho de onde as frases são tiradas. */
   const baralhos = new Map();
   /** tipo → a última frase dita, para não repetir. */
@@ -120,6 +115,32 @@ export function criarNarrador({ falas = {}, sorteio = Math.random, agora = Date.
   const liberadoEm = new Map();
   /** userId → { total, desde } da rajada de curtidas em andamento. */
   const rajadas = new Map();
+  /** tipo → { lista, modelos } — a última lista resolvida de cada tipo. */
+  const resolvidas = new Map();
+
+  /**
+   * As frases de um tipo AGORA, com o padrão do código quando o painel não
+   * tem — e sempre o MESMO array enquanto a lista do painel não mudar.
+   *
+   * A guarda não é economia: o `escolher` compara a lista por referência para
+   * saber se o painel trocou as frases, e um `.filter` devolve um array novo
+   * a cada chamada. Sem ela, o baralho se reconstruía a cada fala e o sorteio
+   * degenerava em alternar entre as duas primeiras frases — as outras nunca
+   * eram ditas, e o comentário do baralho virava mentira.
+   */
+  function modelosDe(tipo) {
+    const lista = frasesDeAgora()?.[tipo];
+    const guardado = resolvidas.get(tipo);
+    if (guardado && guardado.lista === lista) return guardado.modelos;
+    // Lista VAZIA é silêncio deliberado; lista AUSENTE cai no padrão. A
+    // diferença importa: o painel mostra o padrão escrito desde o começo,
+    // então apagar tudo é uma decisão, e não um campo esquecido.
+    const modelos = Array.isArray(lista)
+      ? lista.filter((f) => typeof f === 'string' && f.trim())
+      : (FALAS_PADRAO[tipo] ?? []);
+    resolvidas.set(tipo, { lista, modelos });
+    return modelos;
+  }
 
   /**
    * Tira uma frase do baralho, sem repetir a anterior.
@@ -170,7 +191,7 @@ export function criarNarrador({ falas = {}, sorteio = Math.random, agora = Date.
     narrar(evento) {
       const tipo = evento?.tipo;
       if (!tipo) return null;
-      const modelos = modelosDe(tipo, falas);
+      const modelos = modelosDe(tipo);
       if (modelos.length === 0) return null;
 
       const t = agora();

@@ -85,6 +85,27 @@ test('a mesma frase nunca sai duas vezes seguidas', () => {
   assert.notEqual(segunda, terceira);
 });
 
+test('o baralho dá a volta: todas as frases saem antes de qualquer uma repetir', () => {
+  /*
+   * O sorteio devolve 0 sempre, então quem escolhe é o saco. Com quatro
+   * frases, as quatro primeiras falas têm que ser as quatro diferentes — se
+   * o saco for reconstruído a cada fala, ele degenera em alternar entre a
+   * primeira e a segunda, e as frases 3 e 4 NUNCA são ditas. Numa live de
+   * três horas isso é a mesma frase pela metade da noite, que é exatamente o
+   * que a alternância existe para evitar.
+   */
+  const falas = { seguidor: ['A: {nome}', 'B: {nome}', 'C: {nome}', 'D: {nome}'] };
+  const narrador = criarNarrador({ falas, sorteio: () => 0 });
+  // Quatro PESSOAS diferentes para o cooldown não calar ninguém, mas com o
+  // mesmo nome: assim a única coisa que distingue uma fala da outra é a frase.
+  // Com nomes diferentes o teste passaria sempre, comparando nomes.
+  const ditas = ['a1', 'a2', 'a3', 'a4'].map((id) => narrador.narrar(seguidor('Ana', id)));
+  assert.deepEqual(
+    new Set(ditas).size, 4,
+    `as quatro frases deviam sair uma vez cada, e saíram: ${JSON.stringify(ditas)}`,
+  );
+});
+
 test('com uma frase só, ela repete sem drama', () => {
   // A regra do "não repete" não pode virar silêncio quando não há alternativa:
   // quem apagou as frases extras no painel ainda quer ouvir o aviso.
@@ -206,6 +227,36 @@ test('o padrão tem frase para todo tipo social', () => {
   for (const tipo of ['seguidor', 'curtida', 'entrada', 'compartilhou', 'assinatura']) {
     assert.ok(FALAS_PADRAO[tipo]?.length > 0, `falta a frase padrão de ${tipo}`);
   }
+});
+
+test('as frases podem vir de uma função, e são lidas na hora de falar', () => {
+  /*
+   * O painel troca a configuração com a live no ar, e o hub guarda a
+   * configuração numa variável que ele troca inteira a cada salvamento. Se o
+   * narrador guardasse a lista do momento em que nasceu, a frase editada só
+   * valeria depois de reiniciar o servidor — o Leonardo editaria, ouviria a
+   * antiga, e não teria como saber por quê.
+   */
+  let falas = { seguidor: ['Antes: {nome}'] };
+  const narrador = criarNarrador({ falas: () => falas, sorteio: () => 0 });
+  assert.equal(narrador.narrar(seguidor('Ana')), 'Antes: Ana');
+  falas = { seguidor: ['Depois: {nome}'] };
+  assert.equal(narrador.narrar(seguidor('Bia', 'bia')), 'Depois: Bia');
+});
+
+test('a frase trocada no meio da live entra no sorteio na hora', () => {
+  /*
+   * A troca não pode valer só para a próxima frase: o baralho guarda o
+   * último que saiu para não repetir, e ele precisa perceber que a lista
+   * mudou. Sem isso, quem troca as frases no painel ouviria as antigas até o
+   * baralho esvaziar — que é justamente quando ele seria reabastecido com a
+   * lista velha que ficou guardada.
+   */
+  let falas = { seguidor: ['Velha A: {nome}', 'Velha B: {nome}'] };
+  const narrador = criarNarrador({ falas: () => falas, sorteio: () => 0 });
+  assert.equal(narrador.narrar(seguidor('Ana')), 'Velha A: Ana');
+  falas = { seguidor: ['Nova: {nome}'] };
+  assert.equal(narrador.narrar(seguidor('Bia', 'bia')), 'Nova: Bia');
 });
 
 test('a fala pronta é entregue a quem pediu para saber', () => {
