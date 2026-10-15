@@ -6,6 +6,7 @@
 //
 // A coreografia trabalha em POSES NOMEADAS, nunca em ângulos. É o que
 // permite trocar o renderizador por sprites sem tocar na animação.
+import { CADEIAS, LADOS, SENTIDO_DA_FLEXAO } from './esqueleto.js';
 
 export const JUNTAS = [
   'mcpIndicador', 'pipIndicador', 'dipIndicador',
@@ -131,17 +132,70 @@ export function interpolarPose(a, b, t) {
 }
 
 /**
+ * Quanto da flexão aparece como giro no plano.
+ *
+ * Um dedo que fecha não gira no plano da tela: ele gira para FORA dele, e
+ * o que se vê é o comprimento encolhendo e um tombamento pequeno. Sem
+ * esse fator, dobrar 90° gira 90° e o dedo atravessa a palma.
+ */
+const FATOR_LATERAL = 0.5;
+
+/**
+ * O quanto uma junta pode encolher.
+ *
+ * O piso existe porque uma falange de comprimento zero não lê como dedo
+ * dobrado, lê como dedo que sumiu. Em 0,34 a falange ainda tem ponta.
+ */
+const PISO_ENCURTAMENTO = 0.34;
+
+const grausParaRad = (g) => (g * Math.PI) / 180;
+
+/** O pai de cada junta na cadeia, para converter giro absoluto em relativo. */
+const PAIS = (() => {
+  const p = {};
+  for (const cadeia of CADEIAS) {
+    for (let i = 1; i < cadeia.length; i++) p[cadeia[i]] = cadeia[i - 1];
+  }
+  return p;
+})();
+
+/**
  * Traduz uma pose para transforms CSS, um por junta.
- * O pivô de cada junta é definido no próprio SVG (transform-origin no CSS),
- * então aqui só a rotação importa.
+ *
+ * O pivô de cada junta é definido no próprio SVG (transform-origin escrito
+ * no grupo por hand-svg.js), então aqui só entram rotação e escala.
+ *
+ * Duas conversões acontecem nesta função, e as duas já foram defeito:
+ *
+ * 1. Os grupos são ANINHADOS: girar o nó move tudo o que está dentro, e o
+ *    transform do filho é aplicado no referencial já girado do pai. A
+ *    tabela de poses guarda o quanto cada junta está dobrada em termos
+ *    absolutos; escrever isso direto no transform faria a cadeia somar
+ *    três vezes a mesma flexão e o dedo fecharia no ar. Por isso o que
+ *    sai é a diferença para o pai.
+ *
+ * 2. Flexão não é giro: é encurtamento. Ver FATOR_LATERAL acima.
  */
 export function poseParaTransformacoes(pose) {
   const t = {};
+  const giroAbsoluto = {};
+
   for (const junta of JUNTAS) {
-    const graus = junta === 'curvaturaPalma'
-      ? pose.juntas[junta] * 10        // a curvatura da palma é sutil
-      : pose.juntas[junta];
-    t[junta] = `rotate(${graus.toFixed(3)}deg)`;
+    if (junta === 'curvaturaPalma') {
+      // A curvatura da palma é sutil: multiplicada para virar alguns graus.
+      giroAbsoluto[junta] = pose.juntas[junta] * 10;
+      t[junta] = `rotate(${giroAbsoluto[junta].toFixed(3)}deg) scaleY(1)`;
+      continue;
+    }
+
+    const flexao = pose.juntas[junta] * SENTIDO_DA_FLEXAO[junta];
+    giroAbsoluto[junta] = flexao * FATOR_LATERAL * LADOS[junta];
+    const pai = PAIS[junta];
+    const delta = giroAbsoluto[junta] - (pai ? giroAbsoluto[pai] : 0);
+    const encolhe = Math.max(PISO_ENCURTAMENTO, Math.cos(grausParaRad(flexao)));
+
+    t[junta] = `rotate(${delta.toFixed(3)}deg) scaleY(${encolhe.toFixed(3)})`;
   }
   return t;
 }
+

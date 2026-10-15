@@ -54,11 +54,16 @@ test('PIVOS cobre exatamente as juntas conhecidas', () => {
   assert.deepEqual(Object.keys(PIVOS).sort(), [...JUNTAS].sort());
 });
 
-test('os dedos ficam acima da palma e abaixo do topo do desenho', () => {
-  // Se um pivô escapar para fora da palma, o dedo nasce solto no ar.
+/*
+ * A checagem de que os dedos nascem da palma vive em mao-geometria.test.js,
+ * contra a geometria real da palma (PALMA). A versão que existia aqui
+ * comparava com uma faixa de y escrita à mão, e por isso continuava verde
+ * enquanto o desenho mudava por baixo — foi uma das que deixaram passar a
+ * mão desmanchada.
+ */
+test('as juntas de um dedo descem na ordem nó, pip, dip', () => {
   for (const nome of ['Indicador', 'Medio', 'Anel', 'Mindinho']) {
     const mcp = PIVOS[`mcp${nome}`];
-    assert.ok(mcp.y > 240 && mcp.y < 300, `mcp${nome} fora da linha dos nós: ${mcp.y}`);
     assert.ok(PIVOS[`pip${nome}`].y < mcp.y, `pip${nome} deveria estar acima do nó`);
     assert.ok(PIVOS[`dip${nome}`].y < PIVOS[`pip${nome}`].y, `dip${nome} deveria estar acima da pip`);
   }

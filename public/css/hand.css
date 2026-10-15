@@ -1,27 +1,44 @@
 /*
  * A mão.
  *
- * Coordenadas: o palco tem 1080x1920 e a mão é posicionada por --x/--y
- * (canto superior esquerdo), com --rot e --escala aplicados em torno do
- * centro. O ator escreve essas quatro variáveis a cada frame; nada aqui
- * anima sozinho — se o CSS animasse, a coreografia e o CSS brigariam
- * pelo mesmo transform.
+ * Coordenadas: o palco tem 1080x1920. O ator escreve --x/--y a cada frame,
+ * e --x/--y são a PONTA DO INDICADOR, não o canto da caixa do desenho.
+ * É essa a coordenada que o alvo de uma tecla faz sentido: o ator mira o
+ * centro da tecla, então é a ponta do dedo que precisa chegar lá.
+ *
+ * O `translate` final é o que converte uma coisa na outra, e o
+ * `transform-origin: 0 0` é o que faz a rotação e a escala girarem em
+ * torno da ponta também — com a origem no centro da caixa, o dedo gira em
+ * volta de um ponto no meio da palma e sai da tecla ao menor giro.
+ *
+ * Nada aqui anima sozinho: se o CSS animasse, a coreografia e o CSS
+ * brigariam pelo mesmo transform.
  */
 
 .mao {
+  /* Fallback. `criarMaoSvg()` escreve os valores reais, vindos de PONTA —
+     a geometria do desenho. Se os dois números viverem só aqui, o próximo
+     ajuste do SVG move os dedos e deixa a âncora para trás.
+     Estes dois valores são conferidos contra PONTA por
+     tests/mao-geometria.test.js: mexer nos dedos sem mexer aqui quebra o
+     teste em vez de deslocar a mão na cena em silêncio. */
+  --ponta-x: 141.72px;
+  --ponta-y: 153.12px;
+
   position: absolute;
   left: 0;
   top: 0;
   width: 420px;
   height: 620px;
   pointer-events: none;
+  transform-origin: 0 0;
   transform:
     translate3d(var(--x, 0px), var(--y, 0px), 0)
     rotate(var(--rot, 0deg))
-    scale(var(--escala, 1));
-  transform-origin: 50% 50%;
+    scale(var(--escala, 1))
+    translate(calc(-1 * var(--ponta-x)), calc(-1 * var(--ponta-y)));
   /* A mão fica acima das urnas e abaixo dos efeitos de confete. */
-  z-index: var(--z-mao, 50);
+  z-index: var(--z-mao);
   will-change: transform;
 }
 
@@ -79,18 +96,24 @@
  * da mão sobre a mesa.
  */
 .mao__sombra {
+  /* A mesma âncora da mão — as duas compartilham o sistema de coordenadas,
+     senão a elipse descola do corpo quando a mão se move. */
+  --ponta-x: 141.72px;
+  --ponta-y: 153.12px;
+
   position: absolute;
   left: 0;
   top: 0;
   width: 420px;
   height: 620px;
   pointer-events: none;
+  transform-origin: 0 0;
   transform:
     translate3d(var(--sx, 0px), var(--sy, 0px), 0)
     rotate(var(--rot, 0deg))
-    scale(var(--sombra-escala, 1));
-  transform-origin: 50% 50%;
-  z-index: calc(var(--z-mao, 50) - 1);
+    scale(var(--sombra-escala, 1))
+    translate(calc(-1 * var(--ponta-x)), calc(-1 * var(--ponta-y)));
+  z-index: calc(var(--z-mao) - 1);
   will-change: transform;
 }
 
@@ -109,15 +132,6 @@
     rgba(48, 26, 12, 0) 74%
   );
   filter: blur(var(--sombra-blur, 14px));
-}
-
-/* Estado inicial: a mão começa fora de cena, abaixo da mesa. */
-.mao[data-estado="oculta"] {
-  opacity: 0;
-}
-
-.mao__sombra[data-estado="oculta"] {
-  opacity: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {
