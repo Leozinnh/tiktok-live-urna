@@ -12,7 +12,7 @@ servidor é Node.js sem nenhuma dependência instalada.
 
 ## Estado atual
 
-O projeto está sendo construído em 8 etapas. **As Etapas 1 a 5 estão
+O projeto está sendo construído em 8 etapas. **As Etapas 1 a 7 estão
 prontas e validadas:**
 
 | Etapa | O que entrega | Situação |
@@ -22,8 +22,8 @@ prontas e validadas:**
 | 3 | A mão articulada e a coreografia do voto | ✅ pronta |
 | 4 | Motor de votos, fila e placar | ✅ pronta |
 | 5 | Painel administrativo (rota separada) | ✅ pronta |
-| 6 | Modo de teste com o mesmo caminho do evento real | ⏳ a fazer |
-| 7 | Integração com os presentes da TikTok LIVE | ⏳ a fazer |
+| 6 | Modo de teste com o mesmo caminho do evento real | ✅ pronta |
+| 7 | Integração com os presentes da TikTok LIVE | ✅ pronta |
 | 8 | Modo transmissão para OBS e README final | ⏳ a fazer |
 
 **O que já dá para fazer hoje:** abrir a cena, ver as duas urnas e assistir
@@ -42,15 +42,33 @@ um único botão. O painel é <http://localhost:3000/admin>, numa rota
 separada, em outra aba do navegador — nada que se clica nele pode cair no
 enquadramento do OBS.
 
-**O que ainda não existe:** a conexão com a TikTok LIVE. Até a Etapa 7, os
-votos saem do painel, na aba **Teste** — e ela dispara pelo **mesmo caminho
-de um presente de verdade**: o painel manda um `sim.gift` para o servidor, e
-o servidor o trata como trataria o presente de qualquer pessoa. É por isso
-que o modo de teste serve como teste: ele não é um atalho, é a mesma estrada.
+**A narração.** Além das urnas, o sistema tem um narrador: quando alguém
+segue, curte, entra, compartilha ou assina, ele **fala** e mostra uma faixa
+na tela. As frases são suas, editáveis na aba **Textos**, uma por linha.
 
-Nada aqui finge ser um evento real da live. O que entra por esse caminho fica
-gravado com a origem `simulador` no banco, ao lado do que um dia vier da
-TikTok — quem olhar os votos depois sabe de onde cada um veio.
+A voz sai pelo **Windows**, e não pela página: o navegador que o OBS embarca
+não fala, então quem sintetiza é o servidor (`voz.ps1`), que guarda o áudio
+e manda a página tocar. Se a voz não sair, o problema está no Windows ou no
+volume — e não na live. Para descobrir isso sem esperar alguém seguir de
+verdade, a aba **Teste** tem um botão para cada um dos cinco avisos.
+
+**A live de verdade (Etapa 7).** Na aba **Integração**, troque o modo para
+**TikTok ao vivo**, escreva o nome da sua live (sem o `@`) e salve. A troca
+vale na hora: **não precisa reiniciar o servidor**. O topo do painel passa a
+mostrar de onde vêm os eventos e o que está acontecendo com a fonte —
+inclusive o motivo, quando ela não conecta.
+
+Para isso o projeto ganhou **uma ponte em Python**, que é a única coisa aqui
+que precisa de algo além do Node. Veja
+[Preciso instalar mais alguma coisa?](#preciso-instalar-mais-alguma-coisa).
+
+**O modo de teste não é um atalho.** Na aba **Teste** os votos saem do
+painel — e ela dispara pelo **mesmo caminho de um presente de verdade**: o
+painel manda um `sim.gift` para o servidor, e o servidor o trata como
+trataria o presente de qualquer pessoa. É por isso que ele serve como teste:
+é a mesma estrada. Nada aqui finge ser um evento real da live — o que entra
+por esse caminho fica gravado com a origem `simulador` no banco, e quem
+olhar os votos depois sabe de onde cada um veio.
 
 ---
 
