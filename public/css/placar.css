@@ -1,0 +1,281 @@
+/*
+ * O placar — a faixa de cima do enquadramento.
+ *
+ * Ele mora nos primeiros 470px do palco de 1920. É onde o olho bate
+ * primeiro, e é o único lugar da cena onde o texto é grande de propósito:
+ * quem assiste no celular precisa ler "61" e "48" de longe, sem parar
+ * para decifrar letra miúda.
+ *
+ * As duas cores de cada cartão vêm da urna (--cor-urna), escritas pelo
+ * placar.js. O cartão não sabe se é azul ou vermelho; ele sabe usar a cor
+ * que recebeu, e é por isso que trocar a cor de uma urna no demo.js muda
+ * a urna e o cartão dela de uma vez só.
+ */
+
+.placar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 560px;
+  padding: 26px 30px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  font-family: "Segoe UI", "Inter", system-ui, sans-serif;
+  color: #ffffff;
+}
+
+/* ---- Faixa de status: total, espectadores, quem está na frente ---- */
+
+.placar__status {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 96px;
+  padding: 0 22px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(16, 20, 30, 0.92) 0%, rgba(8, 11, 18, 0.92) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    0 14px 30px rgba(0, 0, 0, 0.35);
+}
+
+.placar__bloco {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  line-height: 1;
+}
+
+.placar__rotulo {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.placar__valor {
+  margin-top: 6px;
+  font-size: 46px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+.placar__valor--menor { font-size: 38px; }
+
+/*
+ * A faixa de quem está na frente. Ela é a informação mais volátil do
+ * placar — muda de dono a cada voto — e por isso é a única com cor cheia
+ * e formato de pílula: o olho a encontra sem procurar.
+ */
+.placar__faixa {
+  margin-left: auto;
+  display: grid;
+  place-items: center;
+  min-width: 250px;
+  height: 62px;
+  padding: 0 26px;
+  border-radius: 31px;
+  background: var(--cor-urna, #4a5468);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    0 0 26px var(--cor-urna, #4a5468);
+  font-size: 27px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.placar__faixa--vazia {
+  background: #333a49;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10);
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+}
+
+/* ---- Os dois cartões ---- */
+
+.placar__cartoes {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.cartao {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 16px 22px 18px;
+  border-radius: 20px;
+  overflow: hidden;
+  /*
+   * O relevo do cartão é uma película de branco em cima e de preto
+   * embaixo, sobre a cor da urna — e não um `color-mix()`.
+   *
+   * `color-mix()` só existe a partir do Chromium 111, e o OBS 30 captura
+   * com o Chromium 103 embutido: o cartão apareceria sem cor nenhuma,
+   * transparente, e só na transmissão. A película faz o mesmo serviço e
+   * funciona em qualquer navegador que o OBS embuta.
+   */
+  background:
+    linear-gradient(180deg,
+      rgba(255, 255, 255, 0.22) 0%,
+      rgba(255, 255, 255, 0.04) 44%,
+      rgba(0, 0, 0, 0.10) 70%,
+      rgba(0, 0, 0, 0.26) 100%),
+    var(--cor-urna);
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.30),
+    inset 0 -30px 60px rgba(0, 0, 0, 0.22),
+    0 16px 34px rgba(0, 0, 0, 0.38);
+}
+
+/*
+ * O cartão de quem está na frente ganha um anel claro em volta.
+ *
+ * Sem ele, dois cartões do mesmo tamanho e do mesmo peso visual deixam a
+ * pergunta "quem está ganhando?" para o número — e número se lê, não se
+ * vê. O anel responde antes da leitura.
+ */
+.cartao--lider {
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.30),
+    inset 0 -30px 60px rgba(0, 0, 0, 0.22),
+    0 0 0 5px rgba(255, 255, 255, 0.85),
+    0 0 40px rgba(255, 255, 255, 0.35),
+    0 16px 34px rgba(0, 0, 0, 0.38);
+}
+
+.cartao__topo {
+  flex: none;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.cartao__numero {
+  font-size: 62px;
+  font-weight: 900;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  text-shadow: 0 3px 0 rgba(0, 0, 0, 0.22);
+}
+
+.cartao__nome {
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  opacity: 0.85;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/*
+ * A contagem. É o maior número da cena inteira e não é por acaso: é o
+ * único dado que muda a cada voto, e o que a pessoa quer saber quando
+ * olha de relance para a live.
+ */
+/*
+ * A contagem ocupa a sobra do cartão, que são uns 230px. Alinhar os dois
+ * pela linha de base é o que faz "0 VOTOS" ser lido como um dado só, em
+ * vez de um número e uma palavra solta.
+ *
+ * O `flex-wrap: wrap` está aqui por um motivo que não é o de quebrar
+ * linha: `align-content` não tem efeito nenhum em contêiner flex de linha
+ * única, e sem ele a dupla ficaria colada no topo da sobra, com o vão
+ * todo embaixo. Com a quebra permitida, a linha passa a ser centralizável.
+ */
+.cartao__contagem {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  align-content: center;
+  gap: 14px;
+}
+
+.cartao__votos {
+  font-size: 160px;
+  font-weight: 900;
+  line-height: 0.84;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.035em;
+  text-shadow: 0 5px 0 rgba(0, 0, 0, 0.20);
+}
+
+.cartao__unidade {
+  flex: none;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  opacity: 0.72;
+}
+
+.cartao__barra {
+  flex: none;
+  height: 18px;
+  border-radius: 9px;
+  background: rgba(0, 0, 0, 0.32);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+}
+
+.cartao__barra-cheia {
+  height: 100%;
+  border-radius: 9px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.72) 100%);
+  box-shadow: 0 0 16px rgba(255, 255, 255, 0.55);
+  /* A barra anda a cada voto; sem a transição ela salta. */
+  transition: width 480ms var(--ease-padrao);
+}
+
+.cartao__rodape {
+  flex: none;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.cartao__percentual {
+  font-size: 32px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.cartao__diferenca {
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 5px 13px;
+  border-radius: 15px;
+  background: rgba(0, 0, 0, 0.28);
+  white-space: nowrap;
+}
+
+.cartao__diferenca--lider {
+  background: rgba(255, 255, 255, 0.92);
+  color: #10141e;
+}
+
+.cartao__diferenca--empate {
+  font-weight: 600;
+  opacity: 0.8;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 16px;
+}

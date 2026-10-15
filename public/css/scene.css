@@ -17,6 +17,34 @@
 }
 
 /*
+ * `?zoom=1` — modo de conferência, e só ele.
+ *
+ * Aqui a cena deixa de recortar e passa a rolar, para que o palco de
+ * 1080x1920 caiba na tela no tamanho real e possa ser percorrido. A
+ * transmissão nunca passa por aqui: ela abre a página sem parâmetro
+ * nenhum, e sem parâmetro a cena continua recortando e sem barra de
+ * rolagem, que é o que o OBS precisa.
+ */
+.cena--zoom {
+  position: absolute;
+  overflow: auto;
+}
+
+/*
+ * No modo de conferência o palco encosta no canto em vez de se centrar.
+ *
+ * Centrado, ele ficaria com metade para fora dos quatro lados ao mesmo
+ * tempo, e a área rolável só cresce para a direita e para baixo: o canto
+ * de cima e o da esquerda ficariam fora de alcance, sem jeito de chegar
+ * neles.
+ */
+.cena--zoom .palco {
+  left: 0;
+  top: 0;
+  transform: scale(var(--escala, 1));
+}
+
+/*
  * O palco é sempre 1080x1920 e desenhado nessa medida. A escala vem do JS
  * como --escala.
  *
@@ -191,6 +219,16 @@
   pointer-events: none;
 }
 
+/*
+ * O placar precisa de z-index próprio, e não do `auto` que as outras
+ * camadas têm.
+ *
+ * Sem um z-index declarado, a camada é pintada na ordem do documento — e
+ * `.parede`, que tem z-index 10, sobe por cima dela. O resultado era a
+ * junta dos painéis da parede cortando os cartões ao meio, de cima a
+ * baixo, bem no meio do enquadramento.
+ */
+.camada--placar  { z-index: var(--z-placar); }
 .camada--urnas   { z-index: var(--z-urna); }
 .camada--mao     { z-index: var(--z-mao); }
 .camada--efeitos { z-index: var(--z-efeitos); }

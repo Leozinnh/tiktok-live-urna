@@ -81,6 +81,16 @@ export class AtorDaMao {
     this.ticker = opcoes.ticker ?? new Ticker();
     this.pool = new PoolDeTimelines({ max: 8 });
     this.fila = new FilaDeAnimacao(opcoes.fila ?? {});
+    /*
+     * Quem quiser saber que um voto foi contado se inscreve aqui.
+     *
+     * Poderia ser um callback dentro do item da fila, e não é: o item da
+     * fila é o que um dia vai para o disco (a fila precisa sobreviver a um
+     * recarregamento no meio da live), e uma função pendurada nele não
+     * sobrevive a `JSON.stringify` — o voto voltaria da memória sem o
+     * aviso, e o placar pararia de contar sem nada quebrar.
+     */
+    this.aoContarVoto = opcoes.aoContarVoto ?? (() => {});
     this.posicao = { ...MAO_FORA_DE_CENA };
     this.poseAtual = POSES.repouso;
     this.timelineAtual = null;
@@ -205,9 +215,21 @@ export class AtorDaMao {
         callbacks: {
           aoDestacar: () => urna.el.classList.add(CLASSES_DE_ESTADO.destacada),
           aoMoverMao: ({ alvo, pose, duracao }) => this.moverPara({ alvo, pose, duracao, timeline }),
-          aoTeclar: (t) => { urna.pressionarTecla(t); urna.acenderLed(t, true); },
+          aoTeclar: (t) => {
+            urna.pressionarTecla(t);
+            urna.acenderLed(t, true);
+            /*
+             * O voto passa a valer quando a tecla CONFIRMA afunda — que é
+             * quando a urna de verdade o registra. Contar só no fim, quando
+             * a cédula é depositada, faria a tela anunciar "VOTO
+             * CONFIRMADO" com a contagem velha e o placar parado por um
+             * segundo inteiro, como se o voto não tivesse entrado.
+             */
+            if (t === 'CONFIRMA') this.avisarContagem(urna, numero, votos);
+          },
           aoSoltarTecla: (t) => { urna.soltarTecla(t); setTimeout(() => urna.acenderLed(t, false), 140); },
-          aoMostrarTela: (estado) => urna.definirTela({ numero, nome: urna.config.nome, ...estado }),
+          // A urna completa o estado com a identidade dela mesma.
+          aoMostrarTela: (estado) => urna.definirTela(estado),
           aoSairCedula: () => {
             urna.mostrarCedula({ usuario, presente, votos });
             urna.el.classList.add(CLASSES_DE_ESTADO.cedulaSaindo);
@@ -285,6 +307,13 @@ export class AtorDaMao {
     });
   }
 
+  /** Avisa quem conta os votos. Um lugar só, para os dois caminhos. */
+  avisarContagem(urna, numero, votos) {
+    tentar('avisar quem conta os votos', () => this.aoContarVoto({
+      urnaId: urna.config.id, numero, votos,
+    }));
+  }
+
   /**
    * Modo lote: sob rajada, um carimbo rápido no lugar da sequência inteira.
    * O voto já foi contado — este carimbo é só o registro visual de que
@@ -293,6 +322,10 @@ export class AtorDaMao {
   carimbar(item) {
     return new Promise((resolve) => {
       const urna = item.urna;
+      // O carimbo não passa pela coreografia, então o aviso sai aqui: sem
+      // ele, uma rajada de cem votos movia a mão cem vezes e não somava
+      // nenhum no placar.
+      this.avisarContagem(urna, item.numero, item.votos ?? 1);
       urna.el.classList.add(CLASSES_DE_ESTADO.destacada, CLASSES_DE_ESTADO.contando);
       urna.pressionarTecla('CONFIRMA');
       urna.acenderLed('CONFIRMA', true);

@@ -48,8 +48,8 @@
   /* Medidas de palco — base 1080x1920 */
   --palco-largura:    1080px;
   --palco-altura:     1920px;
-  --mesa-topo:        62%;
-  --urna-largura:     460px;
+  --mesa-topo:        66%;
+  --urna-largura:     490px;
   --urna-altura:      560px;
   --urna-profundidade: 70px;
   --perspectiva:      1600px;
@@ -69,8 +69,8 @@
    * propósito — derivação escondida dentro do CSS não é conferível.
    */
   --teclado-recuo:    22px;   /* distancia da direita da urna até o teclado */
-  --teclado-largura:  178px;
-  --bocal-centro:     349px;  /* 460 - 22 - 178/2 */
+  --teclado-largura:  184px;
+  --bocal-centro:     376px;  /* 490 - 22 - 184/2 */
   --bocal-largura:    190px;
   --bocal-altura:     22px;
   --bocal-topo:       30px;

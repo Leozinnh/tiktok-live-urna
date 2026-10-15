@@ -19,6 +19,36 @@ export function calcularEscala(larguraJanela, alturaJanela) {
   return Math.min(larguraJanela / PALCO.largura, alturaJanela / PALCO.altura);
 }
 
+/**
+ * A escala pedida pelo endereço, quando houver.
+ *
+ * `?zoom=1` desenha o palco no tamanho real de 1080x1920 e deixa a página
+ * rolar. Serve para conferir de perto o que, numa janela deitada, aparece
+ * reduzido a 38% — a 0,38 de escala um rótulo de 9px chega à tela com
+ * 3,4px, e não há desenho que sobreviva a isso.
+ *
+ * É ferramenta de conferência, não de transmissão: o OBS captura a página
+ * sem parâmetro nenhum, e sem parâmetro o palco volta a caber na janela.
+ */
+export function escalaPedida(busca) {
+  const bruto = new URLSearchParams(busca).get('zoom');
+  if (bruto === null) return null;
+  const n = Number(bruto);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/**
+ * A escala que o palco usa agora.
+ *
+ * Separada de `montarCenario` porque é a única parte da decisão que dá
+ * para conferir sem navegador: com o modo de conferência ligado quem manda
+ * é o zoom pedido (ou o tamanho real), e desligado quem manda é a janela.
+ */
+export function escalaDaCena({ ligado, pedida, larguraJanela, alturaJanela }) {
+  if (!ligado) return calcularEscala(larguraJanela, alturaJanela);
+  return pedida ?? 1;
+}
+
 const PAINEIS = 4;
 
 export function montarCenario(raiz) {
@@ -29,10 +59,8 @@ export function montarCenario(raiz) {
       </div>
       <div class="armario"></div>
       <div class="mesa"><div class="mesa__tampo"></div></div>
-      <div class="piso">
-        <div class="piso__reflexo" data-reflexo="u1"></div>
-        <div class="piso__reflexo" data-reflexo="u2" style="left:auto; right:12%"></div>
-      </div>
+      <div class="piso"></div>
+      <div class="camada camada--placar"  id="camada-placar"></div>
       <div class="camada camada--urnas"   id="camada-urnas"></div>
       <div class="camada camada--mao"     id="camada-mao"></div>
       <div class="camada camada--efeitos" id="camada-efeitos"></div>
@@ -41,11 +69,20 @@ export function montarCenario(raiz) {
 
   const palco = raiz.querySelector('#palco');
 
+  // Com `?zoom=` na barra de endereços, o palco já abre no modo de conferência.
+  const pedida = escalaPedida(window.location.search);
+  let ligado = pedida !== null;
+
   // Redimensionar invalida as coordenadas que a mão mediu das teclas.
   // O evento avisa o ator para remedir — sem isso o dedo passa a errar
   // a tecla depois que o OBS muda a resolução da fonte.
   const ajustar = () => {
-    const escala = calcularEscala(window.innerWidth, window.innerHeight);
+    raiz.classList.toggle('cena--zoom', ligado);
+    const escala = escalaDaCena({
+      ligado, pedida,
+      larguraJanela: window.innerWidth,
+      alturaJanela: window.innerHeight,
+    });
     palco.style.setProperty('--escala', String(escala));
     window.dispatchEvent(new CustomEvent('palco:redimensionado', { detail: { escala } }));
   };
@@ -54,8 +91,18 @@ export function montarCenario(raiz) {
 
   return {
     el: palco,
+    camadaPlacar: raiz.querySelector('#camada-placar'),
     camadaUrnas: raiz.querySelector('#camada-urnas'),
     camadaMao: raiz.querySelector('#camada-mao'),
     camadaEfeitos: raiz.querySelector('#camada-efeitos'),
+    /**
+     * Liga e desliga o tamanho real. É o que o botão da barra de demonstração
+     * usa: sem ele, ver a urna de perto exigiria saber de cor o `?zoom=1`.
+     */
+    alternarZoom() {
+      ligado = !ligado;
+      ajustar();
+      return ligado;
+    },
   };
 }

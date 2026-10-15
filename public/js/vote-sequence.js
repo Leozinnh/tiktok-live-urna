@@ -216,9 +216,18 @@ export function construirSequenciaDeVoto({
   }
 
   // ---- P4: confirmado ----
+  /*
+   * A tela NÃO recebe a contagem daqui.
+   *
+   * `votos` é quanto este presente vale — 1 para uma rosa, 5 para um
+   * presente maior — e a tela mostra o TOTAL da urna. Enquanto os dois
+   * andaram juntos, o visor anunciava "1 VOTOS" depois de cada voto, como
+   * se a urna tivesse esquecido todos os anteriores. Quem sabe o total é a
+   * contagem, e é a urna que a consulta.
+   */
   timeline.chamar('tela-confirmado', {
     at: t,
-    fn: () => cb.aoMostrarTela({ tipo: 'confirmado', votos: votos }),
+    fn: () => cb.aoMostrarTela({ tipo: 'confirmado', votosAdicionados: votos }),
   });
   t += tempos.confirmado;
 
@@ -275,9 +284,11 @@ export function construirSequenciaDeVoto({
       alvo: { x: 540, y: 1900 }, pose: 'retraindo', duracao: tempos.retirada,
     }),
   });
+  // Também sem contagem: a urna volta ao repouso mostrando o total dela,
+  // que a esta altura já inclui o voto que acabou de ser contado.
   timeline.chamar('tela-ocioso', {
     at: t + tempos.retirada,
-    fn: () => cb.aoMostrarTela({ tipo: 'ocioso', votos }),
+    fn: () => cb.aoMostrarTela({ tipo: 'ocioso' }),
   });
 
   return timeline;

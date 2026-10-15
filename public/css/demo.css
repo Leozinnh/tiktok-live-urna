@@ -41,3 +41,11 @@ body.mostrando-demo .demo-barra {
 }
 
 .demo-barra button:hover { background: #2a2a34; }
+
+/* O botão do tamanho real fica aceso enquanto o modo está ligado: sem isso,
+   a página rolada e ampliada parece a página quebrada. */
+.demo-barra__botao--ativo {
+  border-color: #6f8ff0;
+  background: #24304f;
+  color: #dce6ff;
+}

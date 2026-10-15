@@ -1,0 +1,121 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { calcularPlacar, renderizarPlacar } from '../public/js/placar.js';
+
+const U1 = { id: 'u1', nome: 'URNA 1', numero: '22', votos: 61, cor: '#1a5fd0' };
+const U2 = { id: 'u2', nome: 'URNA 2', numero: '13', votos: 48, cor: '#e02020' };
+
+test('soma o total e calcula a fatia de cada urna', () => {
+  const p = calcularPlacar([U1, U2]);
+  assert.equal(p.total, 109);
+  assert.equal(p.cartoes[0].votos, 61);
+  assert.equal(p.cartoes[0].percentual, '56,0%');
+  assert.equal(p.cartoes[1].percentual, '44,0%');
+  assert.ok(Math.abs(p.cartoes[0].fracao - 61 / 109) < 1e-9);
+});
+
+test('o percentual sai com vírgula, que é como se escreve em português', () => {
+  const p = calcularPlacar([{ ...U1, votos: 2 }, { ...U2, votos: 1 }]);
+  // Com ponto, "66.7%" aparece no meio de um placar em português.
+  assert.equal(p.cartoes[0].percentual, '66,7%');
+  assert.ok(!p.cartoes[0].percentual.includes('.'));
+});
+
+test('aponta quem está na frente e por quantos votos', () => {
+  const p = calcularPlacar([U1, U2]);
+  assert.equal(p.lider, 'u1');
+  assert.equal(p.cartoes[0].posicao, 'lider');
+  assert.equal(p.cartoes[0].diferenca, 13, 'o líder mostra a distância até o segundo');
+  assert.equal(p.cartoes[1].posicao, 'atras');
+  assert.equal(p.cartoes[1].diferenca, 13, 'quem está atrás mostra a mesma distância');
+});
+
+test('empate não elege ninguém como líder', () => {
+  const p = calcularPlacar([{ ...U1, votos: 7 }, { ...U2, votos: 7 }]);
+  assert.equal(p.lider, null);
+  for (const c of p.cartoes) {
+    assert.equal(c.posicao, 'empate');
+    assert.equal(c.diferenca, 0);
+  }
+});
+
+test('placar zerado não divide por zero nem inventa líder', () => {
+  // O estado em que a cena passa a maior parte do tempo é este: nenhum voto.
+  const p = calcularPlacar([{ ...U1, votos: 0 }, { ...U2, votos: 0 }]);
+  assert.equal(p.total, 0);
+  assert.equal(p.lider, null);
+  for (const c of p.cartoes) {
+    assert.equal(c.fracao, 0);
+    assert.equal(c.percentual, '0,0%');
+    assert.ok(Number.isFinite(c.fracao), 'fração virou NaN');
+  }
+});
+
+test('com três urnas quem está na frente se mede contra o segundo colocado', () => {
+  // Com duas urnas "à frente do segundo" e "à frente de todos" são a mesma
+  // coisa, e a conta errada passa despercebida. Com três, não.
+  const p = calcularPlacar([
+    { ...U1, votos: 50 },
+    { ...U2, votos: 30 },
+    { id: 'u3', nome: 'URNA 3', numero: '45', votos: 20, cor: '#22a04a' },
+  ]);
+  assert.equal(p.lider, 'u1');
+  assert.equal(p.cartoes[0].diferenca, 20, 'a distância é até o segundo, não até o último');
+  assert.equal(p.cartoes[2].diferenca, 30, 'quem está atrás se mede contra o líder');
+});
+
+test('a barra de cada urna usa a fatia do total, não a fatia do líder', () => {
+  const p = calcularPlacar([U1, U2]);
+  assert.equal(p.cartoes[1].fracaoBarra, 48 / 109);
+});
+
+test('o placar mostra número, contagem e percentual de cada urna', () => {
+  const html = renderizarPlacar(calcularPlacar([U1, U2]));
+  assert.match(html, /22/);
+  assert.match(html, /61/);
+  assert.match(html, /56,0%/);
+  assert.match(html, /13/);
+  assert.match(html, /48/);
+  assert.match(html, /44,0%/);
+});
+
+test('o placar diz quem está à frente e quem está atrás, em palavras', () => {
+  const html = renderizarPlacar(calcularPlacar([U1, U2]));
+  assert.match(html, /13 à frente/);
+  assert.match(html, /13 atrás/);
+});
+
+test('empate e placar zerado não anunciam ninguém à frente', () => {
+  const empatado = renderizarPlacar(calcularPlacar([{ ...U1, votos: 5 }, { ...U2, votos: 5 }]));
+  assert.ok(!/à frente/.test(empatado), 'empate anunciou alguém na frente');
+  assert.match(empatado, /empatad/i);
+
+  const zerado = renderizarPlacar(calcularPlacar([{ ...U1, votos: 0 }, { ...U2, votos: 0 }]));
+  assert.ok(!/à frente/.test(zerado), 'placar zerado anunciou alguém na frente');
+});
+
+test('o nome da urna vem da configuração e é escapado', () => {
+  const html = renderizarPlacar(calcularPlacar([
+    { ...U1, nome: '<img src=x onerror=alert(1)>' }, U2,
+  ]));
+  assert.ok(!html.includes('<img'), 'o nome da urna entrou cru no HTML');
+  assert.match(html, /&lt;img/);
+});
+
+test('o placar não inventa um número de espectadores', () => {
+  // Não há integração com a TikTok ainda. Escrever "13 ESPECTADORES" aqui
+  // seria apresentar um número simulado como se fosse da live.
+  const semNinguem = renderizarPlacar(calcularPlacar([U1, U2]));
+  assert.ok(!/espectador/i.test(semNinguem), 'o placar mostrou espectadores que ninguém informou');
+
+  // Quando a Etapa 7 trouxer o número real, ele aparece.
+  const comGente = renderizarPlacar(calcularPlacar([U1, U2], { espectadores: 13 }));
+  assert.match(comGente, /13/);
+  assert.match(comGente, /espectador/i);
+});
+
+test('o total de votos aparece em destaque', () => {
+  const html = renderizarPlacar(calcularPlacar([U1, U2]));
+  assert.match(html, /109/);
+  assert.match(html, /total/i);
+});

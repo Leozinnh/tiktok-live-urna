@@ -113,6 +113,18 @@
 
 /* ---------- Tela LCD ---------- */
 
+/*
+ * A tela é CLARA, como a da urna brasileira de verdade.
+ *
+ * Ela era um painel verde-fósforo com "URNA 1 / 22 / 0 VOTOS" — que é a
+ * cara de um terminal de aeroporto, não a de uma urna. A urna do TSE tem
+ * tela branca, faixa escura no alto com "SEU VOTO PARA" e o cargo, o
+ * retrato do candidato ao lado do nome e do partido, e um rodapé dizendo
+ * qual tecla confirma.
+ *
+ * A moldura plástica em volta continua igual: é ela que dá a impressão de
+ * vidro embutido no gabinete.
+ */
 .urna__tela {
   position: absolute;
   left: 26px;
@@ -121,22 +133,16 @@
   height: 168px;
   border-radius: 10px;
   overflow: hidden;
-  background:
-    radial-gradient(120% 100% at 50% 0%,
-      rgba(180, 255, 200, 0.10) 0%,
-      rgba(0, 0, 0, 0) 60%),
-    linear-gradient(180deg, var(--tela-fundo) 0%, #0d1610 100%);
+  background: linear-gradient(180deg, #fcfdfe 0%, #e9eef4 100%);
   box-shadow:
     /* moldura plástica ao redor do vidro */
     inset 0 0 0 7px #b6b3ac,
     inset 0 0 0 9px #8e8b84,
-    /* brilho interno do LCD */
-    inset 0 0 26px var(--tela-brilho),
-    /* luz que a tela joga no plástico em volta */
-    0 0 26px rgba(150, 255, 170, 0.14),
+    /* sombra interna: o vidro é fundo, e o fundo escurece a borda */
+    inset 0 0 22px rgba(60, 84, 116, 0.20),
     0 10px 20px rgba(0, 0, 0, 0.35);
-  font-family: "Consolas", "SF Mono", monospace;
-  color: var(--tela-texto);
+  font-family: "Segoe UI", "Inter", system-ui, sans-serif;
+  color: #16202c;
 }
 
 .tela__conteudo {
@@ -144,49 +150,180 @@
   inset: 9px;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  gap: 4px;
-  padding: 6px 10px;
-  text-shadow: 0 0 7px rgba(150, 255, 170, 0.75);
+  overflow: hidden;
 }
 
-.tela__linha { font-size: 15px; letter-spacing: 0.08em; opacity: 0.85; }
-.tela__linha--topo { text-align: center; }
+/* Faixa do cargo — a primeira coisa que se lê na urna de verdade. */
+.tela__faixa {
+  flex: none;
+  height: 33px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(180deg, #333f52 0%, #1d2735 100%);
+  color: #f4f7fb;
+  line-height: 1.05;
+}
+.tela__faixa-rotulo { font-size: 8px; letter-spacing: 0.2em; opacity: 0.82; }
+.tela__faixa-cargo  { font-size: 15px; font-weight: 700; letter-spacing: 0.05em; }
 
-.tela__idle-numero { font-size: 62px; line-height: 1; text-align: center; letter-spacing: 0.06em; }
-.tela__idle-votos  { font-size: 15px; text-align: center; opacity: 0.8; letter-spacing: 0.12em; }
+/* Retrato do candidato à esquerda, ficha à direita. */
+.tela__ficha {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: 7px;
+  padding: 6px 8px 4px;
+}
 
-.tela__numeros { display: flex; justify-content: center; gap: 10px; }
+.tela__retrato {
+  flex: none;
+  width: 58px;
+  height: 74px;
+  border: 1px solid #9fb0c4;
+  border-radius: 2px;
+  overflow: hidden;
+  background: #cdd8e6;
+}
+.tela__retrato-svg,
+.tela__retrato-foto {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.tela__dados {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tela__campo {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  font-size: 11px;
+  line-height: 1.25;
+}
+.tela__campo-rotulo { flex: none; color: #5a6b80; }
+.tela__campo-valor {
+  font-weight: 700;
+  color: #16202c;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/*
+ * O número empurrado para baixo e em corpo grande: é o que a mão vai
+ * digitar, e é o que quem assiste precisa conseguir ler de longe.
+ */
+.tela__campo--numero { margin-top: auto; align-items: center; }
+.tela__numero {
+  font-family: "Consolas", "SF Mono", monospace;
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  color: var(--cor-urna);
+}
+
+.tela__numeros { display: flex; gap: 6px; }
 .tela__digito {
-  width: 52px;
-  height: 68px;
+  width: 26px;
+  height: 32px;
   display: grid;
   place-items: center;
-  font-size: 52px;
+  font-family: "Consolas", "SF Mono", monospace;
+  font-size: 30px;
+  font-weight: 700;
   line-height: 1;
-  border-bottom: 3px solid rgba(150, 255, 170, 0.35);
-  opacity: 0.35;
+  color: var(--cor-urna);
+  border-bottom: 2px solid rgba(22, 32, 44, 0.25);
+  opacity: 0.25;
   transition: opacity 120ms linear;
 }
 .tela__digito.is-preenchido { opacity: 1; }
 
+/* Rodapé: qual tecla confirma, e quantos votos a urna já tem. */
+.tela__rodape {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 3px 8px;
+  background: #dde5ee;
+  border-top: 1px solid #c2cdda;
+  font-size: 9px;
+  color: #48586c;
+}
+
+/* Uma tecla por linha. `nowrap` porque a instrução é uma unidade: deixar o
+   navegador quebrar põe "para" sozinho numa linha e o verbo na outra. */
+.tela__rodape-linha {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.tela__rodape-tecla {
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: #22a04a;
+  color: #fff;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+/* A tecla laranja da urna é a do CORRIGE, e é ela que recomeça o voto. */
+.tela__rodape-tecla--laranja { background: #e08a12; }
+
 .tela__confirmado {
-  font-size: 19px;
-  text-align: center;
-  letter-spacing: 0.05em;
-  color: #d6ffdd;
+  flex: 1;
+  display: grid;
+  place-items: center;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #14713a;
   animation: tela-pisca 900ms steps(1, end) 2;
 }
-.tela__contagem { font-size: 46px; text-align: center; line-height: 1; }
+.tela__contagem {
+  flex: none;
+  text-align: center;
+  font-size: 40px;
+  font-weight: 700;
+  line-height: 1;
+  color: #14713a;
+}
 .tela__delta {
   position: absolute;
   right: 12px;
-  top: 10px;
+  top: 44px;
   font-size: 20px;
-  color: #eaffb0;
+  font-weight: 700;
+  color: #14713a;
   animation: delta-sobe 900ms var(--ease-padrao) forwards;
 }
-.tela__corrija { font-size: 18px; text-align: center; color: #ffcf8a; }
+.tela__corrija {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  font-size: 20px;
+  font-weight: 700;
+  color: #b4451a;
+}
+.tela__corrija-dica {
+  flex: none;
+  padding: 3px 8px 6px;
+  text-align: center;
+  font-size: 9px;
+  color: #7a4a2e;
+}
 
 @keyframes tela-pisca { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
 @keyframes delta-sobe {
@@ -195,29 +332,41 @@
   to   { opacity: 0; transform: translateY(-14px); }
 }
 
-/* Scanlines do LCD — o que faz parecer uma tela, e não uma imagem */
+/*
+ * Scanlines do LCD — o que faz parecer uma tela, e não uma imagem colada.
+ *
+ * Fracas de propósito. As mesmas linhas que davam vida ao painel verde
+ * sujam uma tela branca: a 0,55 de opacidade sobre o branco, o que se vê
+ * não é uma tela, é uma tela encardida, e o texto pequeno perde contraste
+ * exatamente onde ele precisa de contraste.
+ */
 .tela__scanlines {
   position: absolute;
   inset: 0;
   pointer-events: none;
   background: repeating-linear-gradient(180deg,
-    rgba(0, 0, 0, 0.16) 0 1px,
+    rgba(20, 40, 70, 0.05) 0 1px,
     rgba(0, 0, 0, 0) 1px 3px);
-  opacity: 0.55;
+  opacity: 0.7;
 }
 
-/* Reflexo do vidro */
+/*
+ * Reflexo do vidro.
+ *
+ * Sem `mix-blend-mode: screen`: sobre o painel verde ele clareava, mas
+ * sobre a tela branca o modo "screen" contra o branco não desenha nada —
+ * o reflexo simplesmente sumia. Aqui é luz branca comum, fraca, na diagonal.
+ */
 .tela__vidro {
   position: absolute;
   inset: 0;
   pointer-events: none;
   background: linear-gradient(147deg,
-    rgba(255, 255, 255, 0.14) 0%,
-    rgba(255, 255, 255, 0.05) 22%,
-    rgba(255, 255, 255, 0) 46%,
-    rgba(255, 255, 255, 0.03) 74%,
+    rgba(255, 255, 255, 0.42) 0%,
+    rgba(255, 255, 255, 0.16) 20%,
+    rgba(255, 255, 255, 0) 44%,
+    rgba(255, 255, 255, 0.10) 74%,
     rgba(255, 255, 255, 0) 100%);
-  mix-blend-mode: screen;
 }
 
 /* ---------- Teclado ---------- */
@@ -251,12 +400,18 @@
 /* O zero fica sozinho na coluna do meio, como na urna de verdade. */
 .tecla--zero { grid-column: 2; }
 
+/*
+ * O recesso das ações não declara padding próprio de propósito: ele herda o
+ * mesmo `padding: 8px` do recesso da grade, lá em cima. É o que faz as três
+ * colunas de baixo caírem exatamente debaixo das três de cima. Com um
+ * padding só dele, os dois blocos ficavam tortos um em relação ao outro.
+ * O vão também é o mesmo, pelo mesmo motivo.
+ */
 .teclado__acoes {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 5px;
+  gap: 6px;
   margin-top: 9px;
-  padding: 7px 6px;
 }
 
 /* ---------- A tecla ---------- */
@@ -329,21 +484,31 @@
 .tecla--corrige  .tecla__capa { background: linear-gradient(180deg, #ffb154 0%, var(--tecla-corrige) 45%, #c96a0c 100%); }
 .tecla--confirma .tecla__capa { background: linear-gradient(180deg, #4fd177 0%, var(--tecla-confirma) 45%, #167a35 100%); }
 /*
- * O rótulo das teclas de ação é impresso pequeno, como na urna de verdade.
+ * O rótulo das teclas de ação é pequeno, e é pequeno na urna de verdade
+ * também: são oito caracteres ("CONFIRMA") numa tecla que, na urna real,
+ * tem a mesma largura das teclas de número. Não é descuido de desenho.
  *
- * "CONFIRMA" são oito caracteres numa tecla de 52px. A 11px o texto pedia
- * 65px e vazava por cima do CORRIGE e do BRANCO, virando uma palavra só;
- * a 8px ele ocupa ~44px e sobra uma folga de 4px de cada lado. O
- * `white-space: nowrap` garante que ele encolha em vez de quebrar em duas
- * linhas dentro da tecla.
+ * O teto aqui é medido, não estimado. Com a tecla a 52px de largura útil:
  *
- * O portão visual mede isto tecla por tecla (capturar.js, seção 1b): uma
- * fonte que volte a crescer além da tecla quebra o teste em vez de
- * aparecer borrada na transmissão.
+ *   tecla     | o texto pede | maior fonte que ainda cabe
+ *   BRANCO    |     35px      | 11px
+ *   CORRIGE   |     37px      | 11px
+ *   CONFIRMA  |     43px      |  9px
+ *
+ * É o CONFIRMA que manda, porque é o mais longo dos três. A 9px ele ocupa
+ * ~48px dos 52 — a maior fonte que ainda deixa folga. Aumentar a tecla não
+ * resolve: o teclado tem 178px e a tela da urna termina a 258px, então
+ * alargar o teclado empurra as teclas por baixo do vidro.
+ *
+ * O `white-space: nowrap` garante que ele encolha em vez de quebrar em duas
+ * linhas dentro da tecla. Para medir de novo depois de mexer no teclado:
+ * `node .superpowers/sonda/rotulos.js`.
  */
 .tecla--acao .tecla__rotulo {
-  font-size: 8px;
-  letter-spacing: 0.02em;
+  font-size: 9px;
+  /* Sem espaçamento entre letras: ele somava 1,4px aos 49px que o CONFIRMA
+     já pede, e a folga até a borda da tecla caía para 1,6px. */
+  letter-spacing: 0;
   white-space: nowrap;
 }
 
