@@ -396,27 +396,27 @@ porque um tipo sem rótulo aparece com o nome técnico e o operador não faz
 ideia de para que serve.
 
 ### Quero mexer no CSS
-Ver [As linhas de CSS que voltam sozinhas](#as-linhas-de-css-que-voltam-sozinhas)
-antes.
+Ver [As edições visuais são do Leonardo](#as-edições-visuais-são-do-leonardo)
+antes: `urna.css` e `urna.js` são os arquivos dele, e têm edições à mão.
 
 ---
 
 ## As armadilhas
 
-### As linhas de CSS que voltam sozinhas
+### Uma edição à mão que parece um processo fantasma
 
-Duas linhas de `public/css/` já foram reescritas **fora de qualquer sessão**,
-sem commit e sem teste, e o sintoma é "a suíte ficou vermelha do nada":
+Duas linhas de `public/css/` mudaram sozinhas uma vez, sem commit e sem teste,
+e a suíte ficou vermelha **do nada**. Passou-se um bom tempo caçando um
+processo que estivesse reescrevendo o arquivo — e não havia processo nenhum:
+era o Leonardo editando o visual à mão.
 
-| Arquivo | O que muda | O efeito |
-|---|---|---|
-| `public/css/urna.css:426` | O fim do gradiente do painel do teclado | O terço de baixo do painel fica cinza; na foto ele é preto fosco |
-| `public/css/tokens.css:117` | `--bocal-topo`, de `54px` para `48px` | Sobram 6 px de corpo branco e a fenda boia como um adesivo |
+O sintoma engana porque a edição é **pequena e específica**, e é exatamente
+assim que um bug de verdade se pareceria. A saída não é investigar mais
+fundo, é **perguntar**: `urna.css` e `urna.js` são os arquivos onde ele
+mexe, e quem tem a palavra final sobre eles é ele.
 
-**Se a suíte vier vermelha nesses dois testes, confira essas duas linhas
-primeiro**, antes de investigar qualquer outra coisa. O motivo visual de cada
-uma está no comentário acima dela, e uma cópia do estado está guardada em
-`.superpowers/linhas-estranhas/`.
+`.superpowers/linhas-estranhas/` guarda uma cópia do estado de antes — só para
+comparar, nunca para restaurar por cima.
 
 ### O OBS embarca um navegador velho
 
@@ -451,26 +451,40 @@ transmissão com as instruções de captura no OBS.
 
 ```
 ℹ tests 701
-ℹ pass 700
-ℹ fail 1
+ℹ pass 701
+ℹ fail 0
 ```
 
-**O vermelho é uma decisão sua, e não um defeito escondido.**
+Tudo verde. Se um dia não estiver, veja
+[As edições visuais são do Leonardo](#as-edições-visuais-são-do-leonardo)
+antes de sair procurando defeito.
 
-`o teclado é um painel preto só` (`tests/urna-visual.test.js:118`) mede a
-luminância do fundo do painel do teclado e acha **`0.0422`**, acima do teto
-`0.03`. A linha é **`public/css/urna.css:426`**, e o último trecho do
-gradiente está `#363a43` — um cinza.
+### As edições visuais são do Leonardo
 
-O teste foi escrito contra a foto da urna de verdade, onde o painel é **preto
-fosco uniforme**. Então há duas saídas, e as duas são legítimas:
+`public/css/urna.css` e `public/js/urna.js` têm edições feitas à mão por ele,
+para legibilidade e para o painel pegar luz. São reconhecíveis:
 
-- **o valor volta para `#0d0e10`** e o teste passa; ou
-- **o cinza é o que você quer**, e aí quem está errado é o teto do teste.
+- fontes maiores na tela da urna (`8px`→`12px`, `10px`→`16px`, `9px`→`12px`);
+- um `text-shadow` claro no nome do candidato, no lugar da sombra preta;
+- o fim do gradiente do teclado em `#363a43`, e não mais preto chapado — é o
+  pé do painel pegando luz, e as teclas assentam numa superfície em vez de
+  flutuar num vazio;
+- o rótulo "Nome:" da tela da urna comentado em `urna.js`;
+- o algarismo da tecla centralizado, em vez de no alto à esquerda.
 
-Ninguém mexeu nisso até agora porque o arquivo tem outras edições suas de
-legibilidade (fontes maiores, brilho no nome do candidato), e reverter a linha
-por conta própria seria desfazer uma escolha sua sem perguntar.
+**Uma dessas edições já apareceu como "a suíte ficou vermelha do nada"**, e a
+caçada foi atrás de um processo fantasma que não existia. Não era nada disso:
+era uma decisão visual dele que um teste escrito contra a foto não conhecia.
+
+O teto de luminância do painel do teclado subiu de `0.03` para `0.09` por
+causa disso. O `0.09` não saiu do valor que ele escolheu — saiu de ser cerca
+de 4× mais escuro que o plástico mais escuro do corpo da urna
+(`--urna-plastico-3`, `0.3727`), que é onde uma superfície deixa de ler como
+massa escura. Um painel em `#5a5f6a` (`0.1140`) ou mais claro ainda reprova.
+
+**Ao mexer nesses dois arquivos: são dele.** Não reverta uma linha por conta
+própria, e se um teste de geometria ou de cor ficar vermelho, a primeira
+pergunta é se a foto ainda é a referência certa — não se ele errou.
 
 ### O que ficou de fora de propósito
 

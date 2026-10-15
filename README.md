@@ -206,8 +206,8 @@ npm test
 
 São **701 testes** cobrindo a geometria da cena, a matemática da animação, a
 fila, as poses da mão, a tela da urna, o placar, o protocolo do servidor, os
-campos do painel e as duas pontas da voz. A suíte roda em poucos segundos e
-não precisa de navegador.
+campos do painel, as duas pontas da voz e o desenho da urna contra a foto.
+A suíte roda em poucos segundos e não precisa de navegador.
 
 O que a suíte **não** cobre sozinha é o que só existe dentro de um navegador
 de verdade — se a mão aparece, se o placar sobe na hora certa, se o que o
@@ -216,14 +216,7 @@ painel salva chega à tela do ar. Para isso existem as sondas em
 protocolo de depuração. Elas não fazem parte do `npm test` porque precisam de
 um navegador instalado.
 
-> **Hoje a suíte tem 1 vermelho, e é uma decisão sua.**
-> `o teclado é um painel preto só` (`tests/urna-visual.test.js`) mede a
-> luminância do fundo do teclado e acha `0.0422`, acima do teto `0.03`. A
-> linha é `public/css/urna.css:426`, e o último trecho do gradiente está
-> `#363a43` — um cinza. O teste foi escrito contra a foto da urna de verdade,
-> onde o painel é preto fosco uniforme. Ou o valor volta para `#0d0e10` e o
-> teste passa, ou o cinza é o que você quer e o teto do teste é que está
-> errado. **Os 700 outros passam.**
+**A suíte está inteira verde: 701 de 701.**
 
 ---
 

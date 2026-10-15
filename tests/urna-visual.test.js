@@ -120,13 +120,29 @@ test('o teclado é um painel preto só, com as nove teclas e as três de ação 
    * Eram dois recessos escuros empilhados, cada um com o seu próprio fundo.
    * Na foto é uma peça única: um painel preto fosco que ocupa toda a direita
    * da frente, do alto do gabinete até o pé, e dentro dele as doze teclas.
+   *
+   * O TETO DA LUMINÂNCIA subiu de 0.03 para 0.09 em 2026-10-15, por decisão
+   * do Leonardo: ele clareou o fim do gradiente para `#363a43` (0.0422), e
+   * esse é o pé do painel pegando luz — as teclas assentam numa superfície em
+   * vez de flutuarem num vazio, e o painel ganha profundidade.
+   *
+   * O teto antigo foi escrito quando o gradiente era preto chapado, e media
+   * fidelidade à foto. O que este teste tem que prender é outra coisa, e mais
+   * durável: o painel continua sendo a segunda maior mancha ESCURA da urna.
+   * O 0.09 sai daí, e não do valor que ele escolheu — é ~4x mais escuro que o
+   * plástico mais escuro do corpo (`--urna-plastico-3`, 0.3727), e é onde uma
+   * superfície deixa de ler como massa escura e passa a ler como cinza médio.
+   *
+   * O que ele ainda pega: um painel em `#5a5f6a` (0.1140) ou mais claro
+   * reprova. E a asserção estrutural logo abaixo, que é a metade importante
+   * deste teste, não mudou nada.
    */
   const painel = declaracao('.urna__teclado', 'background');
   const escuras = cores(painel);
   assert.ok(escuras.length > 0, 'o painel do teclado não declara cor de fundo');
   const maisClara = Math.max(...escuras.map(luminancia));
-  assert.ok(maisClara < 0.03,
-    `o painel do teclado não é preto o bastante (luminância ${maisClara.toFixed(4)})`);
+  assert.ok(maisClara < 0.09,
+    `o painel do teclado clareou demais e deixou de ser massa escura (luminância ${maisClara.toFixed(4)})`);
 
   // Os dois blocos perderam o fundo próprio: quem pinta agora é o painel.
   for (const bloco of ['.teclado__grade', '.teclado__acoes']) {

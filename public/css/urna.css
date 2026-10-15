@@ -172,8 +172,8 @@
   color: #f4f7fb;
   line-height: 1.05;
 }
-.tela__faixa-rotulo { font-size: 8px; letter-spacing: 0.2em; opacity: 0.82; }
-.tela__faixa-cargo  { font-size: 15px; font-weight: 700; letter-spacing: 0.05em; }
+.tela__faixa-rotulo { font-size: 12px; letter-spacing: 0.2em; opacity: 0.82; }
+.tela__faixa-cargo  { font-size: 19px; font-weight: 700; letter-spacing: 0.05em; }
 
 /*
  * O miolo: retrato à esquerda, número à direita, os dois ocupando tudo.
@@ -237,7 +237,8 @@
   line-height: 0.82;
   letter-spacing: -0.02em;
   color: var(--cor-urna);
-  text-shadow: 0 3px 0 rgba(0, 0, 0, 0.10);
+  text-shadow: 0 0 1px var(--cor-urna, #8a8f98), 0 0 2px var(--cor-urna, #8a8f98);
+  /* text-shadow: 0 3px 0 rgba(0, 0, 0, 0.10); */
 }
 
 /* Nome e partido: uma linha miúda cada, abaixo do retrato e do número. */
@@ -246,7 +247,7 @@
   justify-content: center;
   gap: 4px;
   max-width: 100%;
-  font-size: 10px;
+  font-size: 16px;
   line-height: 1.2;
   color: #16202c;
 }
@@ -295,8 +296,13 @@
   padding: 4px 8px;
   background: #dde5ee;
   border-top: 1px solid #c2cdda;
-  font-size: 9px;
+  font-size: 12px;
   color: #48586c;
+}
+
+.tela__rodape-texto{
+  font-size: 15px;
+  font-weight: 800;
 }
 
 /* Uma tecla por linha. `nowrap` porque a instrução é uma unidade: deixar o
@@ -495,32 +501,25 @@
  * 1px e o relevo some. É esse par que vende a pressão física.
  */
 .tecla__capa {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  /*
-   * O algarismo fica no ALTO À ESQUERDA, e não centralizado. É assim na
-   * tecla de verdade, e não é capricho: é o que abre o canto de baixo para
-   * o ponto Braille, que é a outra metade do que a tecla mostra.
-   */
-  place-items: start start;
-  padding: 4px 0 0 6px;
-  border-radius: 7px;
-  background:
-    linear-gradient(180deg,
+    position: absolute;
+    inset: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: row !important;
+    border-radius: 7px;
+    background: linear-gradient(180deg,
       var(--tecla-topo) 0%,
       var(--tecla-base) 42%,
       var(--tecla-base-2) 100%);
-  box-shadow:
-    /* luz de topo — o realce que dá o relevo */
+    box-shadow: /* luz de topo — o realce que dá o relevo */
     inset 0 2px 0 rgba(255, 255, 255, 0.38),
     inset 0 -3px 6px rgba(0, 0, 0, 0.55),
     /* sombra projetada no recesso */
     0 5px 0 #101114,
     0 7px 10px rgba(0, 0, 0, 0.6);
-  transform: translateZ(0);
-  transition:
-    transform 90ms cubic-bezier(0.34, 1.4, 0.64, 1),
+    transform: translateZ(0);
+    transition: transform 90ms cubic-bezier(0.34, 1.4, 0.64, 1),
     box-shadow 90ms cubic-bezier(0.34, 1.4, 0.64, 1);
 }
 
@@ -550,12 +549,12 @@
  * tamanho da tecla.
  */
 .tecla__pontos {
-  position: absolute;
+  position: relative;
   left: 6px;
-  bottom: 3px;
+  bottom: 2px;
   display: grid;
   grid-template-columns: repeat(2, 4px);
-  gap: 1px 2px;
+  gap: 2px 3px;
 }
 
 .tecla__ponto {
@@ -722,21 +721,20 @@
   right: var(--teclado-recuo);
   top: 17px;
   width: var(--teclado-largura);
-  height: 26px;
+  height: 31px;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: center;
   gap: 6px;
-  padding: 0 4px;
   border-radius: 3px;
   background: linear-gradient(180deg, #fbfaf7 0%, #eceae4 100%);
   box-shadow:
     inset 0 0 0 1px rgba(120, 116, 108, 0.35),
     0 1px 2px rgba(0, 0, 0, 0.18);
-  font-size: 10px;
+  font-size: 15px;
   font-weight: 700;
   line-height: 1.05;
-  text-align: right;
+  text-align: center;
   color: #17202e;
   text-shadow: 0 1px 0 rgba(255, 255, 255, 0.9);
 }

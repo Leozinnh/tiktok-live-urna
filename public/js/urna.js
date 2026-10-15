@@ -253,7 +253,7 @@ function markupFicha(estado, cor, slotNumero, comCandidato = true) {
       <div class="tela__dados">
         <div class="tela__campo tela__campo--numero">${numero}</div>
         <div class="tela__campo">
-          <span class="tela__campo-rotulo">Nome:</span>
+          <!-- <span class="tela__campo-rotulo">Nome:</span> -->
           <span class="tela__campo-valor">${esc(nome)}</span>
         </div>
         <div class="tela__campo">
