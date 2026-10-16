@@ -167,7 +167,20 @@ export function criarTally({ db, config }) {
         avisar('evento sem giftId, ignorado');
         return negar('evento-invalido');
       }
-      if (!tally.aberta) return negar('rodada-fechada');
+      /*
+       * A rodada fechada AVISA, e o aviso é o que impede o presente de sumir.
+       *
+       * Era a recusa mais cara do motor, e a única sem uma linha no painel:
+       * fora de uma rodada, o presente chegava, não virava voto, não virava
+       * fala e não virava aviso — a live inteira ficava sem saber que ele
+       * existiu. O Leonardo mandou uma Rosa pelo painel assim e ficou sem
+       * resposta. O que o operador precisa ler aqui é o que fazer: a rodada
+       * está fechada, e é ele que abre.
+       */
+      if (!tally.aberta) {
+        avisar(`o presente ${evento.giftNome || evento.giftId} não conta: a rodada está fechada`);
+        return negar('rodada-fechada');
+      }
 
       const chave = chaveDoEvento(evento);
 
@@ -183,7 +196,13 @@ export function criarTally({ db, config }) {
         avisar(`presente ${evento.giftId} não tem mapeamento; não conta`);
         return negar('sem-mapeamento');
       }
-      if (presente.ativo === false) return negar('presente-inativo');
+      if (presente.ativo === false) {
+        // A outra recusa muda. Quem desativou o presente foi o operador — e
+        // ele é justamente quem precisa se lembrar disso ao ver o placar
+        // parado.
+        avisar(`o presente ${presente.nome} está desativado; não conta`);
+        return negar('presente-inativo');
+      }
       if (!presente.urnaId) {
         avisar(`presente ${presente.nome} não aponta para urna nenhuma; não conta`);
         return negar('sem-urna');

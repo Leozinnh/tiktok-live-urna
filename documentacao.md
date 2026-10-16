@@ -31,7 +31,7 @@ cd C:\xampp\htdocs\tiktok-live-urna
 npm start          # sobe o servidor
 npm run dev        # sobe e recarrega sozinho quando um arquivo do servidor muda
 npm run reiniciar  # derruba quem está na porta 3000 e sobe de novo
-npm test           # a suíte inteira (718 testes, poucos segundos)
+npm test           # a suíte inteira (760 testes, poucos segundos)
 ```
 
 | Endereço | O que é |
@@ -151,6 +151,7 @@ diferença entre os dois é intencional.
 | `config.js` | Lê, **normaliza** e grava a configuração |
 | `db.js` | O banco (SQLite pelo `node:sqlite`, escrito à mão) |
 | `narracao.js` | As frases da voz: quem fala, quem fica quieto, e os marcadores |
+| `log.js` | O log da live: console e um arquivo por dia |
 | `espera.js` | A espera do número no chat, e a cobrança por voz |
 | `voz.js` | A voz: os dois motores, o processo de cada um e o cache |
 | `voz.ps1` | O sintetizador do Windows, falado por linhas de texto |
@@ -410,6 +411,44 @@ viraria um falso positivo no dia em que ele cadastrasse o 9999.
 
 ---
 
+## O log da live
+
+`server/log.js`, no formato do `tiktok-live-horse`: hora, nível, assunto e
+texto. Sai **no console** e num arquivo por dia em `dados/logs/AAAA-MM-DD.log`
+(que o `.gitignore` já cobre junto com `dados/`).
+
+```
+22:28:43 [INFO] live: 🎁 Painel mandou Rosa
+22:28:43 [INFO] hub: ✅ Painel mandou Rosa para a Lula (+1 voto)
+22:28:43 [INFO] voz: 🗣 "Lulinha ganhou um voto! Valeu, Painel!"
+```
+
+Ele nasceu de um defeito de verdade: **o Leonardo mandou uma Rosa pelo painel
+e não falou nada.** O presente chegou, o motor recusou — a rodada estava
+fechada —, e não havia um lugar no mundo que dissesse isso. Passou a haver.
+
+Toda fala da voz sai no log **antes** de virar som (`🗣`), e o resto da
+história tem linha própria:
+
+| Linha | Quer dizer |
+|---|---|
+| `👋 👤 ❤️ 🔁 💎 🎁` | Um evento chegou da live, com quem e quanto |
+| `✅ Fulano mandou 3x Rosa para a Urna 2 (+3 votos)` | O voto contou |
+| `⛔ Rodada fechada: o presente Rosa de Fulano não contou` | O voto **não** contou, e por quê |
+| `⏳ ... esperando o número da urna no chat` | Presente fora do mapeamento |
+| `🗣 "..."` | A frase que está indo ao ar |
+| `🤐 silêncio: ...` | O narrador ficou quieto, e por quê |
+| `⚠️ nenhuma tela conectada` | Ninguém ia ouvir a fala |
+| `a voz falhou em "..."` | O sintetizador caiu; a faixa saiu sem áudio |
+| `▶️ ⏰ 🧹 rodada` | A rodada abriu, fechou ou foi zerada |
+
+A pergunta "por que não falou nada?" tem, agora, uma resposta escrita — e são
+poucas as possibilidades: rodada fechada, narração desligada no painel, voz
+quebrada, nenhuma tela conectada, fila cheia, ou cooldown da pessoa. Cada uma
+delas deixa a sua linha.
+
+---
+
 ## Os testes
 
 ```powershell
@@ -417,7 +456,7 @@ npm test                              # tudo
 node --test tests/voz.test.js         # um arquivo
 ```
 
-**718 testes**, `node --test`, sem navegador. A regra do projeto é **TDD**:
+**760 testes**, `node --test`, sem navegador. A regra do projeto é **TDD**:
 teste que falha primeiro, pelo motivo certo, depois o código.
 
 **Nada de DOM falso.** As funções puras são testadas direto. O que só existe
@@ -448,13 +487,15 @@ linha.** Elas são sorteadas sem repetir a anterior, e é a lista que carrega
 essa alternância — escritas numa linha só, elas virariam uma fala comprida que
 ninguém quer ouvir.
 
-Os marcadores são cinco, e só existem esses: `{nome}` (o apelido, ou `Alguém`
-quando não há apelido), `{quantidade}` (o número de curtidas, só na `curtida`),
-`{presente}` (o nome do presente), `{urna}` (o nome da urna que recebeu o
-voto) e `{vezes}` (o combo do presente, que chega pronto como `5x ` — com
-espaço — e **vazio** quando é um presente só, porque "1x Rosa" não é como uma
-pessoa fala). Um marcador fora dessa lista não é trocado por ninguém: a voz
-**fala o nome dele**.
+Os marcadores são seis, e só existem esses: `{nome}` (o apelido de quem
+mandou, ou `Alguém` quando não há apelido), `{quantidade}` (o número de
+curtidas, só na `curtida`), `{presente}` (o nome do presente), `{urna}` (o
+nome da urna que recebeu o voto), `{vezes}` (o combo do presente, que chega
+pronto como `5x ` — com espaço — e **vazio** quando é um presente só, porque
+"1x Rosa" não é como uma pessoa fala) e `{apelido}` (o apelido da **urna**,
+não o de quem mandou: é o "Lulinha" de "Lulinha ganhou um voto", e ele cai
+para o nome da urna quando o campo está vazio). Um marcador fora dessa lista
+não é trocado por ninguém: a voz **fala o nome dele**.
 
 O arquivo é lido na **subida** do servidor: depois de salvar, reinicie.
 
@@ -478,6 +519,17 @@ desfazer pelo chat o que você decidiu no arquivo.
 O `id` (`p1`, `p2`) é a identidade do presente: é por ele que o log e o banco
 o chamam, e trocá-lo renomearia votos que já aconteceram. Para acrescentar um
 terceiro, invente um id novo em vez de reaproveitar um que já existe.
+
+**`"desenho": "rose"`** é o desenho que aparece na faixa dourada do presente
+quando ele chega — o nome do arquivo em `public/img/`, **sem a extensão**.
+Vazio (o caso de hoje) deixa a faixa sem figura; um nome que não existe não
+quebra nada, a figura simplesmente não aparece.
+
+### Quero mudar o apelido que a voz usa para um candidato
+Painel → aba **Urnas** → **Apelido na fala**. É o `{apelido}` das frases: a
+urna 13 pode ser "Lula" no palco e "Lulinha" na boca do narrador. Em branco,
+a fala usa o nome da urna — é por isso que este campo pode ficar vazio sem
+quebrar frase nenhuma.
 
 ### Quero mudar a cor de uma urna
 Painel → aba **Urnas**. As teclas BRANCO, CORRIGE e CONFIRMA mantêm as cores da
@@ -562,8 +614,8 @@ transmissão com as instruções de captura no OBS.
 ### O que a suíte diz hoje
 
 ```
-ℹ tests 718
-ℹ pass 718
+ℹ tests 760
+ℹ pass 760
 ℹ fail 0
 ```
 

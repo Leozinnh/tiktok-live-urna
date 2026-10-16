@@ -35,6 +35,16 @@ import { abrirBanco } from '../server/db.js';
 import { carregar, normalizar } from '../server/config.js';
 import { criarFonte } from '../server/sources/base.js';
 
+/*
+ * O log mudo.
+ *
+ * O hub e o motor de verdade escrevem no console e no arquivo do dia, e o que
+ * se monta aqui são os dois de verdade. Sem esta linha, a saída de `npm test`
+ * viraria o log de uma live, e a suíte deixaria rastro no disco de quem a
+ * roda — o mesmo motivo pelo qual a voz e o banco entram como dublês.
+ */
+const SEM_LOG = { info: () => {}, aviso: () => {}, erro: () => {} };
+
 /**
  * Um processo de mentira com canos de VERDADE.
  *
@@ -324,6 +334,7 @@ test('o motor escolhe a fonte pela configuração', async () => {
     config: { ...config, integracao: { modo: 'tiktok', usuario: '' } },
     caminhoDoBanco: ':memory:',
     aoSalvar: null,
+    log: SEM_LOG,
   });
   try {
     assert.equal(motor.fonte.modo, 'tiktok',
@@ -336,7 +347,7 @@ test('o motor escolhe a fonte pela configuração', async () => {
 
 test('a configuração padrão continua sendo o simulador', async () => {
   const { config } = await carregar(null);
-  const motor = montarMotor({ config, caminhoDoBanco: ':memory:', aoSalvar: null });
+  const motor = montarMotor({ config, caminhoDoBanco: ':memory:', aoSalvar: null, log: SEM_LOG });
   try {
     assert.equal(motor.fonte.modo, 'simulador',
       'quem não pediu live real não pode receber uma');
@@ -363,6 +374,7 @@ test('um presente da ponte conta voto de verdade no placar', async () => {
     caminhoDoBanco: ':memory:',
     aoSalvar: null,
     fonte: ponte,
+    log: SEM_LOG,
   });
 
   try {
@@ -423,7 +435,7 @@ function montarComTroca() {
     },
   });
 
-  const hub = criarHub({ tally, fonte: troca, config, aoSalvar: null, agora: () => 1000 });
+  const hub = criarHub({ tally, fonte: troca, config, aoSalvar: null, agora: () => 1000, log: SEM_LOG });
   troca.iniciar();
   return { db, tally, troca, hub, criadas };
 }

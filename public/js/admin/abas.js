@@ -37,6 +37,17 @@ const COR = { tipo: 'cor' };
 
 const CAMPOS_DA_URNA = [
   { campo: 'nome', rotulo: 'Nome na tela', tipo: 'texto' },
+  /*
+   * O apelido é para a VOZ, e não para a tela: o palco diz "Lula", e o
+   * narrador diz "Lulinha ganhou um voto". Vazio, a fala usa o nome da urna —
+   * é por isso que este campo pode ficar em branco sem quebrar nada.
+   */
+  {
+    campo: 'apelido',
+    rotulo: 'Apelido na fala',
+    tipo: 'texto',
+    dica: 'como o narrador chama o candidato; em branco, usa o nome',
+  },
   { campo: 'numero', rotulo: 'Número', tipo: 'texto', dica: 'o que a mão digita' },
   { campo: 'cargo', rotulo: 'Cargo', tipo: 'texto' },
   { campo: 'corPrimaria', rotulo: 'Cor primária', ...COR },

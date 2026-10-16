@@ -35,6 +35,18 @@ export const COR_VALIDA = /^#[0-9a-f]{3}$|^#[0-9a-f]{6}$|^#[0-9a-f]{8}$/i;
  */
 const NUMERO_VALIDO = /^\d{1,5}$/;
 
+/**
+ * O nome de um arquivo de `public/img/`, sem a extensão.
+ *
+ * `rose` para `public/img/rose.webp`. Sem barra e sem ponto de propósito: o
+ * valor vira endereço de imagem na tela da live, e um caminho com barra é o
+ * começo de um pedido que a página faz ao servidor por conta de um campo de
+ * configuração escrito à mão. A mesma expressão existe no `narrador.js`, do
+ * outro lado do fio: a lista é fechada nas duas pontas, e uma delas esquecida
+ * é uma figura que some sem aviso.
+ */
+const DESENHO_VALIDO = /^[a-z0-9_]{1,40}$/;
+
 /** As três políticas de fim de rodada da especificação, seção 6.3. */
 export const POLITICAS_DE_ENCERRAMENTO = ['processar-recebidos', 'corte-exato', 'tolerancia-2s'];
 
@@ -55,14 +67,14 @@ const numeroFinito = (v) => typeof v === 'number' && Number.isFinite(v);
 export const PADRAO = Object.freeze({
   urnas: Object.freeze({
     u1: Object.freeze({
-      id: 'u1', nome: 'URNA 1', numero: '22', cargo: 'DEPUTADO FEDERAL',
+      id: 'u1', nome: 'URNA 1', apelido: '', numero: '22', cargo: 'DEPUTADO FEDERAL',
       corPrimaria: '#1a5fd0', corSecundaria: '#0d3a8f', corTexto: '#ffffff',
       cargoEmDisputa: 'DEPUTADO FEDERAL',
       ativo: true, ordem: 0, multiplicador: 1,
       candidato: Object.freeze({ nome: 'Ana Prado', partido: 'PARTIDO A', foto: '' }),
     }),
     u2: Object.freeze({
-      id: 'u2', nome: 'URNA 2', numero: '13', cargo: 'DEPUTADO FEDERAL',
+      id: 'u2', nome: 'URNA 2', apelido: '', numero: '13', cargo: 'DEPUTADO FEDERAL',
       corPrimaria: '#e02020', corSecundaria: '#8f0d0d', corTexto: '#ffffff',
       cargoEmDisputa: 'DEPUTADO FEDERAL',
       ativo: true, ordem: 1, multiplicador: 1,
@@ -183,7 +195,7 @@ function comoObjetoDeUrnas(bruto) {
 /** Uma urna conferida, com o motivo de cada troca registrado. */
 function conferirUrna(id, bruto, padrao, avisos) {
   const p = padrao ?? {
-    id, nome: id, numero: '', cargo: '', corPrimaria: '#8a8f98',
+    id, nome: id, apelido: '', numero: '', cargo: '', corPrimaria: '#8a8f98',
     corSecundaria: '#8a8f98', corTexto: '#ffffff',
     ativo: true, ordem: 0, multiplicador: 1,
     candidato: { nome: '', partido: '', foto: '' },
@@ -213,6 +225,19 @@ function conferirUrna(id, bruto, padrao, avisos) {
   if (typeof u.ativo !== 'boolean') u.ativo = p.ativo;
   if (!numeroFinito(u.ordem)) u.ordem = p.ordem;
   u.nome = texto(u.nome) || p.nome;
+  /*
+   * O apelido é como o candidato é chamado na FALA, e é opcional de propósito.
+   *
+   * "Urna 13" e "Lula" já bastam para o palco; "Lulinha" só a boca do narrador
+   * usa — "Lulinha ganhou um voto" (pedido do Leonardo em 2026-10-15). A frase
+   * do voto cai para o nome da urna quando ele não foi escrito, então nenhuma
+   * urna existente precisa dele para funcionar.
+   *
+   * Sem validação e sem aviso: é texto livre, e o pior que um apelido esquisito
+   * faz é soar esquisito. Um aviso aqui encheria o boot por causa de um campo
+   * que ninguém é obrigado a preencher.
+   */
+  u.apelido = texto(u.apelido) || p.apelido || '';
 
   const c = ehObjeto(bruto.candidato) ? bruto.candidato : {};
   u.candidato = {
@@ -232,7 +257,7 @@ function conferirPresente(bruto, idsDeUrna, avisos, indice) {
   }
   const p = {
     id, nome: id, giftId: id, moedas: 0, urnaId: null, votos: 1,
-    ativo: true, efeito: '', prioridade: 0, cooldownMs: 0,
+    ativo: true, efeito: '', desenho: '', prioridade: 0, cooldownMs: 0,
   };
   const g = { ...p, ...bruto, id };
   g.nome = texto(g.nome) || id;
@@ -246,6 +271,25 @@ function conferirPresente(bruto, idsDeUrna, avisos, indice) {
   }
   if (typeof g.ativo !== 'boolean') g.ativo = true;
   g.efeito = texto(g.efeito);
+  /*
+   * O desenho do presente, que a faixa da narração mostra quando ele chega.
+   *
+   * É o nome do ARQUIVO em `public/img/`, sem a extensão: `rose` para
+   * `public/img/rose.webp`. A peneira é a mesma do `efeito` e do `wav` — este
+   * campo vira endereço de imagem na tela da live, e o arquivo é editado à
+   * mão. Barra, ponto e espaço ficam de fora, e o motivo é aquele: com barra,
+   * `../../server/hub` seria um pedido que a página faria ao servidor.
+   *
+   * Vazio é o caso normal, e não um defeito: o desenho é enfeite da faixa. O
+   * aviso existe porque um desenho que não aparece é um defeito que só se vê
+   * no ar, com a faixa dourada saindo sem a figura.
+   */
+  g.desenho = texto(g.desenho);
+  if (g.desenho && !DESENHO_VALIDO.test(g.desenho)) {
+    avisos.push(`presentes.${id}.desenho: "${g.desenho}" não é o nome de um arquivo de `
+      + `public/img/ (sem extensão, sem caminho); a faixa sai sem desenho`);
+    g.desenho = '';
+  }
 
   const alvo = texto(g.urnaId);
   if (alvo && !idsDeUrna.has(alvo)) {

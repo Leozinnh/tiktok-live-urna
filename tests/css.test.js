@@ -363,3 +363,44 @@ test('as duas bases do teclado alinham as colunas', async () => {
     declaracao(acoes, 'grid-template-columns'),
     'as duas grades precisam declarar as mesmas colunas');
 });
+
+test('todo tipo de aviso da faixa tem estilo próprio no narrador.css', async () => {
+  /*
+   * O defeito que este teste prende, escrito por quem o viu: o Leonardo olhou
+   * a live e disse que o aviso "Chegou Rosa de..." estava "muito simples e
+   * pouco chamativo".
+   *
+   * A causa não era um estilo feio — era a AUSÊNCIA de um. O tipo `presente`
+   * não estava na lista da faixa, caía na classe neutra cinza, e o aviso do
+   * presente que alguém pagou para acontecer saía com a mesma cara de "alguém
+   * entrou". Um tipo sem regra no CSS não dá erro em lugar nenhum: só fica
+   * apagado, e quem descobre é o olho de quem está no ar.
+   */
+  const { TIPOS_DA_FAIXA } = await import('../public/js/narrador.js');
+  const css = await readFile(`${DIR_CSS}narrador.css`, 'utf8');
+  for (const tipo of TIPOS_DA_FAIXA) {
+    assert.match(css, new RegExp(`\\.narrador--${tipo}\\b`),
+      `o tipo "${tipo}" não tem regra no narrador.css — ele sai na cor neutra`);
+  }
+  assert.match(css, /\.narrador--social\b/, 'falta a classe neutra dos outros tipos');
+});
+
+test('a figura do presente na faixa tem estilo, e sabe ficar escondida', async () => {
+  /*
+   * O elemento da figura existe desde o boot e é reaproveitado a vida inteira
+   * da tela: ele fica escondido até chegar um presente com desenho, e volta a
+   * se esconder no aviso seguinte. Duas coisas, então, e as duas sem erro
+   * visível quando faltam:
+   *
+   *   - sem a regra do `[hidden]`, o `flex: 0 0 auto` do vizinho deixaria um
+   *     buraco de 96px na faixa de TODO aviso social, a noite inteira;
+   *   - sem medida nenhuma, a figura sairia no tamanho natural do arquivo —
+   *     centenas de pixels, cobrindo meia tela de transmissão.
+   */
+  const css = await readFile(`${DIR_CSS}narrador.css`, 'utf8');
+  assert.match(css, /\.narrador__desenho\b/, 'a figura do presente não tem estilo');
+  assert.match(css, /\.narrador__desenho\[hidden\]\s*\{[^}]*display:\s*none/,
+    'a figura escondida continuaria ocupando lugar na faixa');
+  assert.match(css, /\.narrador__desenho\s*\{[^}]*width:\s*\d+px/,
+    'a figura sairia no tamanho natural do arquivo');
+});

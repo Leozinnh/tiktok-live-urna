@@ -21,6 +21,16 @@ import { normalizar } from '../server/config.js';
  * encontram — que é sempre onde o defeito mora.
  */
 
+/*
+ * O log mudo.
+ *
+ * O hub de verdade escreve no console e no arquivo do dia, e aqui ele é um
+ * hub de verdade — este arquivo sobe o servidor inteiro. Sem esta linha, a
+ * saída de `npm test` viraria o log de uma live, e a suíte deixaria rastro no
+ * disco de quem a roda.
+ */
+const SEM_LOG = { info: () => {}, aviso: () => {}, erro: () => {} };
+
 const CONFIG = normalizar({
   urnas: {
     u1: { id: 'u1', nome: 'Urna 1', numero: '22', multiplicador: 2 },
@@ -35,7 +45,7 @@ let porta;
 let motor;
 
 before(async () => {
-  motor = montarMotor({ config: CONFIG });
+  motor = montarMotor({ config: CONFIG, log: SEM_LOG });
   servidor = criarServidor({
     raiz: fileURLToPath(new URL('../public/', import.meta.url)),
     motor,

@@ -28,7 +28,7 @@
  * livre que existe numa rede social.
  */
 export const TIPOS_DA_FAIXA = Object.freeze([
-  'seguidor', 'curtida', 'entrada', 'compartilhou', 'assinatura',
+  'seguidor', 'curtida', 'entrada', 'compartilhou', 'assinatura', 'presente',
 ]);
 
 /** O que não é um desses vira `social`: a faixa neutra. */
@@ -56,6 +56,21 @@ export const LIMITE_DO_TEXTO = 120;
  */
 const ENDERECO_DE_VOZ = /^\/voz\/[0-9a-f]{16}\.(wav|mp3)$/;
 
+/**
+ * O nome do desenho do presente: `public/img/<desenho>.webp`.
+ *
+ * Como o `wav`, este campo faz a página BUSCAR alguma coisa, e passa pela
+ * mesma peneira. Aqui ele é mais perigoso do que o áudio: o endereço é montado
+ * por concatenação (`/img/` + desenho + `.webp`), então um valor com barra
+ * sairia da pasta das figuras e iria buscar qualquer arquivo do projeto. Sem
+ * barra, sem ponto, sem maiúscula: um nome de arquivo e mais nada.
+ *
+ * A expressão é a MESMA do `DESENHO_VALIDO` no `config.js`, escrita duas
+ * vezes porque são duas pontas do fio — e uma delas esquecida é uma figura que
+ * some sem aviso nenhum.
+ */
+const NOME_DE_DESENHO = /^[a-z0-9_]{1,40}$/;
+
 /** Quanto tempo a faixa fica na tela quando não há som para acompanhar. */
 const TEMPO_MINIMO_MS = 3_500;
 /** Quanto tempo a fila pode ficar. Além disso, o mais antigo sai. */
@@ -76,6 +91,17 @@ export function falaDoServidor(payload) {
 
   const tipo = TIPOS_DA_FAIXA.includes(payload.tipo) ? payload.tipo : CLASSE_PADRAO;
   const wav = ENDERECO_DE_VOZ.test(String(payload.wav ?? '')) ? String(payload.wav) : null;
+  /*
+   * O desenho é do PRESENTE, e só dele.
+   *
+   * A condição do tipo não é zelo: um seguidor não manda rosa, e uma figura
+   * entrando num aviso onde ela não significa nada seria o tipo de coisa que
+   * ninguém confere e todo mundo vê. O `desenho` do servidor já sai só no
+   * presente; esta linha é a segunda ponta da mesma regra.
+   */
+  const desenho = tipo === 'presente' && NOME_DE_DESENHO.test(String(payload.desenho ?? ''))
+    ? String(payload.desenho)
+    : null;
 
   return {
     // O corte avisa que cortou: um texto que termina no meio da palavra sem
@@ -84,6 +110,7 @@ export function falaDoServidor(payload) {
       ? `${texto.slice(0, LIMITE_DO_TEXTO - 1).trimEnd()}…`
       : texto,
     wav,
+    desenho,
     tipo,
     usuario: String(payload.usuario ?? '').trim(),
   };
@@ -100,10 +127,22 @@ export function criarNarrador(camada, { aoFalar = null } = {}) {
   const el = document.createElement('div');
   el.className = 'narrador';
   el.setAttribute('aria-live', 'polite');
-  el.innerHTML = '<div class="narrador__marca"></div><div class="narrador__texto"></div>';
+  el.innerHTML = '<img class="narrador__desenho" alt="" hidden />'
+    + '<div class="narrador__marca"></div><div class="narrador__texto"></div>';
   const marca = el.querySelector('.narrador__marca');
   const linha = el.querySelector('.narrador__texto');
+  const figura = el.querySelector('.narrador__desenho');
   camada.append(el);
+
+  /*
+   * Um desenho que não veio não deixa buraco.
+   *
+   * O nome vem do `config/local.json`, escrito à mão: um `"desenho": "roses"`
+   * com um "s" a mais viraria um quadrado de imagem quebrada na tela que o OBS
+   * está capturando — no aviso do presente, no meio da live. Aqui ele some, e
+   * a faixa dourada continua inteira.
+   */
+  figura.addEventListener('error', () => { figura.hidden = true; });
 
   // Um só, reaproveitado: criar um elemento de áudio por fala deixaria
   // dezenas deles na página depois de uma noite de live, e o OBS recarrega a
@@ -135,6 +174,20 @@ export function criarNarrador(camada, { aoFalar = null } = {}) {
   function apresentar(fala) {
     ocupado = true;
     linha.textContent = fala.texto;
+    /*
+     * A figura do presente, quando a fala tem uma.
+     *
+     * `hidden` e o `src` andam juntos nas duas direções: uma fala sem desenho
+     * logo depois de uma com desenho — uma Rosa e depois um seguidor — deixaria
+     * a rosa colada no aviso do seguidor se só o `src` fosse trocado.
+     */
+    if (fala.desenho) {
+      figura.src = `/img/${fala.desenho}.webp`;
+      figura.hidden = false;
+    } else {
+      figura.hidden = true;
+      figura.removeAttribute('src');
+    }
     /*
      * Só a classe do TIPO é trocada, e não o `className` inteiro.
      *

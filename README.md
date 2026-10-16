@@ -54,6 +54,20 @@ sem repetir).
 dizendo quarenta frases por noite soa automática. Como trocar isso está logo
 abaixo, com o resto da voz.
 
+**O presente é o aviso que mais aparece na tela.** Ele sai numa faixa
+**dourada**, maior que as outras, com o **desenho do presente que chegou** (a
+rosa, o coração — `"desenho": "rose"` no presente) e com um bloco de frases
+que dizem para quem o voto foi: *"Lulinha ganhou um voto! Valeu, Fulano!"*. O
+"Lulinha" é o **Apelido na fala** da urna, na aba **Urnas**; em branco, a
+frase usa o nome da urna.
+
+**Tudo o que acontece fica escrito no log.** O servidor escreve no console
+**e** em `dados/logs/AAAA-MM-DD.log` cada evento que chega da live, cada voto
+contado, cada presente que **não** contou (com o motivo) e **toda frase que a
+voz fala**, antes de virar som. É ali que se descobre, em dez segundos, por
+que uma Rosa mandada pelo painel não falou nada — rodada fechada, narração
+desligada, voz quebrada, nenhuma tela conectada.
+
 A voz sai pelo **servidor**, e não pela página: o navegador que o OBS embarca
 não fala, então quem sintetiza é o Node, que guarda o áudio em arquivo e manda
 a página tocar. Se a voz não sair, o problema está no motor escolhido ou no
@@ -225,10 +239,10 @@ Volte à janela do PowerShell e aperte **Ctrl+C**.
 npm test
 ```
 
-São **718 testes** cobrindo a geometria da cena, a matemática da animação, a
+São **760 testes** cobrindo a geometria da cena, a matemática da animação, a
 fila, as poses da mão, a tela da urna, o placar, o protocolo do servidor, os
-campos do painel, as duas pontas da voz, o narrador e o desenho da urna contra
-a foto. A suíte roda em poucos segundos e não precisa de navegador.
+campos do painel, as duas pontas da voz, o narrador, o log da live e o desenho
+da urna contra a foto. A suíte roda em poucos segundos e não precisa de navegador.
 
 O que a suíte **não** cobre sozinha é o que só existe dentro de um navegador
 de verdade — se a mão aparece, se o placar sobe na hora certa, se o que o
@@ -237,7 +251,7 @@ painel salva chega à tela do ar. Para isso existem as sondas em
 protocolo de depuração. Elas não fazem parte do `npm test` porque precisam de
 um navegador instalado.
 
-**A suíte está inteira verde: 718 de 718.**
+**A suíte está inteira verde: 760 de 760.**
 
 ---
 
@@ -300,6 +314,7 @@ server/
   porta.js              Porta ocupada: quem está segurando e o que fazer
   reiniciar.js          `npm run reiniciar`: derruba quem está na porta e sobe
   voz.js                A voz do narrador: os dois motores e o processo de cada um
+  log.js                O log da live: console e um arquivo por dia
   voz.ps1               O sintetizador do Windows, falado por linhas de texto
   sources/              De onde vêm os presentes
     base.js             O contrato de uma fonte
@@ -310,9 +325,9 @@ ponte/
   tiktok.py             A ponte com a TikTok LIVE (precisa do `TikTokLive`)
   voz.py                O motor neural de voz (precisa do `edge-tts`)
 config/local.json       A configuração do Leonardo (nasce vazia)
-dados/                  O banco e os votos gravados
+dados/                  O banco, a voz gravada e o log do dia (`dados/logs/`)
 fotos/                  Os retratos dos candidatos
-tests/                  718 testes, rodando no `node --test`
+tests/                  760 testes, rodando no `node --test`
 .superpowers/sonda/     As sondas de navegador (não rodam no `npm test`)
 docs/superpowers/       A spec do produto e o plano de implementação
 ```

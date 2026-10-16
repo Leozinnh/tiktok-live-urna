@@ -100,3 +100,167 @@
 .narrador--compartilhou { --narracao-cor: #f08a1e; }
 .narrador--assinatura  { --narracao-cor: #a855f7; }
 .narrador--social      { --narracao-cor: #4a5468; }
+
+/* ---- O aviso do presente ---- */
+
+/*
+ * O aviso que alguém PAGOU para acontecer.
+ *
+ * Ele era o mais apagado da tela: `presente` não estava na lista de tipos, e
+ * caía na classe neutra cinza — a mesma cara de "alguém entrou". O Leonardo
+ * viu a Rosa sair assim, no meio da live, e disse o que era: "muito simples e
+ * pouco chamativo".
+ *
+ * O que faz ele saltar não é o tamanho: é a soma de quatro coisas que os
+ * outros avisos não têm — o dourado no lugar do cinza, o brilho em volta,
+ * a entrada com impacto, e o reflexo que atravessa a faixa uma vez. São três
+ * décimos de segundo a mais de atenção para o presente que a live espera.
+ *
+ * Tudo com `animation` e `keyframes`, e não com biblioteca: o OBS 30 embarca
+ * um Chromium 103, e o que existe aqui é CSS de 2015.
+ */
+.narrador--presente {
+  /* Dourado: a única cor quente da faixa, e a que a live inteira associa a
+     dinheiro entrando. Nenhum outro aviso usa. */
+  --narracao-cor: #f5b301;
+  /*
+   * 1040 dos 1080 de largura da tela: é a faixa que mais precisa de espaço —
+   * ela carrega a figura além do texto —, e as frases do presente são as mais
+   * longas do projeto. Vinte pixels de cada lado ainda deixam a borda dourada
+   * visível contra o fundo.
+   */
+  max-width: 1040px;
+  padding: 20px 40px 20px 30px;
+  /* Um fundo mais quente que o das outras faixas: sobre a mesa laranja, um
+     preto azulado faz o dourado parecer amarelo sujo. */
+  background: rgba(40, 24, 4, 0.94);
+  border-width: 4px;
+  font-size: 32px;
+  color: #fff7e0;
+  box-shadow:
+    0 18px 44px rgba(0, 0, 0, 0.5),
+    0 0 34px rgba(245, 179, 1, 0.45);
+}
+
+/* A marca vira uma barra de ouro, com o brilho no alto como numa barra de
+   metal — a mesma leitura de "vale alguma coisa" que o resto da cena usa. */
+.narrador--presente .narrador__marca {
+  width: 14px;
+  height: 48px;
+  background: linear-gradient(180deg, #ffeb9e, #f5b301 55%, #b47d00);
+}
+
+/*
+ * A figura do presente, dentro da faixa.
+ *
+ * A frase diz o que aconteceu; a figura diz O QUE chegou — a rosa, o coração
+ * —, e é ela que faz o aviso ser reconhecido antes de a primeira palavra ser
+ * lida. É o mesmo desenho da vitrine, em `public/img/`, e o nome do arquivo
+ * vem do `desenho` do presente na configuração.
+ *
+ * 88px de altura: a faixa é ancorada pelo `bottom` e cresce para CIMA, e o
+ * espaço até a vitrine é de pouco mais de cem pixels — a figura não pode ser
+ * maior do que isso sem cobrir as estacas dos presentes. Do outro lado, o
+ * número não é maior porque a figura COME largura da frase: medido no
+ * navegador, cada dez pixels dela são meia dúzia de letras que a frase perde
+ * na ponta. Com 88px, a frase mais longa do padrão ainda cabe inteira.
+ *
+ * Sem borda e sem fundo: a imagem é quadrada, tem o fundo transparente e sai
+ * melhor parecendo colada na faixa do que dentro de um segundo selo.
+ */
+.narrador__desenho {
+  flex: 0 0 auto;
+  width: 88px;
+  height: 88px;
+  object-fit: contain;
+  /* A sombra é o que descola a figura do fundo quente da faixa e da mesa
+     laranja atrás dela. */
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.55));
+}
+
+/* Escondida, ela não ocupa lugar nenhum: sem esta linha o `flex` deixaria um
+   buraco de 96px na faixa dos outros avisos. */
+.narrador__desenho[hidden] { display: none; }
+
+/*
+ * A entrada da figura, presa ao estado VISÍVEL e não ao elemento.
+ *
+ * O elemento é um só, reaproveitado a vida inteira da tela: uma animação nele
+ * rodaria uma vez, no boot, e nunca mais — a figura apareceria parada em todo
+ * presente da noite. Presa ao `narrador--visivel`, ela reinicia a cada fala,
+ * pela mesma razão do reflexo logo abaixo.
+ */
+.narrador--presente.narrador--visivel .narrador__desenho {
+  animation: narrador-desenho-entra 420ms var(--ease-pressao) both;
+}
+
+@keyframes narrador-desenho-entra {
+  0%   { transform: scale(0.45) rotate(-16deg); }
+  70%  { transform: scale(1.14) rotate(5deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+
+.narrador--presente.narrador--visivel {
+  animation:
+    narrador-presente-entra 460ms var(--ease-pressao) both,
+    /* O pulso começa depois da entrada, para as duas não brigarem no mesmo
+       quadro — e é ele que mantém a faixa viva enquanto a voz fala. */
+    narrador-presente-pulso 1.7s ease-in-out 500ms infinite alternate;
+}
+
+/*
+ * O reflexo.
+ *
+ * Ele mora no estado VISÍVEL, e não no tipo, porque é isso que o faz voltar a
+ * cada presente: a classe `narrador--visivel` sai quando a fala termina e
+ * volta na seguinte, então a animação reinicia sozinha. Presa ao tipo, ela
+ * rodaria uma vez por conexão e nunca mais.
+ */
+.narrador--presente.narrador--visivel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(105deg,
+    rgba(255, 255, 255, 0) 38%,
+    rgba(255, 255, 255, 0.28) 50%,
+    rgba(255, 255, 255, 0) 62%);
+  animation: narrador-presente-brilho 1.5s ease-out 140ms 1 both;
+}
+
+@keyframes narrador-presente-entra {
+  0%   { transform: translate(-50%, 26px) scale(0.84); }
+  60%  { transform: translate(-50%, 0) scale(1.06); }
+  100% { transform: translate(-50%, 0) scale(1); }
+}
+
+@keyframes narrador-presente-pulso {
+  from { box-shadow: 0 18px 44px rgba(0, 0, 0, 0.5), 0 0 22px rgba(245, 179, 1, 0.3); }
+  to   { box-shadow: 0 18px 44px rgba(0, 0, 0, 0.5), 0 0 48px rgba(245, 179, 1, 0.8); }
+}
+
+@keyframes narrador-presente-brilho {
+  from { transform: translateX(-115%); }
+  to   { transform: translateX(115%); }
+}
+
+/*
+ * Quem pediu menos movimento no sistema recebe a cor e o tamanho, e não o
+ * balanço. A faixa continua distinguindo o presente dos outros avisos — o que
+ * sai é o que mexe.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .narrador--presente.narrador--visivel {
+    animation: none;
+  }
+  .narrador--presente.narrador--visivel::after {
+    animation: none;
+    display: none;
+  }
+  /* A figura fica: ela não mexe, não pisca e não gira — é o desenho do
+     presente, e é informação. O que sai é só o giro de entrada dela. */
+  .narrador--presente.narrador--visivel .narrador__desenho {
+    animation: none;
+  }
+}

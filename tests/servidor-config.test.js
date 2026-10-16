@@ -57,6 +57,55 @@ test('o arquivo do usuário remenda campo a campo, sem apagar o resto', () => {
   assert.equal(config.urnas.u1.nome, PADRAO.urnas.u1.nome);
 });
 
+test('a urna aceita um apelido, e sem ele o nome dela já serve', () => {
+  /*
+   * O apelido é como o Leonardo chama o candidato na fala: a urna 13 pode se
+   * chamar "Lula" no palco e "Lulinha" na boca do narrador — "Lulinha ganhou
+   * um voto" é o que ele pediu em 2026-10-15.
+   *
+   * Ele é OPCIONAL por decisão, e não por preguiça: a frase do voto cai para
+   * o nome da urna quando não há apelido, então as urnas do arquivo de hoje
+   * continuam funcionando sem que ninguém precise preencher campo nenhum.
+   * Como todo texto daqui, ele é aparado — um apelido com espaço nas pontas
+   * sairia com o espaço na fala.
+   */
+  const { config, avisos } = normalizar({
+    urnas: { u2: { nome: 'Lula', apelido: '  Lulinha  ' } },
+  });
+  assert.equal(config.urnas.u2.apelido, 'Lulinha');
+  assert.equal(config.urnas.u1.apelido, '', 'o apelido é vazio quando não foi escrito');
+  assert.deepEqual(avisos, [], 'o apelido é texto livre: nada aqui vira aviso');
+});
+
+test('o desenho do presente é o nome do arquivo, sem a extensão', () => {
+  /*
+   * O desenho é o do ARQUIVO em `public/img/`: a rosa do Leonardo mora em
+   * `rose.webp`, e o config escreve `"desenho": "rose"`. Guardar o nome do
+   * arquivo inteiro faria a extensão virar configuração — e trocar o `.webp`
+   * por `.png` um dia viraria uma caça a um campo que ninguém lembra.
+   *
+   * O ponto e a barra são recusados aqui, e não só no navegador: este campo
+   * vira endereço de imagem na tela da live, e a configuração é editada à mão.
+   * Um valor recusado vira aviso, porque um desenho que não aparece é um
+   * defeito que só se vê no ar — a faixa sai dourada e sem a figura.
+   */
+  const { config, avisos } = normalizar({
+    presentes: [
+      { id: 'p2', nome: 'Rosa', giftId: '2', urnaId: 'u2', desenho: '  rose  ' },
+      { id: 'p3', nome: 'Feio', giftId: '3', urnaId: 'u2', desenho: '../../server/hub' },
+      { id: 'p4', nome: 'Sem figura', giftId: '4', urnaId: 'u2' },
+    ],
+  });
+  assert.equal(config.presentes[0].desenho, 'rose');
+  assert.equal(config.presentes[1].desenho, '', 'um caminho não pode virar endereço de imagem');
+  assert.ok(avisos.some((a) => /desenho/.test(a)), 'a recusa tem que aparecer no boot');
+  // Sem desenho escrito, o presente fica sem desenho — e isso não é aviso: o
+  // arquivo do Leonardo tem dois presentes, e nenhum deles diz desenho hoje.
+  // A faixa dourada sai inteira, sem a figura.
+  assert.equal(config.presentes[2].desenho, '');
+  assert.ok(!avisos.some((a) => /presentes\.p4/.test(a)), 'faltar desenho não é defeito');
+});
+
 test('a lista de urnas também é aceita, além do objeto', () => {
   /*
    * A especificação escreve `urnas` como lista com `id` dentro; o projeto

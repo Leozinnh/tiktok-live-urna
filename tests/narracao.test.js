@@ -44,18 +44,49 @@ test('a mesma frase com dois marcadores troca os dois', () => {
   );
 });
 
+test('o apelido da urna nomeia quem ganhou o voto', () => {
+  /*
+   * Pedido do Leonardo em 2026-10-15: "quando alguém mandar presente e já
+   * tiver o voto decidido, fala tipo se votar 13 'Lulinha ganhou um voto'".
+   *
+   * `{apelido}` é o apelido da URNA — o do candidato, que é quem ganhou o
+   * voto. NÃO é o apelido de quem presenteou: esse continua sendo o `{nome}`,
+   * e trocar os dois é o erro mais fácil de escrever aqui, porque a palavra
+   * "apelido" já quer dizer "o nome do TikTok" no resto do projeto.
+   */
+  assert.equal(
+    preencher('{apelido} ganhou um voto!', { apelido: 'Lulinha' }),
+    'Lulinha ganhou um voto!',
+  );
+});
+
+test('sem apelido configurado, quem nomeia é o nome da urna', () => {
+  /*
+   * O apelido é um carinho a mais, e não um campo obrigatório: as urnas do
+   * `local.json` de hoje não têm nenhum. Sem esta queda, a frase sairia com
+   * "{apelido}" cru na tela — e a voz leria as chaves em voz alta, no meio da
+   * live, porque o texto vai direto para o sintetizador.
+   */
+  assert.equal(preencher('{apelido} ganhou um voto!', { urna: 'Lula' }), 'Lula ganhou um voto!');
+  assert.equal(
+    preencher('{apelido} ganhou um voto!', { urna: 'Lula', apelido: '   ' }),
+    'Lula ganhou um voto!',
+  );
+});
+
 /* ------------------------------------------------------------- a escolha */
 
 const TUDO = { seguidor: ['Seguiu: {nome}', 'Mais um: {nome}'] };
 
 /** Narrador com relógio e sorteio na mão: 0 sempre pega o primeiro do saco. */
-function montar({ falas = TUDO, aoNarrar = null } = {}) {
+function montar({ falas = TUDO, aoNarrar = null, aoSilenciar = null } = {}) {
   let relogio = 0;
   const narrador = criarNarrador({
     falas,
     sorteio: () => 0,
     agora: () => relogio,
     aoNarrar,
+    aoSilenciar,
   });
   return { narrador, avancar: (ms) => { relogio += ms; } };
 }
@@ -323,11 +354,84 @@ test('sem lista nenhuma no config, valem as frases que vêm no código', () => {
   assert.match(narrador.narrar(seguidor('Ana')), /Ana/);
 });
 
+/* --------------------------------------------------- o voto já decidido */
+
+test('o apelido da urna atravessa até a frase', () => {
+  /*
+   * O caminho inteiro do dado: o hub manda o `apelido` da urna junto com o
+   * evento, e é aqui que ele vira palavra. Sem esta ligação o marcador existe
+   * e nunca é preenchido — a frase sai com o nome da urna, que é o certo, e o
+   * apelido configurado no arquivo não vale nada. Ninguém descobre isso
+   * lendo o `preencher`.
+   */
+  const { narrador } = montar({ falas: { presente: ['{apelido} ganhou um voto!'] } });
+  assert.equal(
+    narrador.narrar({
+      tipo: 'presente', usuario: 'Ana', userId: 'ana', presente: 'Rosa', combo: 1,
+      urna: 'Lula', apelido: 'Lulinha',
+    }),
+    'Lulinha ganhou um voto!',
+  );
+});
+
+/* --------------------------------------------------------- o padrão do projeto */
+
 test('o padrão tem frase para todo tipo social', () => {
   // Um tipo que passa pela normalização e não tem frase é um evento que
   // atravessa o sistema inteiro para morrer no fim, em silêncio.
   for (const tipo of ['seguidor', 'curtida', 'entrada', 'compartilhou', 'assinatura', 'presente']) {
     assert.ok(FALAS_PADRAO[tipo]?.length > 0, `falta a frase padrão de ${tipo}`);
+  }
+});
+
+test('a lista do presente sabe falar de quem ganhou o voto', () => {
+  /*
+   * Todo presente que conta voto já tem dono: o mapeamento diz para qual urna
+   * ele vai. Até 2026-10-15 as frases contavam o presente e agradeciam, e só
+   * algumas citavam a urna — nenhuma dizia a coisa que a pessoa quer ouvir,
+   * que é o voto dela chegando em alguém. Foi o que o Leonardo pediu: "já tem
+   * o voto decidido, fala tipo 'Lulinha ganhou um voto'".
+   *
+   * O piso de frases não é enfeite: uma ou duas seriam diluídas nas quase
+   * sessenta da lista, e o baralho só dá a volta depois de todas — na prática,
+   * o voto decidido quase nunca seria dito. O baralho é o motivo de o pedido
+   * virar um BLOCO de frases, e não uma frase.
+   */
+  const doVoto = FALAS_PADRAO.presente.filter((f) => f.includes('{apelido}'));
+  assert.ok(doVoto.length >= 10, `só ${doVoto.length} frases falam de quem ganhou o voto`);
+  assert.ok(
+    FALAS_PADRAO.presente.some((f) => /ganhou um voto/.test(f)),
+    'falta a frase que o Leonardo pediu, com essas palavras',
+  );
+});
+
+test('nenhuma frase do padrão pede marcador que ninguém preenche', () => {
+  /*
+   * O texto da fala vai CRU para o sintetizador: um marcador que ninguém
+   * troca não fica só feio na tela, ele é LIDO — a voz diz "abre chaves
+   * apelido fecha chaves" no meio da live, e não há como não ouvir.
+   *
+   * A lista de baixo é a mesma do `preencher` visto de fora: cada tipo recebe
+   * só os dados que o evento dele tem. `{apelido}` numa frase de seguidor
+   * sairia vazio, porque quem segue não tem urna — então o teste pergunta
+   * isso tipo por tipo, e não só se o marcador existe no dicionário.
+   */
+  const MARCAS_DO_TIPO = {
+    seguidor: ['nome'],
+    curtida: ['nome', 'quantidade'],
+    entrada: ['nome'],
+    compartilhou: ['nome'],
+    assinatura: ['nome'],
+    presente: ['nome', 'vezes', 'presente', 'urna', 'apelido'],
+    espera: ['nome'],
+  };
+  for (const [tipo, lista] of Object.entries(FALAS_PADRAO)) {
+    for (const frase of lista) {
+      for (const marca of frase.matchAll(/\{(\w+)\}/g)) {
+        assert.ok(MARCAS_DO_TIPO[tipo]?.includes(marca[1]),
+          `"${frase}" (${tipo}) usa {${marca[1]}}, que esse tipo não tem`);
+      }
+    }
   }
 });
 
@@ -470,4 +574,80 @@ test('apelido que só tem emoji cai no @ da pessoa', () => {
   assert.equal(preencher('Fala, {nome}!', { usuario: 'joao' }), 'Fala, joao!');
   // Nada falável em lugar nenhum.
   assert.equal(preencher('Fala, {nome}!', { nome: '🎁', usuario: '🏳️' }), 'Fala, Alguém!');
+});
+
+/* ------------------------------------------- por que ficou quieto (o log) */
+
+/*
+ * Todo silêncio tem um motivo, e o motivo é a resposta para a pergunta que
+ * abriu esta entrega: "mandei um presente pelo painel e não falou nada".
+ *
+ * O narrador continua puro — ele não conhece log, arquivo nem terminal. Ele
+ * CONTA o que decidiu, e quem escreve é o hub. É a mesma separação do
+ * `aoNarrar`, que já existia pelo mesmo motivo.
+ */
+
+test('quem fala não avisa silêncio', () => {
+  // O contrário também importa: um aviso de silêncio numa fala que saiu
+  // mandaria procurar defeito onde não tem.
+  const silencios = [];
+  const { narrador } = montar({ aoSilenciar: (s) => silencios.push(s) });
+  assert.ok(narrador.narrar(seguidor('Ana')));
+  assert.deepEqual(silencios, []);
+});
+
+test('o silêncio do cooldown diz quem ficou quieto, e por quanto tempo', () => {
+  const silencios = [];
+  const { narrador, avancar } = montar({ aoSilenciar: (s) => silencios.push(s) });
+  const ana = seguidor('Ana');
+  narrador.narrar(ana);
+  avancar(10_000);
+  assert.equal(narrador.narrar(ana), null);
+  assert.equal(silencios.length, 1);
+  assert.equal(silencios[0].motivo, 'cooldown');
+  assert.equal(silencios[0].evento.tipo, 'seguidor');
+  assert.equal(silencios[0].faltamMs, 50_000, 'o log não disse quanto falta para poder falar de novo');
+});
+
+test('a curtida abaixo do limiar diz quantas vieram', () => {
+  // "5 curtidas de Ana" no log responde na hora se o limiar é 20 ou 50 — a
+  // dúvida que sobra quando a tela só mostra que nada foi dito.
+  const silencios = [];
+  const { narrador } = montar({
+    falas: { curtida: ['{quantidade} curtidas, {nome}!'] },
+    aoSilenciar: (s) => silencios.push(s),
+  });
+  const r = narrador.narrar({ tipo: 'curtida', usuario: 'Ana', userId: 'ana', quantidade: 5 });
+  assert.equal(r, null);
+  assert.equal(silencios[0].motivo, 'abaixo-do-limiar');
+  assert.equal(silencios[0].quantidade, 5);
+});
+
+test('o presente sem nome diz que veio sem nome', () => {
+  const silencios = [];
+  const { narrador } = montar({
+    falas: { presente: ['{nome} mandou {presente}!'] },
+    aoSilenciar: (s) => silencios.push(s),
+  });
+  assert.equal(narrador.narrar({ tipo: 'presente', usuario: 'Ana', userId: 'ana' }), null);
+  assert.equal(silencios[0].motivo, 'presente-sem-nome');
+});
+
+test('um tipo sem frase nenhuma diz que não tem frase', () => {
+  // Lista vazia no painel é silêncio deliberado — e o log precisa dizer que
+  // foi isso, e não um defeito na voz.
+  const silencios = [];
+  const { narrador } = montar({ falas: { seguidor: [] }, aoSilenciar: (s) => silencios.push(s) });
+  assert.equal(narrador.narrar(seguidor('Ana')), null);
+  assert.equal(silencios[0].motivo, 'sem-frase');
+  assert.equal(silencios[0].evento.tipo, 'seguidor');
+});
+
+test('o evento sem tipo nenhum não vira silêncio de tipo nenhum', () => {
+  // Isto não é uma decisão do narrador: é lixo que chegou. Um silêncio
+  // "explicado" aqui encheria o log de linhas sobre eventos que não existem.
+  const silencios = [];
+  const { narrador } = montar({ aoSilenciar: (s) => silencios.push(s) });
+  assert.equal(narrador.narrar({}), null);
+  assert.deepEqual(silencios, []);
 });

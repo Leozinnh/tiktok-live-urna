@@ -37,7 +37,7 @@ const CONFIG = normalizar({
   rodada: { duracaoSegundos: 300 },
 }).config;
 
-function montar({ agora, voz = null, config = CONFIG } = {}) {
+function montar({ agora, voz = null, config = CONFIG, log = logFalso() } = {}) {
   const db = abrirBanco(':memory:');
   const tally = criarTally({ db, config });
   tally.abrirRodada({ iniciadaEm: 1000 });
@@ -49,12 +49,13 @@ function montar({ agora, voz = null, config = CONFIG } = {}) {
     fonte,
     config,
     voz,
+    log,
     agora: () => relogio.t,
     aoSalvar: (nova) => hubs.push(nova),
   });
   fonte.iniciar();
   return {
-    db, tally, fonte, hub, relogio,
+    db, tally, fonte, hub, relogio, log,
     salvas: hubs,
     avancar: (ms) => { relogio.t += ms; },
   };
@@ -79,6 +80,26 @@ function cliente(papel = 'broadcast') {
 }
 
 const falar = (c, msg) => c.receber(JSON.stringify(msg));
+
+/**
+ * Um log de mentira, do tamanho exato do que o hub usa.
+ *
+ * Como o relógio e a voz, ele é INJETADO: a suíte não pode escrever no
+ * terminal de quem roda `npm test` nem no arquivo do dia. O `tem` é a
+ * pergunta que quase todo teste faz — "o log contou esta parte da história?".
+ */
+function logFalso() {
+  const linhas = [];
+  const anotar = (nivel) => (assunto, texto) => linhas.push({ nivel, assunto, texto });
+  return {
+    linhas,
+    info: anotar('info'),
+    aviso: anotar('aviso'),
+    erro: anotar('erro'),
+    tem: (padrao) => linhas.some((l) => padrao.test(l.texto)),
+    texto: () => linhas.map((l) => `[${l.nivel}] ${l.assunto}: ${l.texto}`).join('\n'),
+  };
+}
 
 /* ------------------------------------------------------- entrada e retrato */
 
@@ -621,6 +642,94 @@ test('o presente contado vira fala: quem mandou, o quê, quantos e pra quem', ()
     assert.match(fala.payload.texto, /Heart Me/, 'a fala não diz o que foi mandado');
     assert.match(fala.payload.texto, /3x Heart Me/, 'a fala perdeu o combo');
     assert.match(fala.payload.texto, /Urna 1/, 'a fala não diz pra quem foi');
+  });
+});
+
+/*
+ * A urna com apelido e a frase que só fala dele.
+ *
+ * Mesma razão do bloco de cima: a frase do dia sai de um baralho, então o que
+ * se prende aqui é o DADO que o hub entrega — o apelido da urna que recebeu o
+ * voto —, e não a sorte da frase sorteada.
+ */
+const CONFIG_COM_APELIDO = normalizar({
+  urnas: { u2: { id: 'u2', nome: 'Lula', apelido: 'Lulinha', numero: '13' } },
+  presentes: [{ id: 'p2', nome: 'Rosa', giftId: '2', urnaId: 'u2', votos: 1 }],
+  narracao: { falas: { presente: ['{apelido} ganhou um voto!'] } },
+}).config;
+
+test('o voto decidido sai falando o apelido de quem recebeu', () => {
+  /*
+   * O pedido do Leonardo, ponta a ponta: "quando alguém mandar presente e já
+   * tiver o voto decidido, fala tipo se votar 13 'Lulinha ganhou um voto'".
+   *
+   * O apelido não está no evento — a TikTok não sabe que a urna 13 tem
+   * apelido —, então ele só pode vir da configuração, e é o hub que faz essa
+   * ligação. Sem esta linha, a frase do voto decidido diria "Lula ganhou um
+   * voto": certa, e não o que ele pediu.
+   */
+  const { hub, fonte } = montar({ config: CONFIG_COM_APELIDO });
+  const tela = hub.conectar(cliente('broadcast'));
+  fonte.emitir({
+    plataforma: 'simulador', userId: 'ana', usuario: 'Ana', giftId: '2', combo: 1, em: 5,
+  });
+  return respirar().then(() => {
+    assert.equal(tela.de('vote.counted').length, 1, 'o presente deixou de contar');
+    const fala = tela.de('narrate')[0];
+    assert.ok(fala, 'o voto decidido ficou mudo');
+    assert.equal(fala.payload.texto, 'Lulinha ganhou um voto!');
+  });
+});
+
+/*
+ * O presente com desenho, e a frase que só fala dele.
+ *
+ * O desenho sai do MAPEAMENTO e não do evento: a TikTok manda o nome do
+ * presente ("Rosa"), e não o nome de um arquivo de `public/img/`. É por isso
+ * que este dado só pode nascer na configuração.
+ */
+const CONFIG_COM_DESENHO = normalizar({
+  urnas: { u2: { id: 'u2', nome: 'Lula', numero: '13' } },
+  presentes: [{ id: 'p2', nome: 'Rosa', giftId: '2', urnaId: 'u2', votos: 1, desenho: 'rose' }],
+  narracao: { falas: { presente: ['{nome} mandou {vezes}{presente}!'] } },
+}).config;
+
+test('a faixa do presente leva o desenho do presente que chegou', () => {
+  /*
+   * Pedido do Leonardo em 2026-10-15, olhando a faixa de presente na live:
+   * "muito simples e pouco chamativo". A frase dourada resolve metade; a
+   * figura do presente que chegou resolve a outra: quem olha a transmissão
+   * reconhece a rosa antes de ler qualquer palavra.
+   *
+   * O que este teste prende é o CAMINHO do dado: ele nasce no mapeamento do
+   * presente, e não no evento — sem esta ligação o campo existiria no
+   * clientes, no CSS e na sonda, e nunca chegaria à tela.
+   */
+  const { hub, fonte } = montar({ config: CONFIG_COM_DESENHO });
+  const tela = hub.conectar(cliente('broadcast'));
+  fonte.emitir({
+    plataforma: 'simulador', userId: 'ana', usuario: 'Ana', giftId: '2', combo: 1, em: 5,
+  });
+  return respirar().then(() => {
+    const fala = tela.de('narrate')[0];
+    assert.ok(fala, 'o presente contado ficou mudo');
+    assert.equal(fala.payload.desenho, 'rose');
+  });
+});
+
+test('o aviso social não leva desenho nenhum', () => {
+  /*
+   * Um seguidor não manda rosa. O campo só existe no aviso de presente, e a
+   * ausência dele é o que faz a faixa dos outros tipos sair sem figura — e sem
+   * o buraco de 96px que a figura deixaria se o cliente a mantivesse.
+   */
+  const { hub, fonte } = montar();
+  const tela = hub.conectar(cliente('broadcast'));
+  fonte.emitir(seguir('Ana'));
+  return respirar().then(() => {
+    const fala = tela.de('narrate')[0];
+    assert.ok(fala, 'o seguidor não foi anunciado');
+    assert.equal(fala.payload.desenho, undefined);
   });
 });
 
@@ -1185,4 +1294,187 @@ test('o painel tem como disparar o presente órfão e o número do chat', () => 
   assert.equal(tela.de('vote.counted').length, 1, 'o caminho do painel não conta voto');
   // 22 é a urna de multiplicador 2, então um voto vale dois pontos.
   assert.equal(tally.estado().total, 2);
+});
+
+/* ------------------------------------------------------------------ o log */
+
+/*
+ * O log da live — a resposta escrita para "por que não falou nada?".
+ *
+ * O Leonardo mandou uma Rosa pelo botão do painel com a rodada fechada, não
+ * ouviu voz nenhuma, não viu voto nenhum, e não teve onde ler o motivo. O
+ * servidor sabia de tudo e não contava para ninguém. Estes testes prendem o
+ * que o log precisa dizer para a próxima vez não virar mistério.
+ *
+ * A regra geral: todo evento que chega tem uma linha, e toda decisão que
+ * envolve ficar quieto tem o MOTIVO escrito. Um log que só diz o que
+ * funcionou não serve para procurar defeito — o defeito é justamente o que
+ * não aconteceu.
+ */
+
+const PRESENTE_ROSA = {
+  plataforma: 'simulador', userId: 'painel', usuario: 'Painel',
+  giftId: '2', giftNome: 'Rosa', em: 9000,
+};
+
+test('cada evento que chega da live deixa uma linha no log', () => {
+  const { hub, fonte, log } = montar();
+  hub.conectar(cliente('broadcast'));
+  fonte.emitir(seguir('Ana'));
+  fonte.emitir({ plataforma: 'simulador', tipo: 'entrada', usuario: 'Bia', userId: 'bia' });
+  fonte.emitir({ plataforma: 'simulador', tipo: 'curtida', usuario: 'Caio', userId: 'caio', quantidade: 30 });
+  fonte.emitir({ plataforma: 'simulador', tipo: 'compartilhou', usuario: 'Duda', userId: 'duda' });
+  fonte.emitir({ plataforma: 'simulador', tipo: 'assinatura', usuario: 'Eva', userId: 'eva' });
+  fonte.emitir({ ...PRESENTE_ROSA, combo: 3 });
+  return respirar().then(() => {
+    const t = log.texto();
+    assert.ok(log.tem(/Ana começou a seguir/), t);
+    assert.ok(log.tem(/Bia entrou/), t);
+    assert.ok(log.tem(/Caio.*30 curtidas/), t);
+    assert.ok(log.tem(/Duda compartilhou/), t);
+    assert.ok(log.tem(/Eva virou assinante/), t);
+    // O combo aparece como "3x Rosa", que é como se diz — e não "Rosa x3".
+    assert.ok(log.tem(/Painel mandou 3x Rosa/), t);
+  });
+});
+
+test('o voto conta no log quem mandou o quê, para quem', () => {
+  const { hub, fonte, log } = montar();
+  hub.conectar(cliente('broadcast'));
+  fonte.emitir({ ...PRESENTE_ROSA });
+  return respirar().then(() => {
+    const t = log.texto();
+    assert.ok(log.tem(/Rosa/), t);
+    assert.ok(log.tem(/Urna 2/), t, 'o log não diz para qual urna foi o voto');
+    assert.ok(log.tem(/Painel/), t);
+  });
+});
+
+test('o presente com a rodada fechada aparece no log E no painel', () => {
+  /*
+   * O defeito que abriu esta entrega, preso por um teste.
+   *
+   * Antes: o presente chegava, o motor recusava por rodada fechada, e NADA
+   * acontecia — nem voto, nem fala, nem aviso. Um presente que não conta
+   * pode não contar; o que não pode é sumir sem deixar rastro.
+   */
+  const { hub, fonte, log, tally } = montar();
+  const painel = hub.conectar(cliente('admin'));
+  tally.fecharRodada({ em: 2000, motivo: 'manual' });
+  fonte.emitir({ ...PRESENTE_ROSA });
+  return respirar().then(() => {
+    const t = log.texto();
+    assert.ok(log.tem(/Rodada fechada|rodada fechada/), `o log não explicou a recusa:\n${t}`);
+    assert.ok(log.tem(/Rosa/), t);
+
+    falar(painel, { tipo: 'state.request' });
+    const avisos = painel.ultima().payload.tally.avisos;
+    assert.ok(
+      avisos.some((a) => /Rosa/.test(a.texto)),
+      `o painel não avisou nada sobre o presente: ${JSON.stringify(avisos)}`,
+    );
+  });
+});
+
+test('a fala sai no log antes de virar som', () => {
+  // A linha `[voz]` é a do `tiktok-live-horse`, palavra por palavra: é o que a
+  // voz está dizendo AGORA, e é o que se lê para saber se a frase saiu certa.
+  const voz = vozDeMentira({ arquivo: 'x.wav' });
+  const { hub, fonte, log } = montar({ voz });
+  hub.conectar(cliente('broadcast'));
+  fonte.emitir(seguir('Ana'));
+  return respirar().then(() => {
+    const fala = log.linhas.find((l) => l.assunto === 'voz' && /Ana/.test(l.texto));
+    assert.ok(fala, `nenhuma linha de voz no log:\n${log.texto()}`);
+  });
+});
+
+test('o silêncio do narrador chega ao log com o motivo', () => {
+  /*
+   * A metade que faltava. O narrador cala por cooldown, por limiar de curtida,
+   * por lista vazia no painel — e antes disso tudo era o mesmo silêncio mudo
+   * na tela. "Não falou nada" não é diagnóstico; "já foi anunciado, faltam
+   * 50s" é.
+   */
+  const { hub, fonte, log } = montar();
+  hub.conectar(cliente('broadcast'));
+  fonte.emitir(seguir('Ana', 'ana'));
+  fonte.emitir(seguir('Ana', 'ana'));
+  return respirar().then(() => {
+    const t = log.texto();
+    assert.ok(log.tem(/silêncio/), t);
+    assert.ok(log.tem(/Ana/), t);
+    assert.ok(log.tem(/cooldown|faltam/, t), t);
+  });
+});
+
+test('sem tela nenhuma conectada, o log avisa que a fala não vai ser ouvida', () => {
+  // Servidor falando para uma live sem página aberta é indistinguível de um
+  // servidor mudo, para quem está na frente do computador ouvindo.
+  const { fonte, log } = montar();
+  fonte.emitir(seguir('Ana'));
+  return respirar().then(() => {
+    assert.ok(log.tem(/nenhuma tela/i), `o log não avisou:\n${log.texto()}`);
+  });
+});
+
+test('a voz que falha aparece no log, com o motivo', () => {
+  const voz = vozDeMentira({ erro: 'não achei a voz Francisca' });
+  const { hub, fonte, log } = montar({ voz });
+  const tela = hub.conectar(cliente('broadcast'));
+  fonte.emitir(seguir('Ana'));
+  return respirar().then(() => {
+    assert.ok(log.tem(/não achei a voz Francisca/), `o erro não foi para o log:\n${log.texto()}`);
+    assert.equal(tela.de('narrate').length, 1, 'a faixa deixou de sair');
+  });
+});
+
+test('a fila cheia diz no log quem ficou sem voz', () => {
+  const voz = vozDeMentira({ arquivo: 'x.wav', atrasos: new Array(20).fill(40) });
+  const { hub, fonte, log } = montar({ voz });
+  hub.conectar(cliente('broadcast'));
+  for (let i = 1; i <= 8; i += 1) fonte.emitir(seguir(`Pessoa ${i}`, `p${i}`));
+  return respirar(500).then(() => {
+    const t = log.texto();
+    assert.ok(log.tem(/fila cheia/i), t);
+    assert.ok(log.tem(/Pessoa 7|Pessoa 8/), `o log não diz quem perdeu a fala:\n${t}`);
+  });
+});
+
+test('a rodada que abre e fecha fica registrada', () => {
+  // Sem estas duas linhas, uma fala que não saiu às 21h não tem como ser
+  // amarrada ao momento em que a rodada virou.
+  const { hub, log } = montar();
+  const painel = hub.conectar(cliente('admin'));
+  falar(painel, { tipo: 'round.stop' });
+  falar(painel, { tipo: 'round.start' });
+  const t = log.texto();
+  assert.ok(log.tem(/rodada encerrada/i), t);
+  assert.ok(log.tem(/rodada aberta|rodada começou/i), t);
+});
+
+test('toda fala que sai vira uma linha, na ordem em que sai', () => {
+  /*
+   * O Leonardo pediu com todas as letras: "log de todas as falas também, toda
+   * fala que falar".
+   *
+   * O que este teste prende é a IGUALDADE entre o que a live falou e o que o
+   * log escreveu — mesma quantidade, mesma ordem, mesmo texto. Um log que
+   * perde uma fala no meio é pior que nenhum: ele faz procurar defeito onde
+   * não tem, e esconder o que tem.
+   */
+  const voz = vozDeMentira({ arquivo: 'x.wav' });
+  const { hub, fonte, log } = montar({ voz });
+  const tela = hub.conectar(cliente('broadcast'));
+  fonte.emitir(seguir('Ana', 'ana'));
+  fonte.emitir(seguir('Bia', 'bia'));
+  fonte.emitir(seguir('Caio', 'caio'));
+  return respirar(200).then(() => {
+    const faladas = tela.de('narrate').map((m) => m.payload.texto);
+    const escritas = log.linhas
+      .filter((l) => l.assunto === 'voz' && l.texto.startsWith('🗣'))
+      .map((l) => l.texto.replace(/^🗣 "/, '').replace(/"$/, ''));
+    assert.deepEqual(escritas, faladas, `o log não bate com o que a live falou:\n${log.texto()}`);
+    assert.equal(escritas.length, 3, 'faltou fala no log');
+  });
 });

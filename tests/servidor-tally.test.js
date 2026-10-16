@@ -345,3 +345,66 @@ test('o voto resgatado também move a liderança', () => {
   assert.equal(r.lideranca?.tipo, 'virada', 'a virada não foi detectada');
   assert.equal(r.lideranca?.urnaId, 'u1');
 });
+
+/* ------------------------------------ a recusa que não avisava ninguém */
+
+/*
+ * Estas duas recusas eram MUDAS: o motor dizia "não contou" e não contava
+ * para ninguém. O Leonardo mandou uma Rosa pelo painel com a rodada fechada,
+ * não ouviu voz nenhuma, não viu voto nenhum e não teve onde ler por quê.
+ *
+ * Um presente que não conta não pode ser um presente que sumiu: ou o placar
+ * mostra o voto, ou o painel mostra a razão. É a mesma regra dos outros
+ * avisos do motor — "presente 999 não tem mapeamento" já existia pelo mesmo
+ * motivo.
+ */
+
+test('o presente que chega com a rodada fechada avisa, em vez de sumir', () => {
+  const { tally } = montar();
+  tally.fecharRodada({ em: 2000, motivo: 'manual' });
+  const antes = tally.estado().avisos.length;
+  const r = tally.processar(evento({ giftNome: 'Rosa' }));
+  assert.equal(r.contado, false);
+  assert.equal(r.motivo, 'rodada-fechada');
+  const avisos = tally.estado().avisos;
+  assert.equal(avisos.length, antes + 1, 'a recusa não gerou aviso nenhum');
+  assert.match(avisos.at(-1).texto, /rodada .{0,6}fechada/i, `o aviso não diz o motivo: ${avisos.at(-1).texto}`);
+});
+
+test('o aviso da rodada fechada diz QUAL presente não contou', () => {
+  // Sem o nome, o aviso não responde a pergunta que o operador vai fazer ao
+  // ver o placar parado: "foi o meu presente?".
+  const { tally } = montar();
+  tally.fecharRodada({ em: 2000, motivo: 'manual' });
+  tally.processar(evento({ giftNome: 'Rosa' }));
+  assert.match(tally.estado().avisos.at(-1).texto, /Rosa/);
+});
+
+test('o presente desativado avisa que está desativado', () => {
+  const { tally } = montar(normalizar({
+    urnas: CONFIG.urnas,
+    presentes: [
+      { id: 'p1', nome: 'Heart Me', giftId: '1', urnaId: 'u1', votos: 1 },
+      { id: 'p2', nome: 'Rosa', giftId: '2', urnaId: 'u2', votos: 1, ativo: false },
+    ],
+  }).config);
+  const r = tally.processar(evento());
+  assert.equal(r.motivo, 'presente-inativo');
+  const aviso = tally.estado().avisos.at(-1).texto;
+  assert.match(aviso, /Rosa/);
+  assert.match(aviso, /desativad|desligad/i, `o aviso não diz o motivo: ${aviso}`);
+});
+
+test('a repetição NÃO vira aviso: ela é o sistema funcionando', () => {
+  /*
+   * O contrário dos dois acima, e é uma decisão: a deduplicação existe para
+   * o placar não contar duas vezes o mesmo presente, e uma live que
+   * reconecta reentrega eventos o tempo todo. Encher o painel de avisos
+   * corretos é o caminho mais curto para ninguém ler os avisos.
+   */
+  const { tally } = montar();
+  tally.processar(evento());
+  const antes = tally.estado().avisos.length;
+  assert.equal(tally.processar(evento()).motivo, 'duplicado');
+  assert.equal(tally.estado().avisos.length, antes);
+});

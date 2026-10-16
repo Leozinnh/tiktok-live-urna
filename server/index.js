@@ -10,6 +10,7 @@ import { criarSimulador } from './sources/simulator.js';
 import { criarTrocaDeFontes } from './sources/troca.js';
 import { criarVoz } from './voz.js';
 import { carregar, salvar, caminhoDaConfig } from './config.js';
+import { criarLog } from './log.js';
 import { descobrirPidDaPorta, mensagemDePortaOcupada } from './porta.js';
 import { chaveDeAceite, codificarFrame, decodificarFrames } from './ws.js';
 
@@ -164,7 +165,7 @@ async function servirArquivo(res, pasta, nome, conferirNome) {
  * live: um teste que apaga a rodada do Leonardo é pior do que nenhum teste.
  */
 export function montarMotor({
-  config, caminhoDoBanco = ':memory:', aoSalvar = null, voz = null, fonte = null,
+  config, caminhoDoBanco = ':memory:', aoSalvar = null, voz = null, fonte = null, log = null,
 }) {
   const db = abrirBanco(caminhoDoBanco);
   const tally = criarTally({ db, config });
@@ -189,7 +190,14 @@ export function montarMotor({
    * um processo de verdade no meio.
    */
   const ativa = fonte ?? criarTrocaDeFontes({ config });
-  const hub = criarHub({ tally, fonte: ativa, config, aoSalvar, voz });
+  /*
+   * O log entra aqui, e VEM DE FORA quando alguém tem um.
+   *
+   * O `criarHub` cria um de console quando não recebe nenhum, e é isso que
+   * mantém a suíte sem escrever no disco de ninguém. Quem sobe o servidor de
+   * verdade passa um com pasta, e é ele que sobrevive ao terminal rolando.
+   */
+  const hub = criarHub({ tally, fonte: ativa, config, aoSalvar, voz, ...(log ? { log } : {}) });
   ativa.iniciar();
   /*
    * A rodada já nasce aberta. Sem ela o motor não tem onde contar — a seção
@@ -369,8 +377,22 @@ if (executadoDireto()) {
   const caminhoLocal = caminhoDaConfig(projeto);
 
   const { config, avisos, erro } = await carregar(caminhoLocal);
-  for (const a of avisos) console.warn(`  aviso: ${a}`);
-  if (erro) console.warn(`  aviso: ${erro} — seguindo com a configuração padrão`);
+
+  /*
+   * O log da live, com arquivo.
+   *
+   * O console sozinho não resolve o problema que o criou: numa live de três
+   * horas, a linha que explica por que um presente não virou voz está a duas
+   * mil linhas de distância da tela de hoje, e amanhã não está em lugar
+   * nenhum. `dados/logs/AAAA-MM-DD.log` é onde ela fica.
+   *
+   * Ele nasce antes de tudo porque as linhas do boot — a configuração que não
+   * carregou, a voz que não subiu — são justamente as que se procura depois.
+   */
+  const log = criarLog({ pasta: join(projeto, 'dados', 'logs') });
+
+  for (const a of avisos) log.aviso('config', a);
+  if (erro) log.aviso('config', `${erro} — seguindo com a configuração padrão`);
 
   /*
    * A voz do narrador.
@@ -395,12 +417,15 @@ if (executadoDireto()) {
     // linha de cada frase, e é o que permite as duas saírem do mesmo processo.
     vozes: () => cfgAtual.narracao?.vozes,
     velocidade: () => cfgAtual.narracao?.velocidade,
-    aoAvisar: (texto) => console.warn(`  voz: ${texto}`),
+    // O aviso da voz vai para o log, e não só para o console: é ele que
+    // explica uma live muda quando o sintetizador não sobe.
+    aoAvisar: (texto) => log.aviso('voz', texto),
   });
 
   const motor = montarMotor({
     config,
     voz,
+    log,
     caminhoDoBanco: join(projeto, 'dados', 'votos.sqlite'),
     // Gravar é assíncrono e o hub não espera: o painel recebe o
     // `config.changed` com a configuração que JÁ está valendo, e o arquivo
@@ -408,7 +433,7 @@ if (executadoDireto()) {
     // aviso que o painel mostra.
     aoSalvar: (nova) => {
       cfgAtual = nova;
-      salvar(caminhoLocal, nova).catch((e) => console.error(`[config] não gravou: ${e.message}`));
+      salvar(caminhoLocal, nova).catch((e) => log.erro('config', `não gravou: ${e.message}`));
     },
   });
 
@@ -488,6 +513,10 @@ if (executadoDireto()) {
     console.log('  Live Vote Arena');
     console.log(`  Live:   http://localhost:${porta}`);
     console.log(`  Painel: http://localhost:${porta}/admin`);
+    // A pasta do log fica no boot porque a pergunta "por que não falou?"
+    // chega sempre depois, quando o terminal já rolou e ele não sabe onde
+    // procurar o arquivo. São os arquivos do dia, um por dia.
+    console.log(`  Log:    dados${sep}logs`);
     console.log('');
   });
 }

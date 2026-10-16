@@ -188,6 +188,7 @@ export const FALAS_PADRAO = Object.freeze({
     'Boa, {nome}! Bem-vindo e boa sorte!',
   ]),
   compartilhou: Object.freeze([
+    // --- Originais ---
     '{nome} compartilhou a live! Valeu demais!',
     'A live chegou mais longe: {nome} compartilhou!',
     '{nome} mandou a live pra galera! Isso ajuda demais!',
@@ -198,8 +199,44 @@ export const FALAS_PADRAO = Object.freeze({
     'Isso, {nome}! Compartilhar é o que traz a galera!',
     'A live circulou! Obrigado, {nome}!',
     '{nome} chamou o pessoal! Bem-vindos, todo mundo!',
+
+    // --- Empolgadas ---
+    'Aeee! {nome} compartilhou a live! Muito obrigado!',
+    'Olha o compartilhamento! Valeu, {nome}!',
+    'Uhuu! {nome} divulgou a live! Gratidão demais!',
+    'Mais gente chegando por causa de {nome}! Valeu por compartilhar!',
+    'Que força, {nome}! A live tá voando por aí!',
+    '{nome} espalhou a notícia! A live agradece!',
+    'Compartilhamento na área! Obrigado, {nome}!',
+    'É assim que a live cresce! Valeu, {nome}!',
+
+    // --- Carinhosas ---
+    'Que carinho, {nome}! Obrigado por levar a live pra mais gente!',
+    'Muito obrigado por compartilhar, {nome}! Isso ajuda demais!',
+    '{nome}, gratidão por divulgar a live! Você é demais!',
+    'Obrigado por lembrar da gente, {nome}! Valeu por compartilhar!',
+    'Que gesto lindo, {nome}! Compartilhou a live com a galera!',
+    '{nome}, você ajuda a live a crescer! Muito obrigado!',
+    'Cada compartilhamento conta! Obrigado, {nome}!',
+    'Gratidão por chamar o pessoal, {nome}!',
+
+    // --- Divertidas ---
+    'Alô, alô! {nome} divulgou a live! Valeu!',
+    '{nome} virou assessor de imprensa da live! Obrigado!',
+    'Cuidado, {nome}! Assim a live lota de tanta divulgação! Valeu!',
+    'Tapete vermelho pra quem {nome} convidou! Valeu por compartilhar!',
+    'A live agora tem {nome} como garoto-propaganda! Obrigado!',
+    'Chama a banda! {nome} compartilhou a live!',
+
+    // --- Curtas ---
+    'Valeu por compartilhar, {nome}!',
+    'Compartilhou! Obrigado, {nome}!',
+    'Gratidão, {nome}! Live divulgada!',
+    'Obrigado por divulgar, {nome}!',
+    'Show, {nome}! Valeu pelo compartilhamento!',
   ]),
   assinatura: Object.freeze([
+    // --- Originais ---
     '{nome} virou assinante! Que isso!',
     'Assinante novo: {nome}! Muito obrigado!',
     'Olha {nome} apoiando de verdade! Virou assinante!',
@@ -210,6 +247,41 @@ export const FALAS_PADRAO = Object.freeze({
     'Obrigado por assinar, {nome}! Isso sustenta a live!',
     '{nome} entrou pra lista de assinantes! Que honra!',
     'Assinante na casa: {nome}! Muito obrigado pelo apoio!',
+
+    // --- Empolgadas ---
+    'Aeee! {nome} assinou a live! Muito obrigado!',
+    'Uhuu! Assinante novo! Valeu, {nome}!',
+    'Explodiu! {nome} virou assinante! Gratidão demais!',
+    'Que força, {nome}! Assinatura nova na live!',
+    'Olha isso, família! {nome} assinou! Muito obrigado!',
+    'Assinatura caindo! Valeu, {nome}! Que apoio!',
+    'É assinante novo! {nome} entrou pro time! Gratidão!',
+    'Chegou assinante! {nome}, muito obrigado por esse apoio!',
+
+    // --- Carinhosas ---
+    'Que carinho, {nome}! Obrigado por assinar a live!',
+    'Muito obrigado, {nome}! Sua assinatura faz toda a diferença!',
+    '{nome}, gratidão por apoiar a live de verdade! Valeu!',
+    'Você fortalece a live, {nome}! Obrigado por assinar!',
+    'Que gesto lindo! {nome} virou assinante! Gratidão!',
+    '{nome}, a casa é sua! Obrigado por assinar!',
+    'Isso aquece o coração! Valeu pela assinatura, {nome}!',
+    'Obrigado pela confiança, {nome}! Assinante é família!',
+
+    // --- Divertidas ---
+    'Alô, alô! {nome} assinou! Valeu demais!',
+    'Tapete vermelho pra {nome}! Assinante novo na live!',
+    'Chama a banda! {nome} virou assinante!',
+    'Cuidado, gente! {nome} agora é assinante oficial! Valeu!',
+    'Aplausos pra {nome}! Assinou a live! Obrigado!',
+    'Assinante vip na área! Obrigado, {nome}!',
+
+    // --- Curtas ---
+    'Valeu pela assinatura, {nome}!',
+    'Assinou! Obrigado, {nome}!',
+    'Gratidão, {nome}! Assinante novo!',
+    'Bem-vindo ao time de assinantes, {nome}!',
+    'Show, {nome}! Obrigado por assinar!',
   ]),
   /*
    * O PRESENTE, que é o evento que mais importa aqui.
@@ -297,6 +369,38 @@ export const FALAS_PADRAO = Object.freeze({
     'Top, {nome}! {vezes}{presente}! {urna} agradece!',
     'Chegou {vezes}{presente} de {nome}!',
     'É isso, {nome}! {vezes}{presente} pra {urna}! Valeu!',
+
+    /*
+     * --- O voto já tem dono (2026-10-15) ---
+     *
+     * Todo presente mapeado vai para uma urna conhecida: quando esta fala sai,
+     * o voto JÁ foi decidido. Até aqui as frases contavam o presente e
+     * agradeciam, e só algumas citavam quem recebeu — nenhuma dizia a coisa
+     * que a pessoa quer ouvir de volta: que o dinheiro dela virou um voto de
+     * alguém. Foi o pedido do Leonardo: "quando alguém mandar presente e já
+     * tiver o voto decidido, fala tipo se votar 13 'Lulinha ganhou um voto'".
+     *
+     * São um BLOCO, e não três frases soltas, por causa do baralho: o narrador
+     * dá a volta em TODA a lista antes de repetir qualquer uma. Três frases no
+     * meio de sessenta seriam ditas uma vez a cada vinte presentes.
+     *
+     * `{apelido}` é o apelido do candidato no arquivo, e cai para o nome da
+     * urna quando ele não foi escrito — o arquivo de hoje não tem nenhum.
+     */
+    '{apelido} ganhou um voto! Valeu, {nome}!',
+    'Mais um voto pra {apelido}! Obrigado, {nome}!',
+    'Voto confirmado: {apelido}! Valeu, {nome}!',
+    '{nome} botou mais um voto em {apelido}!',
+    'É voto pra {apelido}, família! Valeu, {nome}!',
+    '{apelido} agradece o voto, {nome}!',
+    'Mais um voto na conta de {apelido}! Valeu, {nome}!',
+    'O voto é de {apelido}! {nome} mandou {vezes}{presente}!',
+    'Lá vai mais um voto pra {apelido}! Valeu, {nome}!',
+    '{apelido} tá somando voto! Muito obrigado, {nome}!',
+    'Voto na conta de {apelido}!',
+    'Firmou o voto em {apelido}! Valeu, {nome}!',
+    'Chegou voto pra {apelido}! Valeu, {nome}!',
+    '{nome} mandou {vezes}{presente} pra {apelido}!',
   ]),
   /*
    * A cobrança de quem mandou um presente que não está no painel.
@@ -311,10 +415,27 @@ export const FALAS_PADRAO = Object.freeze({
    * para quem está do outro lado.
    */
   espera: Object.freeze([
+    // --- Originais ---
     '{nome}, escreve o número da urna no chat!',
     '{nome}, faltou o número! Escreve no chat qual urna.',
     'Não entendi seu voto, {nome}! Escreve o número da urna no chat.',
     '{nome}, manda o número da urna no chat para o voto valer!',
+
+    // --- Dizendo o que fazer ---
+    '{nome}, escreve no chat o número da urna que vai receber o voto!',
+    'Manda no chat o número da urna, {nome}! Assim o voto conta!',
+    '{nome}, digita o número da urna no chat para o presente valer!',
+    'Falta só o número, {nome}! Escreve no chat qual urna recebe o voto.',
+    '{nome}, comenta o número da urna no chat e o voto entra!',
+    'Escreve no chat, {nome}! O número da urna faz o voto valer.',
+    '{nome}, para o voto contar é só escrever o número da urna no chat!',
+    'Ainda dá tempo, {nome}! Manda o número da urna no chat!',
+
+    // --- Com carinho ---
+    'Obrigado pelo presente, {nome}! Escreve o número da urna no chat para o voto valer!',
+    '{nome}, o presente chegou! Agora escreve no chat qual urna recebe o voto.',
+    'Seu apoio chegou, {nome}! Só falta o número da urna no chat.',
+    'Valeu, {nome}! Escreve o número da urna no chat que o voto entra!',
   ]),
 });
 
@@ -463,9 +584,16 @@ export function nomeFalavel(nome, usuario = '') {
  * aqui: o mesmo `{quantidade}` quer dizer números diferentes em tipos
  * diferentes — "6 curtidas" é uma contagem, "5x Rosa" é um prefixo —, e
  * juntar os dois numa regra só faria uma das duas frases sair errada.
+ *
+ * `{apelido}` é o apelido da URNA — o candidato que recebeu o voto —, e não
+ * o de quem presenteou: esse é o `{nome}`, e continua sendo. Ele cai para o
+ * nome da urna quando não há apelido configurado, porque o apelido é um
+ * carinho a mais e não um campo obrigatório: sem a queda, uma urna sem
+ * apelido faria a frase sair com "{apelido}" cru na tela — e a voz lê o texto
+ * como ele está, chaves em voz alta no meio da live.
  */
 export function preencher(modelo, {
-  nome = '', usuario = '', quantidade = 0, presente = '', urna = '', vezes = '',
+  nome = '', usuario = '', quantidade = 0, presente = '', urna = '', vezes = '', apelido = '',
 } = {}) {
   const quem = nomeFalavel(nome, usuario);
   return String(modelo ?? '')
@@ -475,7 +603,8 @@ export function preencher(modelo, {
     .replaceAll('{quantidade}', String(quantidade))
     .replaceAll('{presente}', String(presente))
     .replaceAll('{urna}', String(urna))
-    .replaceAll('{vezes}', String(vezes));
+    .replaceAll('{vezes}', String(vezes))
+    .replaceAll('{apelido}', String(apelido).trim() || String(urna));
 }
 
 /**
@@ -487,8 +616,14 @@ export function preencher(modelo, {
  * @param {Function} [opcoes.sorteio] 0..1; existe para o teste ser determinístico
  * @param {Function} [opcoes.agora]  o relógio, em ms; idem
  * @param {Function} [opcoes.aoNarrar] avisado com o texto já montado
+ * @param {Function} [opcoes.aoSilenciar] avisado com `{ motivo, evento, ... }`
+ *   a cada vez que a resposta é ficar quieto. Existe para o log: "mandei um
+ *   presente e não falou nada" só tem resposta se alguém disser QUAL das
+ *   regras calou a fala, e este módulo é o único que sabe.
  */
-export function criarNarrador({ falas = {}, sorteio = Math.random, agora = Date.now, aoNarrar = null } = {}) {
+export function criarNarrador({
+  falas = {}, sorteio = Math.random, agora = Date.now, aoNarrar = null, aoSilenciar = null,
+} = {}) {
   /** As frases que valem AGORA — o painel pode ter salvado desde a última fala. */
   const frasesDeAgora = () => (typeof falas === 'function' ? falas() : falas);
   /** tipo → { modelos, saco } — o baralho de onde as frases são tiradas. */
@@ -574,9 +709,14 @@ export function criarNarrador({ falas = {}, sorteio = Math.random, agora = Date.
      */
     narrar(evento) {
       const tipo = evento?.tipo;
+      // Evento sem tipo é lixo que chegou, e não uma decisão daqui: não vira
+      // nem fala nem silêncio explicado.
       if (!tipo) return null;
       const modelos = modelosDe(tipo);
-      if (modelos.length === 0) return null;
+      if (modelos.length === 0) {
+        aoSilenciar?.({ motivo: 'sem-frase', evento });
+        return null;
+      }
 
       /*
        * O presente só fala depois de virar VOTO.
@@ -592,7 +732,10 @@ export function criarNarrador({ falas = {}, sorteio = Math.random, agora = Date.
        * presente órfão não pode gastar o silêncio de trinta segundos de quem
        * manda outro presente, dez segundos depois, que esse sim vale.
        */
-      if (tipo === 'presente' && !String(evento.presente ?? '').trim()) return null;
+      if (tipo === 'presente' && !String(evento.presente ?? '').trim()) {
+        aoSilenciar?.({ motivo: 'presente-sem-nome', evento });
+        return null;
+      }
 
       const t = agora();
       const quem = String(evento.userId || evento.usuario || '');
@@ -604,12 +747,19 @@ export function criarNarrador({ falas = {}, sorteio = Math.random, agora = Date.
        * dispararia uma segunda fala no instante em que o cooldown acabasse,
        * contando de novo um gesto que já tinha sido anunciado.
        */
-      if ((liberadoEm.get(chave) ?? 0) > t) return null;
+      const liberado = liberadoEm.get(chave) ?? 0;
+      if (liberado > t) {
+        aoSilenciar?.({ motivo: 'cooldown', evento, faltamMs: liberado - t });
+        return null;
+      }
 
       let quantidade = 0;
       if (tipo === 'curtida') {
         quantidade = somarCurtida(chave, Number(evento.quantidade) || 1, t);
-        if (quantidade < LIMIAR_CURTIDA) return null;
+        if (quantidade < LIMIAR_CURTIDA) {
+          aoSilenciar?.({ motivo: 'abaixo-do-limiar', evento, quantidade });
+          return null;
+        }
         rajadas.delete(chave);
       }
 
@@ -631,6 +781,9 @@ export function criarNarrador({ falas = {}, sorteio = Math.random, agora = Date.
         quantidade,
         presente: evento.presente,
         urna: evento.urna,
+        // O apelido do CANDIDATO, que só existe para o presente — é ele quem
+        // recebeu o voto. Vem do hub, que é quem lê a urna na configuração.
+        apelido: evento.apelido,
         vezes: combo > 1 ? `${combo}x ` : '',
       });
       aoNarrar?.(texto);

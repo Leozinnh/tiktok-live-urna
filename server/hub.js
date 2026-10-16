@@ -31,8 +31,9 @@
 
 import { basename } from 'node:path';
 import { mesclar, normalizar } from './config.js';
-import { criarNarrador } from './narracao.js';
+import { criarNarrador, LIMIAR_DA_CURTIDA } from './narracao.js';
 import { criarEspera } from './espera.js';
+import { criarLog } from './log.js';
 
 export function criarHub({
   tally,
@@ -46,6 +47,10 @@ export function criarHub({
   // Como gravar `config/local.json`. Injetado para o hub não saber de
   // caminhos de arquivo, e para a suíte não escrever no disco de ninguém.
   aoSalvar = null,
+  // O log da live. Injetado pelo mesmo motivo da voz: a suíte escreveria no
+  // terminal de quem roda `npm test` e no arquivo do dia de quem está no ar.
+  // O de verdade chega do `index.js`, com a pasta `data/logs`.
+  log = criarLog(),
 }) {
   let cfg = config;
   const clientes = new Set();
@@ -60,6 +65,119 @@ export function criarHub({
 
   const ehAdmin = (c) => c.papel === 'admin';
 
+  /*
+   * Como o log chama um cliente.
+   *
+   * "Painel" e "tela" são os dois papéis que existem, e são os nomes que o
+   * Leonardo usa. O número do cliente fica junto porque a pergunta que se faz
+   * no meio da live é "quantas telas estão abertas?" — e uma reconexão do OBS
+   * aparece aqui como dois clientes, um que saiu e outro que entrou.
+   */
+  const apelido = (c) => `${c.papel === 'admin' ? 'painel' : 'tela'} #${c.id}`;
+
+  /** Quantos clientes abertos agora, no singular quando é um só. */
+  const quantosConectados = () =>
+    `${clientes.size} ${clientes.size === 1 ? 'conectado' : 'conectados'}`;
+
+  /* ------------------------------------------------------------- o log */
+
+  /*
+   * O log conta a MESMA história que o painel, e por isso ele existe.
+   *
+   * O Leonardo mandou uma Rosa pelo botão de teste com a rodada fechada, não
+   * ouviu voz nenhuma e não teve onde ler o motivo: o servidor sabia de tudo
+   * (a rodada estava fechada) e não contava para ninguém. O painel só fala
+   * enquanto a aba está aberta e só guarda cinquenta linhas; o log fica.
+   *
+   * A regra que estes textos seguem: toda decisão de NÃO fazer algo sai
+   * escrita com o motivo. Um log que só registra o que funcionou não serve
+   * para procurar defeito — o defeito é justamente o que não aconteceu.
+   */
+  const EMOJI_DO_EVENTO = Object.freeze({
+    entrada: '👋',
+    seguidor: '👤',
+    curtida: '❤️',
+    compartilhou: '🔁',
+    assinatura: '💎',
+    presente: '🎁',
+    espera: '⏳',
+  });
+
+  /*
+   * O "3x " do combo, escrito igual ao da fala.
+   *
+   * É a mesma decisão do narrador, repetida aqui de propósito: o presente
+   * único sai "mandou Rosa", e não "mandou 1x Rosa", que não é como uma
+   * pessoa fala — e o log existe para ser lido por gente.
+   */
+  const vezesDe = (combo) => (Number(combo) > 1 ? `${Number(combo)}x ` : '');
+
+  /** O nome de quem fez o evento, com um lugar-comum para quando não veio. */
+  const quemDe = (evento) => String(evento?.usuario ?? '').trim() || 'Alguém';
+
+  /** A frase de um evento que chegou da live, para o log. */
+  function descreverEvento(evento) {
+    const quem = quemDe(evento);
+    const emoji = EMOJI_DO_EVENTO[evento?.tipo] ?? '•';
+    switch (evento?.tipo) {
+      case 'entrada': return `${emoji} ${quem} entrou na live`;
+      case 'seguidor': return `${emoji} ${quem} começou a seguir a live`;
+      case 'curtida': return `${emoji} ${quem} mandou ${evento.quantidade ?? 0} curtidas`;
+      case 'compartilhou': return `${emoji} ${quem} compartilhou a live`;
+      case 'assinatura': return `${emoji} ${quem} virou assinante`;
+      case 'presente': {
+        const quantos = vezesDe(evento.combo);
+        // Sem nome, o log não escreve o id — "mandou 3x presentes" é o que
+        // uma pessoa lê; "mandou 3x 2" é o que ela vai ter que decifrar.
+        const nome = String(evento.giftNome ?? '').trim() || (quantos ? 'presentes' : 'um presente');
+        return `${emoji} ${quem} mandou ${quantos}${nome}`;
+      }
+      default: return `${emoji} ${quem}: ${evento?.tipo ?? 'evento sem tipo'}`;
+    }
+  }
+
+  /*
+   * Os motivos de recusa, ditos por extenso.
+   *
+   * O motor devolve códigos (`rodada-fechada`, `sem-mapeamento`) porque quem
+   * os lê é o código. Quem lê o log é o Leonardo, no meio da live, atrás do
+   * motivo de um presente não ter virado voto.
+   */
+  const MOTIVO_DA_RECUSA = Object.freeze({
+    'rodada-fechada': 'Rodada fechada',
+    'duplicado': 'Presente repetido',
+    'sem-mapeamento': 'Presente fora do mapeamento',
+    'presente-inativo': 'Presente desativado no painel',
+    'sem-urna': 'Presente sem urna',
+    'urna-inativa': 'Urna do presente desativada',
+    'evento-invalido': 'Evento inválido',
+    'numero-sem-urna': 'Número escrito no chat não é de urna nenhuma',
+  });
+
+  /*
+   * O silêncio do narrador, explicado.
+   *
+   * O narrador cala por cooldown, por limiar de curtida, por lista de frases
+   * vazia no painel — e todos esses silêncios eram o MESMO silêncio na tela
+   * de quem está no ar. "Não falou nada" não é diagnóstico; "já foi
+   * anunciado, faltam 47s" é.
+   */
+  function descreverSilencio({ motivo, evento, faltamMs, quantidade } = {}) {
+    const quem = String(evento?.usuario ?? '').trim() || 'alguém';
+    switch (motivo) {
+      case 'cooldown':
+        return `silêncio: ${quem} já foi anunciado; faltam ${Math.ceil((faltamMs ?? 0) / 1000)}s`;
+      case 'abaixo-do-limiar':
+        return `silêncio: ${quem} mandou ${quantidade ?? 0} curtidas, abaixo do limiar de ${LIMIAR_DA_CURTIDA}`;
+      case 'presente-sem-nome':
+        return `silêncio: o presente de ${quem} chegou sem o nome que a frase precisa`;
+      case 'sem-frase':
+        return `silêncio: não há frase de "${evento?.tipo}" na lista do painel`;
+      default:
+        return `silêncio: ${motivo ?? 'motivo não explicado'}`;
+    }
+  }
+
   const enviarA = (cliente, tipo, payload) => {
     try {
       cliente.enviar(JSON.stringify({ tipo, payload }));
@@ -70,7 +188,7 @@ export function criarHub({
        * cliente aqui é o que impede a lista de crescer a noite inteira.
        */
       clientes.delete(cliente);
-      console.error(`[hub] cliente ${cliente.id} caiu ao receber ${tipo}: ${erro.message}`);
+      log.aviso('hub', `o cliente ${cliente.id} caiu ao receber ${tipo}: ${erro.message}`);
     }
   };
 
@@ -90,7 +208,14 @@ export function criarHub({
    * Leonardo editaria uma frase com a live no ar, ouviria a antiga, e não
    * teria como saber por quê.
    */
-  const narrador = criarNarrador({ falas: () => cfg.narracao?.falas, agora });
+  const narrador = criarNarrador({
+    falas: () => cfg.narracao?.falas,
+    agora,
+    // Todo silêncio do narrador vira uma linha com o motivo. É a metade da
+    // resposta que faltava: sem ela, "não falou nada" e "não tinha o que
+    // falar" ficam idênticos de fora.
+    aoSilenciar: (explicacao) => log.info('voz', `🤐 ${descreverSilencio(explicacao)}`),
+  });
 
   /*
    * A espera do número no chat.
@@ -193,6 +318,15 @@ export function criarHub({
     esquecerEsperas();
     if (!tally.aberta) return;
     tally.fecharRodada({ em: agora(), motivo });
+    /*
+     * A rodada que fecha fica registrada, e com o motivo.
+     *
+     * Sem esta linha, uma fala que não saiu às 21h não tem como ser amarrada
+     * ao momento em que a votação virou: o presente chegou "do nada" numa
+     * rodada que tinha acabado de encerrar sozinha, cinquenta minutos depois
+     * de alguém ter apertado "começar".
+     */
+    log.info('hub', `⏰ rodada encerrada (${motivo})`);
     const e = tally.estado();
     enviarATodos('round.finished', {
       ...atualizacaoDeRodada(),
@@ -282,6 +416,7 @@ export function criarHub({
       case 'round.start':
         tally.abrirRodada({ iniciadaEm: agora() });
         terminaEm = agora() + Math.max(1, cfg.rodada.duracaoSegundos) * 1000;
+        log.info('hub', `▶️ rodada aberta (${Math.round(cfg.rodada.duracaoSegundos / 60)} min)`);
         enviarATodos('round.update', atualizacaoDeRodada());
         break;
 
@@ -296,6 +431,9 @@ export function criarHub({
         if (tally.aberta) tally.fecharRodada({ em: agora(), motivo: 'reset' });
         tally.abrirRodada({ iniciadaEm: agora() });
         terminaEm = null;
+        // Sem relógio: a rodada zerada espera o "começar" de quem opera. É o
+        // que faz o placar ficar em zero na tela até a hora certa.
+        log.info('hub', '🧹 rodada zerada pelo painel (sem relógio correndo)');
         enviarATodos('round.update', atualizacaoDeRodada());
         break;
 
@@ -380,6 +518,7 @@ export function criarHub({
   const FILA_DA_FALA_MAX = 6;
   let filaDaFala = Promise.resolve();
   let naFila = 0;
+  let narracaoEstavaAtiva = cfg.narracao?.ativa !== false;
 
   /**
    * @param {object} evento
@@ -389,7 +528,21 @@ export function criarHub({
    *   falas são avisos, e a cobrança é a única que desfaz um prejuízo.
    */
   function narrar(evento, { essencial = false } = {}) {
-    if (cfg.narracao?.ativa === false) return;
+    /*
+     * A narração desligada no painel é o primeiro suspeito de uma live muda,
+     * e é o único que não aparece em lugar nenhum: a tela continua animando o
+     * voto, o placar continua subindo, e só a voz some. A linha sai na
+     * VIRADA, e não a cada evento — com a narração desligada a live inteira
+     * passaria o dia escrevendo a mesma frase no arquivo.
+     */
+    const ativa = cfg.narracao?.ativa !== false;
+    if (ativa !== narracaoEstavaAtiva) {
+      narracaoEstavaAtiva = ativa;
+      log.info('voz', ativa
+        ? '🗣 narração ligada no painel'
+        : '🤐 narração DESLIGADA no painel: nada vai ser falado');
+    }
+    if (!ativa) return;
     /*
      * A recusa vem ANTES do narrador, e não depois.
      *
@@ -405,7 +558,10 @@ export function criarHub({
      * adiá-la, é perdê-la, e o que se perde com ela é a única explicação que
      * quem mandou um presente órfão tem para ouvir.
      */
-    if (!essencial && naFila >= FILA_DA_FALA_MAX) return;
+    if (!essencial && naFila >= FILA_DA_FALA_MAX) {
+      log.aviso('voz', `fila cheia (${naFila} falas esperando); ${quemDe(evento)} ficou sem voz`);
+      return;
+    }
     const texto = narrador.narrar(evento);
     // `null` é a resposta para quem não merece fala — a curtida solta, o
     // repetido, o apelido em cooldown. Silêncio é decisão, e não erro.
@@ -466,6 +622,25 @@ export function criarHub({
   }
 
   async function anunciarNaTela(evento, texto) {
+    /*
+     * A linha da voz, antes de virar som — igual à do turfe.
+     *
+     * É o que a live está dizendo AGORA. Lida de trás para frente, ela diz o
+     * que já foi ao ar mesmo que o áudio tenha falhado depois.
+     */
+    log.info('voz', `🗣 "${texto}"`);
+    if (clientes.size === 0) {
+      /*
+       * Ninguém para ouvir.
+       *
+       * Sem tela conectada, a fala é gerada, o áudio é gerado, e nada disso
+       * chega a lugar nenhum: para quem está na frente do computador
+       * ouvindo, é idêntico a um servidor mudo. O sintoma que o Leonardo
+       * descreveu — "não falou nada" — tem esta cara quando o OBS está com a
+       * fonte fechada.
+       */
+      log.aviso('voz', `nenhuma tela conectada: ninguém vai ouvir "${texto}"`);
+    }
     let wav = null;
     try {
       const pronta = await voz?.sintetizar(texto);
@@ -480,13 +655,19 @@ export function criarHub({
        * para por causa de um erro. Perder a fala é um detalhe; perder o nome
        * de quem chegou é a página parecer morta.
        */
-      console.error(`[hub] a voz falhou em "${texto}": ${erro.message}`);
+      log.erro('voz', `a voz falhou em "${texto}": ${erro.message} — a faixa saiu sem áudio`);
     }
     enviarATodos('narrate', {
       texto,
       wav,
       tipo: evento.tipo,
       usuario: evento.usuario,
+      /*
+       * O desenho do presente que chegou, e só ele tem um: chegada, follow e
+       * curtida chegam aqui sem este campo, e a faixa deles sai só com o
+       * texto — como sempre saiu.
+       */
+      desenho: evento.desenho,
       em: evento.em,
       ts: agora(),
     });
@@ -507,6 +688,14 @@ export function criarHub({
      * indexada por pessoa.
      */
     if (evento.tipo === 'comentario') {
+      /*
+       * Comentário NÃO vira linha no log.
+       *
+       * É o evento mais frequente da live — centenas por hora —, e a imensa
+       * maioria não faz nada: não conta voto, não merece fala. O que merece
+       * registro é o comentário que RESGATA um presente, e esse aparece logo
+       * abaixo, na linha do voto.
+       */
       const resgate = espera.resgatar({ userId: evento.userId, texto: evento.texto, urnas: urnasAtivas() });
       if (!resgate) return;   // a imensa maioria dos comentários morre aqui
       const r = tally.contarPeloNumero(
@@ -533,7 +722,22 @@ export function criarHub({
       return;
     }
 
-    const r = tally.processar(evento);
+    log.info('live', descreverEvento(evento));
+
+    /*
+     * O evento social não passa pelo motor.
+     *
+     * Chegada, follow, curtida e companhia não têm `giftId`, e o motor recusa
+     * todos eles — corretamente — com um aviso no painel POR EVENTO. Numa
+     * live com trezentos follows, esses avisos empurram para fora da lista os
+     * que importam (ela guarda cinquenta linhas), e o painel vira ruído
+     * exatamente na hora em que o Leonardo olha para ele atrás de uma
+     * resposta. Um presente que perdeu o `giftId` no caminho continua
+     * passando por baixo e continua avisando.
+     */
+    const r = evento.giftId == null || evento.giftId === ''
+      ? { contado: false, motivo: 'evento-invalido', animar: false, lideranca: null }
+      : tally.processar(evento);
     if (!r.contado) {
       /*
        * O presente que não está mapeado abre uma espera pelo número.
@@ -555,16 +759,34 @@ export function criarHub({
           combo: evento.combo,
           em: evento.em,
         });
+        log.info('hub', `⏳ ${quemDe(evento)} mandou ${evento.giftNome || 'um presente'} fora do `
+          + 'mapeamento; esperando o número da urna no chat');
         avisarEspera();
+      } else if (evento.giftId != null && evento.giftId !== '') {
+        /*
+         * A recusa de um presente, escrita por extenso.
+         *
+         * É a linha que responde a pergunta que abriu esta entrega: o presente
+         * chegou, o motor recusou, e — até aqui — nada no mundo dizia por quê.
+         * Evento social não entra aqui: ele não tem giftId, e "recusado" não é
+         * o que aconteceu com um follow.
+         */
+        const motivo = MOTIVO_DA_RECUSA[r.motivo] ?? r.motivo;
+        log.info('hub', `⛔ ${motivo}: o presente ${evento.giftNome || evento.giftId} `
+          + `de ${quemDe(evento)} não contou`);
       }
       /*
        * Não contou voto: ou é um evento social — chegada, follow, curtida —,
-       * ou é um presente sem urna no mapeamento. Quem separa os dois é o
-       * narrador, que só conhece os tipos sociais: um presente órfão não tem
-       * frase nenhuma e sai daqui em silêncio. Quem fala por ele é a espera,
-       * quinze segundos depois, quando o número não vem.
+       * ou é um presente que o motor recusou.
+       *
+       * Só o social vai para o narrador. A fala de um PRESENTE sai em
+       * `anunciarVoto`, com o nome que o motor contou (`r.presente`), e um
+       * presente que não contou não tem esse nome: pedir a fala aqui devolvia
+       * "silêncio: o presente chegou sem nome" para uma Rosa que tem nome, e
+       * essa linha mandava procurar defeito no lugar errado. Quem fala pelo
+       * presente órfão é a espera, quando o número não vem.
        */
-      narrar(evento);
+      if (evento.giftId == null || evento.giftId === '') narrar(evento);
       return;
     }
 
@@ -585,6 +807,17 @@ export function criarHub({
    * voto que o placar não vê, e o defeito só apareceria na live.
    */
   function anunciarVoto(r, evento) {
+    /*
+     * O voto no log: quem mandou, o quê, quantos votos e para qual urna.
+     *
+     * É a linha de conferência da live. O placar diz QUANTO está cada urna; a
+     * conta de quem mandou o quê é esta, e é por ela que se descobre o
+     * presente que não entrou.
+     */
+    const urna = cfg.urnas?.[r.urnaId]?.nome ?? r.urnaId;
+    log.info('hub', `✅ ${r.usuario || 'alguém'} mandou ${vezesDe(evento.combo)}${r.presente} `
+      + `para a ${urna} (+${r.votos} ${r.votos === 1 ? 'voto' : 'votos'})`);
+
     enviarATodos('vote.counted', {
       id: r.chave,
       urnaId: r.urnaId,
@@ -638,8 +871,11 @@ export function criarHub({
      *
      * Os campos que a frase usa não estão no evento cru, e é aqui que eles
      * nascem: `presente` é o nome que o MOTOR contou — o do mapeamento quando
-     * existe, o que veio da TikTok quando o voto foi resgatado no chat —, e
-     * `urna` é o nome de quem recebeu, que o evento não traz em lugar nenhum.
+     * existe, o que veio da TikTok quando o voto foi resgatado no chat —,
+     * `urna` é o nome de quem recebeu, que o evento não traz em lugar nenhum,
+     * e `apelido` é como o narrador chama esse candidato ("Lulinha ganhou um
+     * voto"): os três saem da MESMA consulta à urna, e é por isso que eles
+     * nascem juntos — o voto e o nome de quem ganhou não podem discordar.
      * O `combo` é o do evento, e sem ele quem manda cinco presentes ouve a
      * mesma frase de quem mandou um.
      */
@@ -648,6 +884,17 @@ export function criarHub({
       tipo: 'presente',
       presente: r.presente,
       urna: cfg.urnas?.[r.urnaId]?.nome,
+      apelido: cfg.urnas?.[r.urnaId]?.apelido,
+      /*
+       * O desenho do presente, para a faixa mostrar a figura do que chegou.
+       *
+       * Ele sai do MAPEAMENTO (o presente da configuração), e não do evento:
+       * o nome que a TikTok manda para o presente ("Rosa") não é o nome de
+       * arquivo nenhum em `public/img/`, e adivinhar a figura a partir dele
+       * daria uma rosa sem rosa no dia em que o nome não batesse. Sem
+       * mapeamento não há desenho — e a faixa sai dourada, sem figura.
+       */
+      desenho: presente?.desenho,
       combo: evento.combo,
     });
 
@@ -688,8 +935,12 @@ export function criarHub({
           console.error(`[hub] mensagem recusada: ${erro.message}`);
         }
       };
-      cliente.fechar = () => clientes.delete(cliente);
+      cliente.fechar = () => {
+        if (!clientes.delete(cliente)) return;  // já tinha caído
+        log.info('hub', `🔌 ${apelido(cliente)} saiu (${quantosConectados()})`);
+      };
       clientes.add(cliente);
+      log.info('hub', `🔌 ${apelido(cliente)} conectado (${quantosConectados()})`);
       return cliente;
     },
 

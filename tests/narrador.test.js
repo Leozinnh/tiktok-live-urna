@@ -79,11 +79,68 @@ test('o tipo vira o nome de uma classe, e só dos tipos conhecidos', () => {
    * de cada aviso. Um texto livre ali não é só feiúra: é o visitante
    * escolhendo o nome de uma classe do projeto.
    */
-  assert.deepEqual([...TIPOS_DA_FAIXA].sort(), ['assinatura', 'compartilhou', 'curtida', 'entrada', 'seguidor']);
+  assert.deepEqual([...TIPOS_DA_FAIXA].sort(),
+    ['assinatura', 'compartilhou', 'curtida', 'entrada', 'presente', 'seguidor']);
   assert.equal(falaDoServidor(fala({ tipo: 'curtida' })).tipo, 'curtida');
-  for (const ruim of ['<script>', 'seguidor destaque', '', null, 7, 'presente']) {
+  /*
+   * O PRESENTE entrou nesta lista em 2026-10-15, e o motivo não é estético.
+   *
+   * Ele não estava aqui, então caía na classe neutra — e o Leonardo viu o
+   * aviso de uma Rosa sair cinza, no meio de uma live, com a mesma cara de
+   * "alguém entrou". O aviso que ele PAGA para acontecer era o mais apagado
+   * da tela. Um tipo sem estilo próprio não dá erro: só fica sem graça.
+   */
+  assert.equal(falaDoServidor(fala({ tipo: 'presente' })).tipo, 'presente');
+  for (const ruim of ['<script>', 'seguidor destaque', '', null, 7, 'Presente']) {
     assert.equal(falaDoServidor(fala({ tipo: ruim })).tipo, 'social', `"${ruim}" virou classe`);
   }
+});
+
+test('o desenho do presente é um nome de arquivo, e não um caminho', () => {
+  /*
+   * A faixa do presente mostra o desenho do presente que chegou — a rosa, o
+   * coração —, e é o que faz o aviso que a pessoa PAGOU ser reconhecido de
+   * longe: o Leonardo olhou a faixa de presente e disse que estava "muito
+   * simples e pouco chamativo".
+   *
+   * Como o `wav`, este campo faz a página BUSCAR alguma coisa, e por isso ele
+   * passa pela mesma peneira: só o nome de um arquivo de `public/img/`, sem
+   * extensão, sem barra, sem ponto. Um caminho de verdade aqui seria a tela da
+   * live buscando em qualquer lugar do projeto — e o valor vem de um arquivo
+   * de configuração que é editado à mão, onde um dedo escorregado é normal.
+   */
+  assert.equal(falaDoServidor(fala({ tipo: 'presente', desenho: 'rose' })).desenho, 'rose');
+  assert.equal(falaDoServidor(fala({ tipo: 'presente', desenho: 'heart_me' })).desenho, 'heart_me');
+  for (const ruim of [
+    '../../server/hub', 'server/hub', 'rose.webp', 'ROSE', 'rosa ', 'rosa/../x',
+    '/img/rose', 'a'.repeat(41), '', null, undefined,
+  ]) {
+    assert.equal(falaDoServidor(fala({ tipo: 'presente', desenho: ruim })).desenho, null,
+      `"${ruim}" não podia virar endereço de imagem`);
+  }
+  /*
+   * A regra é sobre a FORMA do nome, e não sobre o tipo do campo no JSON: um
+   * número vira texto, como o `wav` e como todo campo desta mensagem. Recusar
+   * por tipo seria uma checagem a mais para o mesmo resultado — o arquivo
+   * `42.webp` existiria ou não, e quem decide isso é o `onerror` da figura.
+   */
+  assert.equal(falaDoServidor(fala({ tipo: 'presente', desenho: 42 })).desenho, '42');
+  // Sem desenho é o caso normal: a vitrine de hoje tem dois presentes e o
+  // arquivo do Leonardo não diz desenho nenhum. A faixa dourada continua
+  // inteira, sem imagem.
+  assert.equal(falaDoServidor(fala({ tipo: 'presente' })).desenho, null);
+});
+
+test('só o aviso de presente carrega desenho', () => {
+  /*
+   * O desenho é do PRESENTE, e o resto da faixa não tem o que desenhar: um
+   * seguidor não manda rosa, e uma curtida não tem figura. Aceitar o campo em
+   * qualquer tipo deixaria a porta aberta para uma imagem entrar num aviso
+   * onde ela não significa nada — e o dia em que isso acontecesse, ninguém
+   * estaria olhando para cá.
+   */
+  assert.equal(falaDoServidor(fala({ tipo: 'seguidor', desenho: 'rose' })).desenho, null);
+  assert.equal(falaDoServidor(fala({ tipo: 'curtida', desenho: 'rose' })).desenho, null);
 });
 
 test('o nome de quem chegou é aparado, e não cresce sem fim', () => {
