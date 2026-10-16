@@ -1,15 +1,22 @@
 /*
- * O som da disputa, feito de osciladores.
+ * O som da cena: as notas da disputa, feitas de osciladores, e o CONFIRMA,
+ * que é um arquivo.
  *
- * Não há arquivo de áudio neste projeto e não vai haver: um `.mp3` é um
- * binário opaco que ninguém aqui sabe regerar, pesa mais do que todo o
- * JavaScript da cena e precisa de licença. Duas ou três notas sintetizadas
- * custam trinta linhas e fazem o que a ultrapassagem precisa — um "ta-dá"
- * curto que marca o momento.
+ * As notas da ultrapassagem, do empate e da vitória são sintetizadas — duas
+ * ou três cada, trinta linhas, sem binário nenhum no repositório. Um `.mp3`
+ * é um binário opaco: ninguém aqui sabe regerá-lo, ele pesa mais do que todo
+ * o JavaScript da cena e precisa de licença.
+ *
+ * O CONFIRMA é a exceção, e a exceção é do Leonardo: ele trouxe o arquivo
+ * (`public/sound/confirm.mp3`, 1,5s) e pediu que a urna tocasse no toque da
+ * tecla verde. O arquivo é dele, a licença é dele, e o que este módulo faz
+ * com ele é o mesmo que faz com as notas: toca baixo, e cala quando mandam.
  *
  * O som é ENFEITE. Todo caminho daqui para baixo é escrito para que a sua
- * ausência não mude nada: sem Web Audio, com o contexto bloqueado ou com o
- * operador tendo calado a mesa, a cena segue idêntica e silenciosa.
+ * ausência não mude nada: sem Web Audio, com o contexto bloqueado, com o
+ * arquivo faltando ou com o operador tendo calado a mesa, a cena segue
+ * idêntica e silenciosa. Nenhuma falha de áudio pode chegar ao console como
+ * erro, porque a tela da live não tem onde escrever log.
  */
 
 /**
@@ -26,6 +33,7 @@ function somMudo() {
     tocarVirada() {},
     tocarEmpate() {},
     tocarVitoria() {},
+    tocarConfirmacao() {},
     calar() {},
     voltar() {},
   };
@@ -59,6 +67,41 @@ export const NOTAS_DA_VITORIA = Object.freeze([
 ]);
 
 const VOLUME = 0.18;
+
+/* ---------- O CONFIRMA: o único som que é arquivo ---------- */
+
+/*
+ * O caminho do arquivo, e não o arquivo: quem serve é o mesmo servidor que
+ * serve a cena, então `/sound/confirm.mp3` é o endereço de dentro da página.
+ */
+const ARQUIVO_CONFIRMA = '/sound/confirm.mp3';
+
+/*
+ * O volume do clique, e ele é baixo de propósito — foi o pedido: "toque o
+ * barulho baixo".
+ *
+ * O número não é chute. O arquivo do Leonardo é um mp3 masterizado, medido
+ * em -0,7dB de pico e -10,2dB de média (ffmpeg volumedetect): ele chega
+ * alto. A 0,15 — uns 16dB abaixo — a média cai para perto de -26dB: o
+ * clique fica embaixo da narração e do áudio da live, que é onde ele tem de
+ * ficar. É o número a mexer se um dia ele achar que ficou baixo demais, e é
+ * o único.
+ *
+ * Já foi 0,25, e ele pediu para descer mais um pouco. O caminho é este
+ * número, e nunca o volume do arquivo: o mp3 é dele.
+ */
+const VOLUME_CONFIRMA = 0.15;
+
+/*
+ * O silêncio entre dois cliques.
+ *
+ * O arquivo tem 1,5s. Numa rajada — cem votos em modo lote, dois cliques por
+ * segundo por mão — cem cópias sobrepostas viram um zumbido, e o que se
+ * perde é justamente o clique, que é o que marca o momento. Com o intervalo
+ * mínimo, uma rajada vira uma sequência de cliques distinguíveis, que é o
+ * som de uma máquina trabalhando.
+ */
+const INTERVALO_CONFIRMA = 0.11;
 
 /**
  * O contexto de áudio da página, criado uma vez e só quando dá.
@@ -139,12 +182,72 @@ export function criarSom({ Contexto, volume = VOLUME } = {}) {
     }
   }
 
+  /*
+   * O arquivo do CONFIRMA, buscado UMA vez, na criação do som.
+   *
+   * Buscar na hora do primeiro voto seria ouvir o clique chegar atrasado — um
+   * som sem causa visível é pior do que silêncio. Na criação, o arquivo está
+   * decodificado muito antes de o primeiro espectador presentear; e enquanto
+   * não estiver, `tocarConfirmacao` não faz nada, em silêncio.
+   *
+   * A falha não vira erro no console: um `fetch` que dá 404 porque alguém
+   * renomeou o arquivo é um clique a menos, e a tela da live não tem onde
+   * escrever log para alguém ler.
+   */
+  let audioDoConfirma = null;
+  let ultimoClique = -Infinity;
+  let cliqueAnterior = null;
+
+  fetch(ARQUIVO_CONFIRMA)
+    .then((resposta) => (resposta.ok ? resposta.arrayBuffer() : Promise.reject(new Error(String(resposta.status)))))
+    .then((dados) => ctx.decodeAudioData(dados))
+    .then((buffer) => { audioDoConfirma = buffer; })
+    .catch(() => {});
+
+  /**
+   * O clique da tecla verde, no toque em que o voto passa a valer.
+   *
+   * Um clique por vez: o que estava tocando sai com uma queda de 30ms antes de
+   * o novo entrar. O arquivo tem 1,5s e a rajada do modo lote dispara um voto
+   * a cada 260ms — sem isso, os cliques se empilham e o que se ouve é um
+   * zumbido, não uma urna. Estalar é pior do que cortar: por isso a queda, e
+   * não um `stop` seco.
+   */
+  function tocarConfirmacao() {
+    if (calado || !audioDoConfirma) return;
+
+    const agora = ctx.currentTime;
+    if (agora - ultimoClique < INTERVALO_CONFIRMA) return;
+    ultimoClique = agora;
+    acordar();
+
+    try {
+      const ganho = ctx.createGain();
+      ganho.gain.setValueAtTime(VOLUME_CONFIRMA, agora);
+      ganho.connect(ctx.destination);
+
+      const fonte = ctx.createBufferSource();
+      fonte.buffer = audioDoConfirma;
+      fonte.connect(ganho);
+      fonte.start(agora);
+
+      if (cliqueAnterior) {
+        const { fonte: antiga, ganho: ganhoAntigo } = cliqueAnterior;
+        ganhoAntigo.gain.setValueAtTime(VOLUME_CONFIRMA, agora);
+        ganhoAntigo.gain.linearRampToValueAtTime(0.0001, agora + 0.03);
+        antiga.stop(agora + 0.05);
+      }
+      cliqueAnterior = { fonte, ganho };
+    } catch { /* sem clique, e a cena não muda */ }
+  }
+
   return {
     get ligado() { return !calado; },
     get contexto() { return ctx; },
     tocarVirada: () => tocar(NOTAS_DA_VIRADA),
     tocarEmpate: () => tocar(NOTAS_DO_EMPATE),
     tocarVitoria: () => tocar(NOTAS_DA_VITORIA),
+    tocarConfirmacao,
     calar() { calado = true; },
     voltar() { calado = false; },
   };

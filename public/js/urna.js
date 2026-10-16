@@ -27,6 +27,48 @@ export function paraCoordenadasDoPalco(rect, palcoRect) {
   };
 }
 
+/*
+ * Os três números da perspectiva, repetidos do tokens.css.
+ *
+ * Eles são necessários ANTES de a urna existir no documento: `criarUrna`
+ * precisa decidir de que lado o gabinete mostra a lateral enquanto monta o
+ * elemento, e não dá para medir o que ainda não foi pendurado na página.
+ *
+ * O tests/urna-volume.test.js confere os três contra os tokens. Enquanto
+ * estiverem iguais, a conta do lado visível vale; se um deles mudar sozinho,
+ * a urna passa a mostrar a face do lado errado e mais nada no sistema
+ * reclamaria.
+ */
+export const LARGURA_DO_PALCO = 1080;
+export const LARGURA_DA_URNA = 500;
+export const PERSPECTIVA = 1600;
+
+/**
+ * De que lado o gabinete mostra a lateral: `'dir'` ou `'esq'`.
+ *
+ * Um caixote visto de frente mostra UMA das duas faces laterais, e qual delas
+ * depende de onde a câmera está em relação a ele. Nesta cena a câmera é o
+ * centro do palco, à distância da `--perspectiva`, e as duas urnas do rodízio
+ * padrão ficam uma de cada lado dela — então uma mostra a direita e a outra a
+ * esquerda, e é isso que faz o par parecer dois caixotes virados um para o
+ * outro em vez de dois cartazes lado a lado.
+ *
+ * A conta é o produto escalar entre a normal da face direita e a direção da
+ * câmera, reduzido ao sinal. Ela sai do `x` e do `rot` da configuração, e não
+ * de uma regra do tipo "a u1 é da esquerda": os dois são configuração, e quem
+ * arrastar a urna para o outro canto do palco continua vendo o lado certo.
+ *
+ * O `rot` entra com peso de verdade, e não como desempate: a urna girada para
+ * fora o bastante vira a face de dentro para longe da câmera.
+ */
+export function ladoVisivel({ x, rot = 0 }) {
+  const rad = (rot * Math.PI) / 180;
+  // Distância horizontal da urna até a câmera. Positivo: câmera à direita.
+  const ateACamera = LARGURA_DO_PALCO / 2 - (x + LARGURA_DA_URNA / 2);
+  // Normal da face direita depois do giro, contra a direção da câmera.
+  return Math.cos(rad) * ateACamera - Math.sin(rad) * PERSPECTIVA > 0 ? 'dir' : 'esq';
+}
+
 const COR_PADRAO = '#8a8f98';
 
 /**
@@ -161,6 +203,37 @@ export function ligarQuedaDoRetrato(raiz, cor = '#1a5fd0') {
   if (img.complete && img.naturalWidth === 0) cair();
 
   return true;
+}
+
+/**
+ * A cor do VOTO, escrita no elemento que mostra o voto.
+ *
+ * O `--cor-urna` da raiz identifica o GABINETE, e o gabinete é sempre ele
+ * mesmo: a placa, o filete da base, o halo na mesa e o anel de destaque
+ * continuam a cor da máquina. O que está escrito na tela, não: o número
+ * grande, os dígitos e a moldura do retrato são do CANDIDATO que recebeu o
+ * voto. Quando o 22 azul vota no gabinete do 13 vermelho — a urna do próprio
+ * candidato estava ocupada —, a tela herdava a cor do gabinete e o voto do
+ * Flávio saía em vermelho, como se ele tivesse votado no 13.
+ *
+ * `--cor-urna` herda, então escrevê-la no elemento da tela basta: tudo o que
+ * está dentro dela passa a ler a cor do voto, e o que está fora continua
+ * lendo a do gabinete. Escrever na raiz faria o gabinete inteiro mudar de
+ * cor — a máquina virando o candidato emprestado, com a placa dizendo 13.
+ *
+ * Sem cor (o repouso, um estado que não é voto), a variável é REMOVIDA e a
+ * tela volta a herdar a cor do gabinete: sem isso, a urna ficaria com a cara
+ * do candidato anterior até o próximo voto.
+ */
+export function pintarCorDaTela(caixa, cor) {
+  if (!caixa?.style) return false;
+  // A cor vem da configuração, que o painel edita ao vivo. Uma cor inválida
+  // escrita em `color: var(--cor-urna)` deixaria o texto sem cor nenhuma;
+  // sem a variável, ele cai na cor do gabinete, que é válida.
+  const primaria = COR_VALIDA.test(cor ?? '') ? cor : null;
+  if (primaria) caixa.style.setProperty('--cor-urna', primaria);
+  else caixa.style.removeProperty('--cor-urna');
+  return Boolean(primaria);
 }
 
 /**
@@ -329,9 +402,34 @@ export function renderizarTela(estado) {
   }
 
   if (tipo === 'confirmado') {
+    /*
+     * O recibo do voto.
+     *
+     * Esta é a tela do instante mais importante da urna, e ela mostrava menos
+     * que a ficha que acabou de sair: a foto, o número e o nome do candidato
+     * desapareciam de uma vez, e sobrava uma placa clara com duas linhas
+     * verdes. Para quem assiste, a urna parecia ter ESQUECIDO em quem o voto
+     * foi dado, no único momento em que a resposta importa.
+     *
+     * Agora são três linhas, na ordem em que a pergunta se responde: o selo
+     * — o voto entrou —, quem recebeu, e a contagem nova. O selo é desenhado,
+     * e não um caractere: "✔" é uma fonte que pode não estar na máquina que
+     * abre a página, e o que apareceria no lugar dele ninguém previu.
+     *
+     * A composição inteira mora em `.tela__recibo`, um elemento novo, para a
+     * animação de entrada não disputar a linha de `animation` que
+     * `.tela__confirmado` já tem.
+     */
+    const c = estado.candidato ?? {};
+    const nome = c.nome ?? estado.nome ?? '';
+    const quem = [estado.numero, nome].filter(Boolean).map(esc).join(' · ');
     return `
       ${markupFaixa(estado)}
-      <div class="tela__confirmado">VOTO CONFIRMADO</div>
+      <div class="tela__recibo">
+        ${seloDoVoto()}
+        <div class="tela__confirmado">VOTO CONFIRMADO</div>
+        ${quem ? `<div class="tela__recibo-quem">${quem}</div>` : ''}
+      </div>
       <div class="tela__contagem">${esc(estado.votos ?? 0)}</div>
       ${estado.votosAdicionados ? `<div class="tela__delta">+${esc(estado.votosAdicionados)}</div>` : ''}`;
   }
@@ -364,6 +462,22 @@ export function renderizarTela(estado) {
  * Sem `defs` e sem gradiente pelo mesmo motivo do retrato: dois destes na
  * mesma página repetiriam o mesmo `id`.
  */
+/**
+ * O selo do voto confirmado: um disco verde com o visto vazado.
+ *
+ * Sem `defs` e sem gradiente, como o emblema e o retrato: dois selos na
+ * mesma página repetiriam o mesmo `id`.
+ */
+function seloDoVoto() {
+  return `<span class="tela__selo" aria-hidden="true">
+      <svg viewBox="0 0 24 24" focusable="false">
+        <circle cx="12" cy="12" r="12" fill="#17864a"/>
+        <path d="M6.6 12.5 L10.3 16.1 L17.4 8.5" fill="none" stroke="#ffffff"
+          stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </span>`;
+}
+
 export function emblemaSvg() {
   const traco = '#39404f';
   return `<svg class="urna__emblema" viewBox="0 0 40 40" role="img" aria-label="Emblema da Justiça Eleitoral">
@@ -488,11 +602,30 @@ export const CLASSES_DE_ESTADO = Object.freeze({
   contando: 'is-contando',
   cedulaSaindo: 'is-cedula-saindo',
   cedulaEntrando: 'is-cedula-entrando',
+  /*
+   * O instante em que o CONFIRMA afunda.
+   *
+   * Ele existe porque o voto é registrado na tecla, mas a tela do voto
+   * confirmado só chega 310ms depois (medido quadro a quadro em
+   * .superpowers/sonda/confirmar.js): era o único trecho da coreografia em
+   * que nada acontecia, e ele cai justamente no quadro que a audiência está
+   * olhando — o dedo em cima da tecla verde, parado, sem a urna responder.
+   *
+   * A classe entra no toque e sai quando a tela nova chega, e o `animation`
+   * do CSS acaba antes disso: ela é o clarão que atravessa o vidro no
+   * intervalo. Entra em CLASSES_DE_ESTADO para ter o par garantido — quem
+   * limpa o estado da urna limpa esta também, e um voto que morre no meio
+   * não deixa a urna piscando.
+   */
+  confirmando: 'is-confirmando',
 });
 
 export function criarUrna(config) {
   const el = document.createElement('div');
   el.className = 'urna';
+  // O gabinete só tem uma face lateral desenhada, e ela muda de lado: ver
+  // `ladoVisivel`. A classe vai na raiz porque é ela que a configuração move.
+  if (ladoVisivel(config) === 'esq') el.classList.add('urna--lado-esq');
   el.dataset.urnaId = config.id;
   el.style.setProperty('--x', `${config.x}px`);
   el.style.setProperty('--y', `${config.y}%`);
@@ -501,6 +634,7 @@ export function criarUrna(config) {
 
   el.innerHTML = `
     <div class="urna__sombra"></div>
+    <div class="urna__base"></div>
     <div class="urna__lado"></div>
     <div class="urna__topo"></div>
     <div class="urna__corpo">
@@ -622,7 +756,15 @@ export function criarUrna(config) {
       });
       // A cada escrita, porque a escrita acima reescreveu o `innerHTML` e
       // levou junto o ouvinte da foto anterior. Ver ligarQuedaDoRetrato.
-      ligarQuedaDoRetrato(telaConteudo, config.corPrimaria);
+      //
+      // A cor é a mesma que a escrita de cima usou: o estado pode trazer uma
+      // cor própria — o voto de um candidato digitado no gabinete emprestado
+      // de outro —, e o desenho que entra no lugar da foto que falhou tem que
+      // sair na cor do CANDIDATO, não na do gabinete.
+      ligarQuedaDoRetrato(telaConteudo, estado.cor ?? config.corPrimaria);
+      // E a tela inteira: o número, os dígitos e a moldura do retrato são do
+      // voto, e não do gabinete em que a mão estava. Ver pintarCorDaTela.
+      pintarCorDaTela(telaConteudo, estado.cor);
     },
     pressionarTecla(id) {
       const t = teclaEl(id);
@@ -639,6 +781,9 @@ export function criarUrna(config) {
     /** Imprime a cédula e a faz sair do compartimento. */
     mostrarCedula(dados = {}) {
       cedulaEl.innerHTML = markupDaCedula({ numero: config.numero ?? '', ...dados });
+      // O papel é do VOTO, e não do gabinete de onde ele saiu: o número
+      // impresso e a cor dele são do candidato que recebeu o voto.
+      pintarCorDaTela(cedulaEl, dados.cor);
       // Remover e forçar um reflow antes de readicionar reinicia a
       // transição: sem isso, uma cédula já visível não se move na segunda
       // vez, porque a classe nunca chegou a sair do elemento.

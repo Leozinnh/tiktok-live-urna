@@ -119,6 +119,22 @@ export function criarTrocaDeFontes({ config, criar = fonteParaConfig } = {}) {
      */
     enviar: (args) => atual.enviar?.(args) ?? false,
     social: (args) => atual.social?.(args) ?? false,
+    /*
+     * E o comentário, que faltava aqui.
+     *
+     * É o mesmo defeito do parágrafo acima, repetido: o `sim.comment` do
+     * painel — o botão que escreve no chat para conferir o voto por escrito —
+     * chegava no hub, achava `fonte.comentario` indefinido, e o `?.` do hub
+     * engolia a chamada. O botão respondia na tela e nada acontecia na cena.
+     * Achado pela sonda `ficha-do-voto.js`, que manda o comentário pelo canal
+     * do painel e não viu voto nenhum sair do outro lado.
+     *
+     * Na live quem traz comentário é o `aoEvento` da ponte, e é por isso que
+     * este caminho só existe no simulador — mas é o caminho que o operador
+     * usa para ensaiar antes de ir ao ar, e um ensaio que não conta voto faz
+     * o operador procurar defeito onde não tem.
+     */
+    comentario: (args) => atual.comentario?.(args) ?? false,
 
     /**
      * A configuração mudou. Troca a fonte se — e só se — ela mudou de fato.

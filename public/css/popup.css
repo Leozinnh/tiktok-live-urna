@@ -1,0 +1,503 @@
+/*
+ * O pop-up do presente — a tela tomada por alguns segundos.
+ *
+ * A faixa dourada do rodapé diz o que aconteceu, e diz baixinho: é uma linha
+ * de aviso no meio de uma cena que já tem placar, urnas, mãos digitando e a
+ * vitrine. Para quem PAGOU o presente, isso não é resposta — e foi olhando a
+ * Rosa sair assim que o Leonardo pediu o pop-up. Depois de vê-lo na tela, ele
+ * pediu as duas coisas que este arquivo passou a ter: a COR do voto e mais
+ * efeito — "está muito simples, adicione mais efeitos, como explosão, glow".
+ *
+ * O que faz esta tela ser vista não é o tamanho do desenho: é o VÉU. Sem ele,
+ * o cartão brigaria com tudo o que já está no enquadramento e perderia —
+ * a mesa laranja, o placar vermelho e azul e as duas urnas têm muito mais área
+ * do que um cartão no meio. O véu apaga o resto por um instante, e aí o
+ * presente é a única coisa acesa.
+ *
+ * ---------------------------------------------------------------------------
+ * A cor, e por que ela é uma variável
+ *
+ * `--cor-urna` é escrita pelo popup-presente.js no próprio pop-up, com a cor
+ * da urna que recebeu o voto, e tudo o que é cor neste arquivo sai dela: o
+ * nome, o crachá, as ondas, as faíscas, os raios, o brilho do desenho e o
+ * próprio véu. A mesma rosa é vermelha na 13 e azul no 22, então nada aqui
+ * pode ter cor fixa — seria a cor de uma urna só valendo para todas.
+ *
+ * O valor padrão é o dourado: sem cor conhecida — presente órfão, servidor de
+ * uma versão anterior —, o pop-up sai exatamente como saía antes.
+ *
+ * Sem `color-mix()`: o OBS 30 embarca um Chromium 103, e `color-mix` só existe
+ * a partir do 111. Onde seria preciso misturar uma cor com preto ou branco, a
+ * mistura é feita com `rgba()` por cima, ou com `opacity` num elemento próprio.
+ * Sem `cos()` também, pelo mesmo motivo — os leques deste arquivo giram o eixo
+ * e andam por ele, que é a mesma conta sem a função.
+ * ---------------------------------------------------------------------------
+ */
+
+.popup {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  /* A cor da urna que recebeu o voto — sobrescrita a cada presente. O padrão
+     é o dourado de sempre, para o pop-up de um presente órfão não sair cinza. */
+  --cor-urna: #f5b301;
+
+  /* Fora de cena por padrão. `visibility` junto com `opacity` porque o
+     `opacity: 0` sozinho continuaria pintando o véu e a sombra. */
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity var(--transicao-media) var(--ease-padrao),
+    visibility 0s linear var(--transicao-media);
+}
+
+.popup--visivel {
+  opacity: 1;
+  visibility: visible;
+  transition-delay: 0s;
+}
+
+/*
+ * O véu.
+ *
+ * Ele é mais escuro no meio do que nas pontas, e não por gosto: o cartão tem
+ * a própria sombra, e um véu uniforme deixaria a cena inteira chapada de
+ * preto, com cara de "a transmissão caiu". Escurecendo o centro, o resto do
+ * enquadramento continua reconhecível — quem está assistindo sabe que a live
+ * continua ali —, e o presente fica no ponto mais escuro da tela.
+ */
+.popup__veu {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 74% 52% at 50% 47%,
+    rgba(8, 6, 14, 0.88) 0%,
+    rgba(8, 6, 14, 0.78) 48%,
+    rgba(8, 6, 14, 0) 100%);
+}
+
+/*
+ * O hálito da cor por trás de tudo.
+ *
+ * É o que faz a tela inteira pertencer ao voto antes de qualquer elemento
+ * desenhar: um clarão da cor da urna no centro do véu, largo e fraco. Sem ele,
+ * a cor só existiria nos objetos do cartão, e a cena continuaria escura e
+ * neutra em volta de um presente colorido.
+ *
+ * A cor sai no `::after`, e não numa segunda camada do gradiente, porque só
+ * assim ela tem `opacity` própria: a cor da configuração é opaca, e um
+ * gradiente com ela dentro pintaria um disco sólido no meio da transmissão.
+ */
+.popup__veu::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 47%,
+    var(--cor-urna) 0%,
+    rgba(0, 0, 0, 0) 46%);
+  opacity: 0.26;
+}
+
+/* ---------------------------------------------------------------------------
+ * A explosão
+ *
+ * O presente chega com estrondo: uma onda de choque que sai do centro e varre
+ * a tela, as faíscas que ela empurra, e o cartão levando o tranco. É o que
+ * separa "apareceu um aviso" de "aconteceu uma coisa".
+ *
+ * Tudo aqui está preso a `.popup--visivel`, e não aos elementos: eles são
+ * criados uma vez e vivem a página inteira, então uma animação neles rodaria
+ * no boot e nunca mais. Presa ao estado, ela reinicia a cada presente — é o
+ * `offsetWidth` do popup-presente.js que separa os dois estados de verdade
+ * quando dois presentes chegam na mesma rajada.
+ * ------------------------------------------------------------------------- */
+
+.popup__explosao,
+.popup__faiscas {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.popup__explosao {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/*
+ * A onda de choque: um anel fino que se abre do centro até sair do
+ * enquadramento.
+ *
+ * O `border-width` cai de 34px para 2px enquanto ela cresce, e é esse
+ * afinamento que dá a sensação de expansão — um anel de espessura constante
+ * pareceria um círculo sendo ampliado, que é outra coisa.
+ */
+.popup__onda {
+  position: absolute;
+  width: 560px;
+  height: 560px;
+  border-radius: 50%;
+  border: 0 solid var(--cor-urna);
+  opacity: 0;
+}
+
+.popup--visivel .popup__onda {
+  animation: popup-onda 900ms var(--ease-padrao) both;
+}
+
+/* A segunda onda sai atrás da primeira e mais devagar: duas frentes
+   concêntricas dão profundidade ao que uma só não dá. */
+.popup--visivel .popup__onda--tarde {
+  animation-duration: 1150ms;
+  animation-delay: 150ms;
+}
+
+@keyframes popup-onda {
+  0%   { transform: scale(0.15); opacity: 0.95; border-width: 34px; }
+  60%  { opacity: 0.45; }
+  100% { transform: scale(3.6); opacity: 0; border-width: 2px; }
+}
+
+/*
+ * As faíscas.
+ *
+ * As dezesseis nascem no centro do pop-up, empurradas para fora em leque — o
+ * lugar de cada uma é escrito pelo JS como `--angulo` e `--dist`, porque o
+ * navegador não sabe fazer a conta sozinho: `cos()` no CSS só existe a partir
+ * do Chromium 111, e o OBS 30 tem o 103.
+ *
+ * O que o CSS faz é a mesma conta por outro caminho: gira o eixo da faísca
+ * pelo ângulo dela e anda para a frente nesse eixo. O resultado é o ângulo
+ * calculado pelo próprio navegador, sem trigonometria nenhuma escrita aqui.
+ */
+.popup__faisca {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  border-radius: 50%;
+  background: var(--cor-urna);
+  /* Duas camadas de brilho: a de dentro dá o corpo aceso, a de fora o halo. */
+  box-shadow:
+    0 0 16px var(--cor-urna),
+    0 0 38px var(--cor-urna);
+  opacity: 0;
+}
+
+.popup--visivel .popup__faisca {
+  animation: popup-faisca 980ms cubic-bezier(0.15, 0.75, 0.3, 1) var(--atraso) both;
+}
+
+@keyframes popup-faisca {
+  0%   { transform: rotate(var(--angulo)) translateX(40px) scale(1.15); opacity: 1; }
+  70%  { opacity: 0.85; }
+  100% { transform: rotate(var(--angulo)) translateX(var(--dist)) scale(0.15); opacity: 0; }
+}
+
+/*
+ * O cartão. Ele não tem fundo nem borda — o véu já é o fundo, e uma segunda
+ * superfície aqui faria o pop-up parecer uma faixa grande, que é justamente o
+ * que ele não é.
+ */
+.popup__cartao {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 0 60px;
+  text-align: center;
+  transform: scale(0.88);
+  transition: transform var(--transicao-media) var(--ease-padrao);
+}
+
+.popup--visivel .popup__cartao {
+  animation: popup-entra 620ms var(--ease-pressao) both;
+  transform: scale(1);
+}
+
+/*
+ * O nome do presente.
+ *
+ * Em corpo de manchete e em maiúsculas: é a palavra que diz O QUE chegou, e
+ * é ela que a pessoa que mandou procura na tela antes de qualquer outra coisa.
+ *
+ * Ele sai na COR DA URNA, e não no dourado fixo de antes. Foi o pedido do
+ * Leonardo olhando o pop-up pronto — "se for Lula vermelho e tal" —, e é o
+ * nome que carrega a cor: é o maior texto da tela, e é o que fica na memória
+ * de quem estava assistindo.
+ *
+ * A sombra por baixo é preta, e não dourada como era: ela é o que segura o
+ * texto sobre a mesa laranja, e uma sombra da própria cor do texto sumiria
+ * justamente nos presentes de cor clara.
+ */
+.popup__nome {
+  font-size: 76px;
+  font-weight: 900;
+  line-height: 1.05;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--cor-urna);
+  text-shadow:
+    0 4px 0 rgba(0, 0, 0, 0.55),
+    0 10px 34px rgba(0, 0, 0, 0.9);
+}
+
+/* Sem imagem, o nome é a figura — e cresce para o lugar dela. */
+.popup--sem-desenho .popup__nome {
+  font-size: 108px;
+  letter-spacing: 4px;
+}
+
+/*
+ * E a figura sai de cena inteira, com os raios dentro.
+ *
+ * Ela foi feita para segurar um lugar: com o desenho escondido, um `flex` sem
+ * este bloco puxaria o nome e o apelido para o centro e o cartão dançaria. Mas
+ * isso vale para o desenho que FALHOU ao carregar, no meio de um cartão que
+ * esperava por ele. Quando o presente já nasce sem imagem, o lugar vazio não
+ * segura nada: são 300px de nada entre o nome e quem mandou, e a coroa de
+ * raios — que existe para coroar a FIGURA — fica girando em volta do vazio,
+ * como um borrão sujo atrás do texto. O nome grande já é o espetáculo aqui.
+ */
+.popup--sem-desenho .popup__figura {
+  display: none;
+}
+
+/* O brilho do nome respira enquanto o pop-up está na tela: aceso, ele pisca
+   entre duas intensidades. É o movimento que mantém a tela viva depois que a
+   explosão acabou — sem ele, os quatro segundos e meio seguintes seriam de
+   uma imagem parada. */
+.popup--visivel .popup__nome {
+  animation: popup-nome-brilha 1500ms ease-in-out infinite alternate;
+}
+
+@keyframes popup-nome-brilha {
+  0% {
+    text-shadow:
+      0 4px 0 rgba(0, 0, 0, 0.55),
+      0 10px 34px rgba(0, 0, 0, 0.9),
+      0 0 24px var(--cor-urna);
+  }
+  100% {
+    text-shadow:
+      0 4px 0 rgba(0, 0, 0, 0.55),
+      0 10px 34px rgba(0, 0, 0, 0.9),
+      0 0 62px var(--cor-urna);
+  }
+}
+
+/*
+ * A figura.
+ *
+ * O invólucro existe para o desenho ter um lugar fixo: com a imagem escondida
+ * por não ter carregado, um `flex` sem este bloco puxaria o nome e o apelido
+ * para o centro, e o cartão dançaria no meio do presente.
+ *
+ * Ele também é o dono dos raios, e por isso é `position: relative` — os raios
+ * são absolutos dentro dele.
+ */
+.popup__figura {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+  padding: 10px 0;
+}
+
+/*
+ * A coroa de raios atrás do desenho.
+ *
+ * É o efeito que faz o presente parecer uma coisa que está ACONTECENDO, e não
+ * uma figura colada no fundo: um sol de raios na cor do voto, girando devagar
+ * atrás da imagem.
+ *
+ * O desenho dos raios é um `repeating-conic-gradient` — fatias alternadas de
+ * cor e de nada. O que impede isso de virar um disco colorido é a máscara
+ * radial: ela apaga as fatias no centro e nas pontas, e o que sobra é um anel
+ * de raios com as bordas comidas. `mask-image` ainda precisa do prefixo
+ * `-webkit-` no Chromium 103.
+ */
+.popup__raios {
+  position: absolute;
+  width: 940px;
+  height: 940px;
+  border-radius: 50%;
+  background: repeating-conic-gradient(from 0deg,
+    var(--cor-urna) 0deg 2.4deg,
+    rgba(0, 0, 0, 0) 2.4deg 11deg);
+  -webkit-mask-image: radial-gradient(circle,
+    rgba(0, 0, 0, 0) 6%,
+    rgba(0, 0, 0, 0.9) 30%,
+    rgba(0, 0, 0, 0.65) 52%,
+    rgba(0, 0, 0, 0) 66%);
+  mask-image: radial-gradient(circle,
+    rgba(0, 0, 0, 0) 6%,
+    rgba(0, 0, 0, 0.9) 30%,
+    rgba(0, 0, 0, 0.65) 52%,
+    rgba(0, 0, 0, 0) 66%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.popup--visivel .popup__raios {
+  animation: popup-raios 5000ms linear both;
+}
+
+/*
+ * Uma animação só faz a entrada E o giro.
+ *
+ * Seriam duas — uma de entrada e uma de rotação contínua —, e elas brigariam:
+ * as duas escrevem `transform`, e a última da lista venceria a primeira. Os
+ * 320 graus de uma ponta à outra são o giro devagar que dura o pop-up inteiro,
+ * e os primeiros 700ms são a entrada.
+ *
+ * A coroa abre RÁPIDO — aos 14% ela já está no tamanho cheio —, e o resto da
+ * animação é só o giro. A primeira versão levava dois segundos para crescer, e
+ * a foto do pop-up pegou o momento em que ela ainda era um borrão pequeno
+ * atrás da rosa: o efeito mais bonito do conjunto só aparecia depois de metade
+ * do tempo do presente. O que é explosão tem que ser no começo.
+ */
+@keyframes popup-raios {
+  0%   { transform: rotate(-50deg) scale(0.35); opacity: 0; }
+  14%  { transform: rotate(-14deg) scale(1.04); opacity: 0.5; }
+  100% { transform: rotate(270deg) scale(1.04); opacity: 0.42; }
+}
+
+/*
+ * O desenho.
+ *
+ * `position` e `z-index` são o que o põe NA FRENTE dos raios: os raios são
+ * absolutos, e um absoluto pinta por cima de um irmão estático por mais que
+ * ele venha antes no documento. Sem estas duas linhas, a coroa cobriria a
+ * rosa.
+ */
+.popup__desenho {
+  position: relative;
+  z-index: 1;
+  width: 400px;
+  height: 400px;
+  object-fit: contain;
+  /* O brilho é o que descola o desenho do véu escuro e o transforma em coisa
+     acesa, e não em figura colada no fundo. A sombra preta de baixo continua
+     sendo o que dá volume; o halo na cor do voto é o que dá a luz. */
+  filter:
+    drop-shadow(0 18px 40px rgba(0, 0, 0, 0.85))
+    drop-shadow(0 0 46px var(--cor-urna));
+}
+
+.popup--visivel .popup__desenho {
+  /* Duas animações ao mesmo tempo, e elas não brigam porque não se cruzam: a
+     entrada escreve `transform`, o brilho escreve `filter`. */
+  animation:
+    popup-desenho-entra 700ms var(--ease-pressao) 90ms both,
+    popup-desenho-brilha 1300ms ease-in-out 800ms infinite alternate;
+}
+
+@keyframes popup-desenho-entra {
+  0%   { transform: scale(0.2) rotate(-18deg); }
+  62%  { transform: scale(1.16) rotate(6deg); }
+  82%  { transform: scale(0.97) rotate(-2deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+
+@keyframes popup-desenho-brilha {
+  0% {
+    filter:
+      drop-shadow(0 18px 40px rgba(0, 0, 0, 0.85))
+      drop-shadow(0 0 28px var(--cor-urna));
+  }
+  100% {
+    filter:
+      drop-shadow(0 18px 40px rgba(0, 0, 0, 0.85))
+      drop-shadow(0 0 78px var(--cor-urna));
+  }
+}
+
+/* Quem mandou. É o nome que a pessoa que pagou quer ver, e por isso ele não
+   divide a linha com nada. */
+.popup__quem {
+  font-size: 54px;
+  font-weight: 800;
+  color: #ffffff;
+  text-shadow: 0 4px 18px rgba(0, 0, 0, 0.9);
+}
+
+/*
+ * Para onde o voto foi — quando o presente vira voto. Um presente órfão não
+ * tem urna, e aí este crachá simplesmente não existe.
+ *
+ * O relevo da pílula era um gradiente dourado de três paradas, e não pode mais
+ * ser: a cor agora vem da urna. O que dá o mesmo relevo é uma camada branca
+ * translúcida por cima da cor — sem `color-mix()`, que o Chromium do OBS não
+ * tem, e que seria exatamente a ferramenta para clarear uma cor qualquer.
+ */
+.popup__urna {
+  margin-top: 10px;
+  padding: 10px 26px;
+  border-radius: 999px;
+  background-color: var(--cor-urna);
+  background-image: linear-gradient(180deg,
+    rgba(255, 255, 255, 0.42) 0%,
+    rgba(255, 255, 255, 0) 58%);
+  font-size: 34px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #ffffff;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+  box-shadow:
+    0 10px 26px rgba(0, 0, 0, 0.6),
+    0 0 30px var(--cor-urna);
+}
+
+/* Um crachá vazio é uma pílula colorida sem nada dentro. */
+.popup__urna:empty {
+  display: none;
+}
+
+/*
+ * A entrada do cartão, com o tranco.
+ *
+ * Ele não só cresce: ele passa do ponto e volta duas vezes, cada vez menor,
+ * como uma coisa que bateu no lugar e está parando. É o "impacto" que o
+ * Leonardo pediu, e é a diferença entre um cartão que aparece e um cartão que
+ * aterrissa.
+ */
+@keyframes popup-entra {
+  0%   { transform: scale(0.62) translateY(40px); opacity: 0; }
+  46%  { transform: scale(1.09) translate(0, 0); opacity: 1; }
+  58%  { transform: scale(1.05) translate(-9px, 0); }
+  70%  { transform: scale(1.03) translate(8px, 0); }
+  82%  { transform: scale(1.01) translate(-4px, 0); }
+  100% { transform: scale(1) translate(0, 0); opacity: 1; }
+}
+
+/*
+ * Quem pediu menos movimento no sistema recebe tudo parado e visível.
+ *
+ * O pop-up continua distinguindo-se da faixa, e continua na cor do voto: o
+ * véu, a cor, o tamanho e o crachá não se mexem. O que sai é só o que balança
+ * — e os raios ficam parados acesos, em vez de saírem de cena, porque a coroa
+ * é cor antes de ser movimento.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .popup--visivel .popup__cartao,
+  .popup--visivel .popup__desenho,
+  .popup--visivel .popup__nome,
+  .popup--visivel .popup__onda,
+  .popup--visivel .popup__faisca,
+  .popup--visivel .popup__raios {
+    animation: none;
+  }
+  .popup__cartao { transform: none; }
+  .popup__desenho { transform: none; }
+  /* A coroa parada: a cor do voto sem o giro. */
+  .popup__raios { opacity: 0.34; }
+}

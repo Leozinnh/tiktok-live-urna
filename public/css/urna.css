@@ -27,6 +27,18 @@
   inset: 0;
   border-radius: 18px 18px 10px 10px;
   background:
+    /*
+     * O brilho do plástico injetado — o reflexo mole da lâmpada na face.
+     *
+     * É a camada que faltava para a frente deixar de ser um degradê de cima
+     * para baixo e virar uma superfície polida: um plano liso devolve a luz
+     * numa mancha larga e desalinhada do eixo do gradiente, e é esse
+     * desalinhamento que o olho lê como "aqui tem verniz".
+     */
+    radial-gradient(58% 40% at 24% 10%,
+      rgba(255, 255, 255, 0.22) 0%,
+      rgba(255, 255, 255, 0.06) 46%,
+      rgba(255, 255, 255, 0) 74%),
     /* grão sutil de plástico */
     repeating-linear-gradient(101deg,
       rgba(255, 255, 255, 0.035) 0 1px,
@@ -40,47 +52,167 @@
   box-shadow:
     /* luz de topo */
     inset 0 3px 0 rgba(255, 255, 255, 0.95),
+    /*
+     * E a sombra que o TOPO joga na frente, logo abaixo daquela luz.
+     *
+     * Sem ela a aresta era só um fio branco no meio do branco: o topo e a
+     * frente tinham o mesmo valor, e a dobra entre as duas superfícies sumia
+     * a um metro de distância. Numa caixa de verdade a face de cima avança
+     * sobre a da frente e come os primeiros centímetros dela — é a faixa
+     * escura de 8px que diz qual das duas está em cima.
+     */
+    inset 0 9px 12px -6px rgba(64, 56, 46, 0.34),
     inset 0 -8px 18px rgba(60, 58, 52, 0.42),
     inset 3px 0 10px rgba(255, 255, 255, 0.35),
-    inset -6px 0 16px rgba(70, 66, 60, 0.30),
+    /*
+     * A sombra da direita era de 0.30 e escurecia a metade direita da frente
+     * até quase o valor da lateral. As duas ficavam com o mesmo cinza, a
+     * dobra entre elas sumia, e o gabinete voltava a ser um retângulo chapado
+     * — só que agora com uma aba clara em cima. A frente é uma face só,
+     * virada para a lâmpada de ponta a ponta: ela pode escurecer de leve na
+     * borda, mas quem tem que ser escuro é a LATERAL.
+     */
+    inset -5px 0 12px rgba(70, 66, 60, 0.16),
     /* sombra projetada */
     0 26px 48px rgba(40, 26, 10, 0.45);
 }
 
-/* Topo do gabinete — dá a leitura de volume */
+/*
+ * O TOPO — a face que faz a urna ser um caixote, e não um cartaz.
+ *
+ * Ele é um plano de verdade, preso na aresta de cima da frente e recuando
+ * para trás. Antes era uma tira de 46px girada em -72°, e o sinal negativo
+ * girava a tira para LONGE da câmera: ela ia para trás do corpo, o corpo
+ * opaco cobria, e o que sobrava na tela eram 502x16px de chanfro no canto.
+ * Uma tira de 16px ninguém lê como superfície.
+ *
+ * Agora ele sobe 80·cos 66° = 32px acima da aresta e recua 73px. Os 66° são
+ * os mesmos do tampo da mesa, de propósito: as duas são superfícies
+ * horizontais da mesma sala, e se discordassem o olho veria duas câmeras.
+ *
+ * A luz do teto bate nele de frente — é a única face da urna virada para a
+ * lâmpada —, então ele é a face MAIS CLARA do gabinete. É esse degrau de
+ * valor, e não a forma, que o olho lê como "esta superfície está deitada".
+ */
 .urna__topo {
   position: absolute;
   left: 0;
   right: 0;
-  top: 0;
-  height: 46px;
-  border-radius: 18px 18px 0 0;
-  transform-origin: top center;
-  transform: rotateX(-72deg) translateZ(6px);
-  background: linear-gradient(180deg,
-    #f6f5f1 0%,
-    var(--urna-plastico) 40%,
-    var(--urna-plastico-3) 100%);
+  bottom: 100%;
+  height: var(--urna-profundidade);
+  transform-origin: bottom center;
+  transform: rotateX(66deg);
+  /* Os cantos de baixo são os de cima do corpo: é a mesma aresta. */
+  border-radius: 10px 10px 18px 18px;
+  background:
+    repeating-linear-gradient(101deg,
+      rgba(255, 255, 255, 0.035) 0 1px,
+      rgba(0, 0, 0, 0.025) 1px 3px),
+    /*
+     * Claro no FUNDO (0%), que é o lado que a lâmpada vê de frente, e caindo
+     * um pouco na aresta da frente (100%) — a aresta já é quase vertical e
+     * devolve menos luz que o plano deitado.
+     */
+    linear-gradient(180deg,
+      #fdfdfb 0%,
+      #f5f3ee 40%,
+      var(--urna-plastico) 76%,
+      var(--urna-plastico-2) 100%);
   box-shadow:
-    inset 0 2px 0 rgba(255, 255, 255, 0.9),
-    0 8px 14px rgba(50, 36, 16, 0.30);
+    /* A aresta da frente, viva: é ela que separa o topo do corpo. */
+    inset 0 -2px 0 rgba(255, 255, 255, 0.95),
+    /*
+     * E o fundo escurece de leve, só para o plano não terminar em corte seco.
+     *
+     * A primeira versão desta sombra era de 0.22 e comia 14px do plano: o
+     * topo ficava com o fundo MAIS ESCURO que a frente, e um plano que
+     * escurece para trás é um plano que está recebendo sombra de alguma coisa
+     * — e não há nada acima dele. A lâmpada está no teto e à frente da mesa,
+     * então o fundo do topo é justamente onde ela bate mais de frente.
+     */
+    inset 0 10px 16px rgba(150, 146, 138, 0.13),
+    /*
+     * E a sombra de contato da aresta da frente: do lado de cá da dobra o
+     * topo encosta no corpo, e é ali que a luz some. É o par desta faixa com
+     * a que a frente ganhou logo abaixo da luz de topo — uma dobra só,
+     * desenhada dos dois lados, que é como ela aparece numa foto.
+     */
+    inset 0 -9px 12px -6px rgba(126, 118, 106, 0.30);
 }
 
-/* Lateral direita — o segundo plano que fecha o volume */
+/*
+ * A LATERAL — o segundo plano que fecha o volume, agora FORA do corpo.
+ *
+ * Ela nasce na aresta lateral e recua, como a face de um caixote. A versão
+ * anterior morava dentro do corpo (`right: -1px`, 54px de largura, girada em
+ * +76°), e por isso ela varria para a FRENTE do plano da frente: em vez de
+ * uma face lateral, o que aparecia era um chanfro de 13px colado na borda de
+ * dentro — medido no navegador, 20x326px, e 9x326 na urna da direita. Face
+ * lateral que não sai para fora do corpo não existe: o corpo é opaco e está
+ * em z=0.
+ *
+ * A face é sempre a mesma peça; o que muda é de que lado ela cai, e quem
+ * decide é o `ladoVisivel` do urna.js, a partir do `x` e do `rot` da
+ * configuração. Por isso a variante espelhada logo abaixo — e não duas peças
+ * no markup, que apareceriam as duas ao mesmo tempo.
+ */
 .urna__lado {
   position: absolute;
-  top: 8px;
-  right: -1px;
+  top: 0;
+  bottom: 0;
+  left: 100%;
   width: var(--urna-profundidade);
-  height: calc(100% - 16px);
-  transform-origin: right center;
-  transform: rotateY(76deg) translateZ(2px);
+  transform-origin: left center;
+  transform: rotateY(70deg);
   border-radius: 0 10px 10px 0;
-  background: linear-gradient(90deg,
-    var(--urna-plastico-3) 0%,
-    var(--urna-plastico-2) 55%,
-    #8d8a83 100%);
-  box-shadow: inset 0 0 22px rgba(40, 36, 30, 0.5);
+  background:
+    repeating-linear-gradient(101deg,
+      rgba(255, 255, 255, 0.030) 0 1px,
+      rgba(0, 0, 0, 0.030) 1px 3px),
+    /*
+     * A lateral dá as costas para a lâmpada: ela é a face ESCURA do gabinete,
+     * e é esse degrau que separa a frente da lateral.
+     *
+     * A primeira versão saía de `--urna-plastico-2` e chegava em `#8f8c85` —
+     * dois cinzas claros, medidos na tela em #A2 e #B8. O desenho inteiro
+     * ficava entre #8F e #EE: meia dúzia de valores numa faixa de 95 níveis, e
+     * o olho não lê nada nisso. A urna ficava um bloco claro só, com uma
+     * dobra.
+     *
+     * E ela resolve um segundo problema de graça: as duas urnas estão a 32px
+     * uma da outra e cada gabinete tem 80 de fundo, então as duas laterais
+     * caem no vão entre elas. Escuras, o vão vira uma dobra de sombra entre
+     * duas máquinas — que é o que uma foto de duas máquinas encostadas mostra.
+     * Claras, ele virava uma faixa branca ligando uma na outra.
+     */
+    linear-gradient(90deg,
+      #b3b0a8 0%,
+      #9d9a92 38%,
+      #86837c 76%,
+      #74716b 100%);
+  box-shadow:
+    /* A quina da frente, que ainda pega a lâmpada de raspão. */
+    inset 2px 0 0 rgba(255, 255, 255, 0.34),
+    inset -14px 0 24px rgba(30, 27, 22, 0.38);
+}
+.urna--lado-esq .urna__lado {
+  left: auto;
+  right: 100%;
+  transform-origin: right center;
+  transform: rotateY(-70deg);
+  border-radius: 10px 0 0 10px;
+  background:
+    repeating-linear-gradient(101deg,
+      rgba(255, 255, 255, 0.030) 0 1px,
+      rgba(0, 0, 0, 0.030) 1px 3px),
+    linear-gradient(270deg,
+      #b3b0a8 0%,
+      #9d9a92 38%,
+      #86837c 76%,
+      #74716b 100%);
+  box-shadow:
+    inset -2px 0 0 rgba(255, 255, 255, 0.34),
+    inset 14px 0 24px rgba(30, 27, 22, 0.38);
 }
 
 /* Base — pé do gabinete, mais escuro, com pés de borracha */
@@ -91,8 +223,24 @@
   bottom: -16px;
   height: 22px;
   border-radius: 6px 6px 12px 12px;
-  background: linear-gradient(180deg, #55524c 0%, #2e2c28 100%);
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.5);
+  background:
+    /* A aresta de cima do pé, pegando a lâmpada: é a mesma chapa dos pés da
+       mesa, e sem esse fio ela virava uma tira preta chapada. */
+    linear-gradient(180deg, rgba(190, 186, 178, 0.30) 0 2px, rgba(0, 0, 0, 0) 2px),
+    linear-gradient(180deg, #55524c 0%, #2e2c28 100%);
+  box-shadow:
+    /*
+     * O contato com a mesa, em duas escalas.
+     *
+     * A linha dura de 3px é a que faltava: um objeto apoiado tem, embaixo
+     * dele, a sombra mais escura da peça inteira — e ela é CURTA, porque a
+     * luz está no teto. Só a sombra borrada de antes deixava o pé pairando
+     * um dedo acima do ladrilho, com o degradê já claro exatamente onde devia
+     * estar o preto.
+     */
+    0 3px 5px rgba(0, 0, 0, 0.62),
+    0 8px 16px rgba(0, 0, 0, 0.5),
+    0 18px 30px -12px rgba(40, 22, 8, 0.55);
 }
 
 /* Sombra de contato — o que "cola" a urna na mesa */
@@ -373,6 +521,134 @@
   from { opacity: 0; transform: translateY(10px); }
   35%  { opacity: 1; transform: translateY(0); }
   to   { opacity: 0; transform: translateY(-14px); }
+}
+
+/* ---------- O CONFIRMA: o instante em que a urna pega o voto ---------- */
+
+/*
+ * O clarão verde que atravessa o vidro no toque da tecla.
+ *
+ * Ele existe para cobrir os 310ms entre a tecla afundar e a tela do voto
+ * confirmado entrar — medidos quadro a quadro em
+ * .superpowers/sonda/confirmar.js. Era o único trecho da coreografia em que
+ * nada se mexia, e ele cai no quadro que a audiência está olhando: o dedo
+ * parado em cima do CONFIRMA, com a urna sem responder.
+ *
+ * Quem dispara é a classe `is-confirmando`, posta pelo ator no toque. A
+ * varredura TERMINA fora do vidro (translateX(100%)), e isso é o que faz a
+ * classe poder ficar posta até a tela nova chegar sem deixar rastro: com o
+ * `both`, parada no fim, ela está fora de quadro.
+ */
+.urna.is-confirmando .tela__vidro::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg,
+    rgba(23, 134, 74, 0) 0%,
+    rgba(23, 134, 74, 0.40) 44%,
+    rgba(23, 134, 74, 0) 88%);
+  transform: translateX(-100%);
+  animation: clarao-confirma 300ms var(--ease-padrao) both;
+}
+@keyframes clarao-confirma {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(100%); }
+}
+
+/*
+ * O recibo — o selo, a confirmação por escrito e quem recebeu o voto.
+ *
+ * É um elemento novo em volta da linha "VOTO CONFIRMADO", e não a própria
+ * linha: a animação de entrada precisa de um `animation`, e o dela já está
+ * ocupado (a piscada lenta, que continua valendo). Dois valores de
+ * `animation` no mesmo elemento não convivem — o último vence, e a entrada
+ * teria apagado a piscada em silêncio.
+ *
+ * `display: grid` (e não flex) porque a linha de dentro declara `flex: 1`
+ * desde antes deste recibo existir: num contêiner de grade ela é ignorada, e
+ * o texto fica do tamanho do texto em vez de esticar e empurrar o número
+ * para fora do quadro.
+ */
+.tela__recibo {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 2px 0;
+  animation: recibo-entra 420ms var(--ease-padrao) both;
+}
+@keyframes recibo-entra {
+  from { opacity: 0; transform: translateY(9px) scale(0.94); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/*
+ * O selo: o visto que diz "entrou", com a onda que sai dele.
+ *
+ * A onda é um anel que abre e some atrás do disco — é ela que dá o
+ * "carimbo" do momento, e é o que o dedo ainda parado na tecla não dava.
+ */
+.tela__selo {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  display: block;
+}
+.tela__selo svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.tela__selo::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  border: 2px solid rgba(23, 134, 74, 0.85);
+  animation: selo-onda 560ms var(--ease-padrao) both;
+}
+@keyframes selo-onda {
+  from { opacity: 0.9; transform: scale(0.7); }
+  to   { opacity: 0; transform: scale(1.9); }
+}
+
+/* Quem recebeu o voto: o número e o nome, na cor do texto de apoio da tela
+   — sem a cor do candidato, que aqui já cumpriu o papel dela no número da
+   contagem abaixo. */
+.tela__recibo-quem {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: #4a6076;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * A contagem entra DEPOIS do recibo, e cresce para o número final.
+ *
+ * O atraso é o que faz a leitura ter ordem: primeiro "o voto entrou", depois
+ * quem recebeu, e só então o número novo — que é a resposta da urna.
+ */
+.tela__contagem {
+  animation: contagem-entra 380ms var(--ease-padrao) 140ms both;
+}
+@keyframes contagem-entra {
+  from { opacity: 0; transform: scale(0.78); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* O brilho do gabinete dá o mesmo pulso do vidro, para o voto confirmado
+   ser um acontecimento da urna inteira e não só da tela dela. */
+.urna.is-confirmando .urna__glow {
+  animation: brilho-confirma 460ms ease-out both;
+}
+@keyframes brilho-confirma {
+  0%   { opacity: 0.35; }
+  35%  { opacity: 0.95; }
+  100% { opacity: 0.35; }
 }
 
 /*
@@ -688,7 +964,7 @@
   top: 0;
   height: 14px;
   border-radius: 18px 18px 0 0;
-  background:
+  /* background:
     linear-gradient(180deg,
       rgba(255, 255, 255, 0.66) 0%,
       rgba(255, 255, 255, 0.40) 100%),
@@ -697,9 +973,7 @@
       var(--cor-urna-2, #6a6f78) 100%);
   box-shadow:
     inset 0 2px 0 rgba(255, 255, 255, 0.45),
-    /* o filete saturado no pé da tarja: é ele que devolve a cor cheia à
-       distância, sem engordar a faixa clara */
-    inset 0 -3px 0 var(--cor-urna, #8a8f98);
+    inset 0 -3px 0 var(--cor-urna, #8a8f98); */
 }
 
 /* ---------- Placa de identificação ---------- */
@@ -1039,4 +1313,336 @@
   0%   { filter: brightness(1); }
   22%  { filter: brightness(1.16); }
   100% { filter: brightness(1); }
+}
+
+/* ---------- Acabamento: a luz da sala sobre o gabinete ---------- */
+
+/*
+ * A PERSPECTIVA DA URNA — a peça que faltava para o gabinete ser um caixote.
+ *
+ * O `--perspectiva: 1600px` do palco é a da SALA, e está certa: a 1080px de
+ * distância, um objeto de 80px de fundo quase não converge. Só que ele nunca
+ * chegava aqui. O `perspective` do palco vale para os filhos DIRETOS da
+ * camada, e o que chega à urna, atravessando o `.camada--urnas`, é a matriz
+ * já multiplicada — de perto, projeção ortográfica. E ortográfica é o nome
+ * técnico do "3D bem básico": a face de cima e a lateral são desenhadas como
+ * RETÂNGULOS. Um caixote de verdade, visto de perto e de esguelha, mostra as
+ * duas como TRAPÉZIOS, com a aresta de trás mais curta que a da frente. É
+ * essa diferença, e não o degradê, que o olho lê como profundidade.
+ *
+ * O `perspective` AQUI é o do objeto, e por isso ele pode ser curto (800px
+ * para um gabinete de 500px de largura, contra os 1600 da sala inteira).
+ *
+ * A origem fica no centro da urna, que é o padrão, e é isso que torna esta
+ * declaração segura: a FRENTE está em z=0, e plano em z=0 com a origem no
+ * próprio centro não se move um pixel. Tudo o que é desenhado na frente —
+ * tela, teclado, placa, respiros, cédula — fica exatamente onde estava, e a
+ * geometria medida continua valendo. Quem converge é só o que recua: o topo
+ * e a lateral, que é justamente o que precisa convergir.
+ */
+.urna {
+  perspective: 800px;
+}
+
+/*
+ * As três camadas de luz que faltavam para o plástico virar volume.
+ *
+ * O gabinete já tinha a forma e o degrau de valor entre as faces — frente,
+ * topo e lateral são três planos com três valores diferentes, e é isso que
+ * faz a urna ser um caixote. O que ele não tinha era a LUZ DA SALA: cada face
+ * era pintada como se estivesse sozinha num estúdio neutro. Na cena, ela está
+ * numa sala rosa, sobre uma mesa laranja, embaixo de uma lâmpada, a dois
+ * palmos de uma parede — e nada disso aparecia nela.
+ *
+ * O sintoma, na foto de transmissão: a urna era a peça mais CLARA e mais
+ * CHAPADA do quadro. As TVs acima dela têm profundidade e brilho, a mesa tem
+ * cor, e o gabinete saía um branco uniforme com painéis impressos por cima —
+ * um cartaz em forma de caixa, que é a queixa do Leonardo ("ainda está mais
+ * ou menos").
+ *
+ * As três camadas, de cima para baixo no `background`:
+ *
+ *   1. A LUZ DO TETO. A lâmpada está acima e à frente. Uma face vertical
+ *      recebe a luz de raspão: ela é mais clara na aresta de cima, onde o
+ *      plano quase encosta no teto, e cai nos primeiros centímetros. Sem
+ *      isso a frente é um degradê de 168° que não diz de onde vem a luz.
+ *
+ *   2. A OCLUSÃO DOS CANTOS. Nenhuma face de plástico injetado é plana: ela
+ *      é moldada, com as bordas caindo para trás. É a penumbra dos cantos
+ *      que o olho lê como "esta superfície é uma peça", e é a camada que
+ *      mais rende das três — o gabinete inteiro parecia recortado porque as
+ *      quatro bordas da frente tinham o mesmo valor do meio.
+ *
+ *   3. O CHÃO DEVOLVENDO LUZ. A mesa é laranja e o piso é rosa, e o branco
+ *      não fica branco em cima deles: os últimos centímetros do gabinete
+ *      pegam o rebote quente. É a camada que gruda a urna na mesa — a mesma
+ *      função que o `--mesa-pe-luz` faz nos pés, pelo outro lado.
+ *
+ * Tudo isto é `::before`, e não uma reescrita dos fundos: as camadas originais
+ * de cada face continuam onde estavam, com os valores que o Leonardo ajustou,
+ * e estas entram POR CIMA delas. Nenhuma declaração dele foi tocada.
+ *
+ * Os valores são baixos de propósito — 6%, 10%, 20%. Somados, os três dão o
+ * que uma foto dá de graça; um deles sozinho e forte vira sujeira.
+ */
+.urna__corpo::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    /* 1. a lâmpada do teto na aresta de cima */
+    linear-gradient(180deg,
+      rgba(255, 254, 250, 0.28) 0%,
+      rgba(255, 254, 250, 0.11) 3%,
+      rgba(255, 254, 250, 0.04) 10%,
+      rgba(255, 254, 250, 0) 26%),
+    /* 2. a penumbra dos cantos, que dá a peça redonda */
+    radial-gradient(126% 104% at 50% 32%,
+      rgba(58, 44, 32, 0) 56%,
+      rgba(58, 44, 32, 0.08) 84%,
+      rgba(58, 44, 32, 0.16) 100%),
+    /* 3. o rebote quente da mesa */
+    linear-gradient(0deg,
+      rgba(226, 138, 82, 0.19) 0%,
+      rgba(226, 138, 82, 0.07) 13%,
+      rgba(226, 138, 82, 0) 34%),
+    /* e o ar da sala, que é rosa: um véu que não muda o valor, só a cor */
+    linear-gradient(162deg,
+      rgba(255, 228, 238, 0.11) 0%,
+      rgba(255, 228, 238, 0) 58%);
+}
+
+/*
+ * O tampo: o mesmo plástico, um degrau abaixo — e a aresta de trás
+ * arredondando.
+ *
+ * Ele era `#fdfdfb` no fundo, quase branco puro, contra o corpo em `#e8e6e1`.
+ * O degrau existia (é ele que diz que o plano está deitado) e continua: o que
+ * sai é o EXCESSO — um tampo branco de neve sobre um corpo cinza-claro lê como
+ * uma tampa de outra peça, e era metade do aspecto de "caixa de papelão" da
+ * urna. A camada de baixo puxa o tampo para o tom do corpo sem apagar o
+ * degrau, e a de cima escurece os primeiros pixels da aresta de trás, que é
+ * onde um plástico moldado curva para dentro.
+ *
+ * Os dois `linear-gradient` são opostos de propósito: no `.urna__topo`, 0% é
+ * o FUNDO do tampo (a aresta de trás, longe da câmera) e 100% é a aresta da
+ * frente, onde ele dobra para o corpo. Ver o comentário de `.urna__topo`.
+ */
+.urna__topo::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg,
+      rgba(120, 110, 96, 0.15) 0%,
+      rgba(120, 110, 96, 0.04) 5%,
+      rgba(120, 110, 96, 0) 13%),
+    linear-gradient(180deg,
+      rgba(216, 210, 198, 0.19) 0%,
+      rgba(216, 210, 198, 0.16) 55%,
+      rgba(216, 210, 198, 0.13) 100%);
+}
+
+/*
+ * O verniz do tampo — a segunda camada dele, e a que faltava para o plano
+ * deitado parecer POLIDO em vez de só claro.
+ *
+ * O tampo já era a face mais clara do gabinete, e é esse degrau de valor que
+ * diz que ele está deitado. Só que claro e uniforme não é a mesma coisa que
+ * polido: um plástico liso devolve a lâmpada numa mancha comprida, e o olho
+ * lê a mancha — não o valor. Sem ela o tampo é a superfície mais lisa da
+ * cena e a única sem reflexo nenhum, e é por isso que ele era a parte que
+ * mais parecia papel.
+ *
+ * A mancha é comprida no sentido da PROFUNDIDADE (0% é o fundo do tampo,
+ * longe da câmera; 100% é a aresta da frente), que é a direção em que um
+ * plano deitado estica o reflexo de uma lâmpada de teto. Redonda, ela leria
+ * como lustre; comprida, lê como verniz.
+ *
+ * E as duas quinas laterais escurecem: é ali que o tampo dobra para as
+ * faces de lado, e toda dobra come luz. É o mesmo raciocínio da penumbra dos
+ * cantos do corpo, uma face acima.
+ */
+.urna__topo::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    /* o reflexo da lâmpada, esticado no sentido da profundidade */
+    radial-gradient(44% 104% at 33% 56%,
+      rgba(255, 255, 253, 0.46) 0%,
+      rgba(255, 255, 253, 0.17) 44%,
+      rgba(255, 255, 253, 0) 76%),
+    /*
+     * E o fio da aresta da FRENTE acesa (0° é o fim do gradiente, e aqui o
+     * fim é a aresta que dobra para o corpo). O que faz 30px de tira na tela
+     * lerem como superfície vista de cima não é o meio do plano — é a BORDA
+     * dele. O olho acha a aresta, e é a aresta que diz para onde o plano vai.
+     * Um plano sem borda acesa lê como um segundo degradê colado no alto da
+     * frente, que é o defeito que ele tinha.
+     */
+    linear-gradient(0deg,
+      rgba(255, 255, 255, 0.55) 0%,
+      rgba(255, 255, 255, 0.22) 4%,
+      rgba(255, 255, 255, 0) 13%),
+    /* as duas quinas laterais, dobrando para as faces de lado */
+    linear-gradient(90deg,
+      rgba(92, 84, 72, 0.34) 0%,
+      rgba(92, 84, 72, 0.13) 7%,
+      rgba(92, 84, 72, 0) 22%),
+    linear-gradient(270deg,
+      rgba(92, 84, 72, 0.34) 0%,
+      rgba(92, 84, 72, 0.13) 7%,
+      rgba(92, 84, 72, 0) 22%),
+    /* e o ar rosa da sala, o mesmo véu do corpo */
+    linear-gradient(180deg,
+      rgba(255, 228, 238, 0.09) 0%,
+      rgba(255, 228, 238, 0) 62%);
+}
+
+/*
+ * A LATERAL em pé — a luz do teto caindo pela altura, e o pé afundando.
+ *
+ * Era aqui que a urna ficava mais "mais ou menos", e o defeito era de
+ * direção: o fundo da face é um degradê de 90° e SÓ. Medido de cima a baixo,
+ * a lateral tinha o mesmo valor na aresta do tampo e na mesa — e face de
+ * valor constante não é uma superfície de pé, é um adesivo colado na quina
+ * do corpo. As outras duas faces já diziam de onde vem a luz; esta era a
+ * única muda, e é a maior em área visível na urna da esquerda.
+ *
+ * Duas quedas, na direção que faltava:
+ *
+ *   a) A LÂMPADA, de cima. A aresta que encosta no tampo é a que mais pega
+ *      luz, e ela cai nos primeiros centímetros — o mesmo par que a frente
+ *      e o tampo já têm, para as três faces concordarem sobre onde está o
+ *      teto.
+ *
+ *   b) O PÉ AFUNDA. Embaixo a lateral encontra a mesa e entra na sombra que
+ *      o próprio gabinete faz: é o ponto mais escuro da face, mais escuro
+ *      que a quina de trás. Sem isso a lateral terminava no ar, com o mesmo
+ *      cinza em cima da mesa e um palmo acima dela.
+ *
+ * E a mesa devolve luz laranja nesse mesmo pé, por baixo da sombra — pelo
+ * lado de dentro do vão entre as duas urnas. É o rebote quente do corpo,
+ * repetido aqui para a lateral não ser a única face fria do conjunto.
+ *
+ * Vale para os DOIS lados: o espelhado troca o fundo do elemento, não o
+ * pseudo-elemento. A queda é vertical, e vertical não tem lado.
+ */
+.urna__lado::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    /*
+     * c) O BRILHO DA QUINA DA FRENTE — um fio comprido de luz colado na
+     *    aresta que a lateral faz com a frente, e que só existe porque a
+     *    quina é CURVA: o raio de 10px vira para o lado e apanha a lâmpada
+     *    de raspão antes de a face entrar na sombra dela mesma. É o reflexo
+     *    mais reconhecível de plástico injetado que existe, e é o que
+     *    separa "duas faces com valores diferentes" de "uma peça dobrada".
+     */
+    linear-gradient(90deg,
+      rgba(255, 252, 246, 0.34) 0%,
+      rgba(255, 252, 246, 0.30) 7%,
+      rgba(255, 252, 246, 0.08) 17%,
+      rgba(255, 252, 246, 0) 30%),
+    /* a) a lâmpada do teto na aresta de cima */
+    linear-gradient(180deg,
+      rgba(255, 254, 250, 0.42) 0%,
+      rgba(255, 254, 250, 0.16) 5%,
+      rgba(255, 254, 250, 0.05) 15%,
+      rgba(255, 254, 250, 0) 34%),
+    /*
+     * b) E O AFUNDAMENTO — a metade de baixo da face entra na sombra que o
+     *    próprio gabinete faz na mesa. Ele é MAIS FUNDO e mais alto do que
+     *    o primeiro: 27% de altura escurecida de leve não lia como sombra,
+     *    lia como um degradê qualquer. Uma superfície de pé que termina
+     *    afundando é o que a mesa faz com ela, todo dia.
+     */
+    linear-gradient(0deg,
+      rgba(20, 16, 12, 0.52) 0%,
+      rgba(20, 16, 12, 0.26) 8%,
+      rgba(20, 16, 12, 0.08) 20%,
+      rgba(20, 16, 12, 0) 38%),
+    /* e a mesa laranja devolvendo luz, por baixo da sombra */
+    linear-gradient(0deg,
+      rgba(226, 138, 82, 0.17) 0%,
+      rgba(226, 138, 82, 0) 22%);
+}
+
+/*
+ * O PÉ do gabinete — a quina que faltava para ele ser uma peça e não uma
+ * tarja.
+ *
+ * Ele é uma chapa de 22px com os cantos redondos em cima e embaixo
+ * (`border-radius: 6px 6px 12px 12px`), e o degradê dele é de 180°: a mesma
+ * cor de ponta a ponta. Num canto arredondado a superfície curva para trás,
+ * e onde ela curva chega menos luz — os dois extremos do pé deviam ser os
+ * pontos mais escuros dele, e eram os mesmos do meio. O que se via era uma
+ * tira escura reta atravessando a mesa, com os cantos redondos só no
+ * contorno.
+ *
+ * Escurecer as pontas é o que faz o canto redondo ser um canto: o contorno
+ * e a luz contam a mesma história. É a mesma camada da quina lateral do
+ * tampo, uma peça abaixo.
+ */
+.urna__base::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg,
+      rgba(0, 0, 0, 0.60) 0%,
+      rgba(0, 0, 0, 0.22) 7%,
+      rgba(0, 0, 0, 0) 23%),
+    linear-gradient(270deg,
+      rgba(0, 0, 0, 0.60) 0%,
+      rgba(0, 0, 0, 0.22) 7%,
+      rgba(0, 0, 0, 0) 23%),
+    /*
+     * E a aresta de cima do pé continua acesa onde ela encontra a frente —
+     * a chapa em que o gabinete se apoia pega a lâmpada no fio de cima, e
+     * sem ele o pé vira uma tarja preta colada embaixo do corpo, sem dizer
+     * de que material ele é.
+     */
+    linear-gradient(180deg,
+      rgba(226, 222, 214, 0.34) 0%,
+      rgba(226, 222, 214, 0.12) 3%,
+      rgba(226, 222, 214, 0) 10%);
+}
+
+/*
+ * Os respiros: as fendas são BURACOS, e a chapa é o mesmo branco do corpo.
+ *
+ * Eles estavam a 45% de preto sobre uma chapa cinza-média — e o que se via na
+ * foto era uma tarja cinza com risquinhos claros, que a um metro de distância
+ * lê como código de barras. Na urna de verdade as fendas são vazios escuros
+ * abertos no mesmo plástico da frente. As fendas novas caem exatamente em cima
+ * das antigas (mesmo período de 11px, mesmo ponto de partida), e a chapa
+ * recebe um véu do branco do corpo para deixar de ser uma peça à parte.
+ */
+.urna__respiros::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(90deg,
+      rgba(0, 0, 0, 0.62) 0 3px,
+      rgba(0, 0, 0, 0) 3px 11px),
+    linear-gradient(180deg,
+      rgba(232, 230, 225, 0.30) 0%,
+      rgba(232, 230, 225, 0.44) 100%);
 }

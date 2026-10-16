@@ -54,12 +54,53 @@ sem repetir).
 dizendo quarenta frases por noite soa automática. Como trocar isso está logo
 abaixo, com o resto da voz.
 
-**O presente é o aviso que mais aparece na tela.** Ele sai numa faixa
-**dourada**, maior que as outras, com o **desenho do presente que chegou** (a
-rosa, o coração — `"desenho": "rose"` no presente) e com um bloco de frases
-que dizem para quem o voto foi: *"Lulinha ganhou um voto! Valeu, Fulano!"*. O
-"Lulinha" é o **Apelido na fala** da urna, na aba **Urnas**; em branco, a
-frase usa o nome da urna.
+**O presente é o aviso que mais aparece na tela.** Ele sai numa faixa **maior
+que as outras, pintada com a cor da urna que recebeu o voto** — azul no 22,
+vermelho na 13 —, com o **desenho do presente que chegou** (a rosa, o coração
+— `"desenho": "rose"` no presente) e com um bloco de frases que dizem para
+quem o voto foi: *"Lulinha ganhou um voto! Valeu, Fulano!"*. O "Lulinha" é o
+**Apelido na fala** da urna, na aba **Urnas**; em branco, a frase usa o nome
+da urna.
+
+**Quanto mais caro o presente, mais voto ele vale.** A conta é
+`5 × round(√moedas)`: o Heart Me de 1 moeda vale **5** votos, um de 25 vale
+**25**, um de 100 vale **50**. A raiz, e não o preço cheio, é o que impede um
+presente de 1 moeda de virar enfeite e um de 1.000 de decidir a rodada
+sozinho. Quem manda no número é o campo **Moedas** do presente, na aba
+**Presentes** — e um campo **Votos** preenchido à mão vence a conta, para o
+dia em que você quiser um presente com peso próprio.
+
+**Quem escreve o nome do candidato no chat também vota.** Sem mandar nada:
+basta comentar *"bolsonaro, 22, flavio e tal"* e o voto de **1 ponto** entra
+para aquela urna. Vale o número (`22`, `13`) e vale o nome ou o apelido
+(`flavio`, `lulinha`), sem acento e sem maiúscula. Citar **duas** urnas no
+mesmo comentário não vale nada — na dúvida o sistema fica quieto —, e cada
+pessoa só vota assim **uma vez a cada 3 segundos**. Esse voto não é narrado:
+a fila da voz é o gargalo da cena, e um voto de 1 ponto não pode atrasar a
+fala de um presente de 50.
+
+**A etiqueta que sai do dedo diz quem votou — e de quanto foi o voto.** Ela
+aparece junto com a mão, cresce para a esquerda a partir da ponta do
+indicador, na **cor da urna** que está recebendo, e traz duas linhas: quem
+mandou, e o que aquilo foi — o **desenho e o nome do presente**, ou o
+**número que a pessoa escreveu no chat**. Na ponta direita vai o peso
+(`+5`, `+1`, `+50`), que se acende cheio no instante em que o dedo aperta
+CONFIRMA e o voto entra no placar.
+
+**No rodapé há dois monitores, e eles contam a noite.** Enquanto tem voto
+esperando, aparece **um** aparelho só, de ponta a ponta, com a fila: quem
+presenteou e qual urna vai receber aquele voto. Quando a fila esvazia, ele vira
+**dois**, lado a lado: **QUEM MAIS PRESENTEOU**, com os três que mais mandaram
+presente, e **ÚLTIMOS VOTOS**, com as quatro últimas pessoas que votaram —
+o nome de quem mandou e o número da urna que recebeu, com uma seta na cor
+daquele candidato. O último a votar é sempre a primeira linha.
+
+**Quando o voto é confirmado, a urna clica.** Um clique curto, baixo, que sai
+por cima da narração sem competir com ela — é o `public/sound/confirm.mp3`,
+tocado no exato instante em que o dedo aperta a tecla verde. Numa rajada de
+presentes os cliques saem um de cada vez, em vez de virarem um zumbido. Se o
+som do navegador estiver bloqueado ou o arquivo faltar, a live segue igual e
+muda: **nenhuma falha de áudio vira erro no console**.
 
 **Tudo o que acontece fica escrito no log.** O servidor escreve no console
 **e** em `dados/logs/AAAA-MM-DD.log` cada evento que chega da live, cada voto
@@ -239,10 +280,11 @@ Volte à janela do PowerShell e aperte **Ctrl+C**.
 npm test
 ```
 
-São **760 testes** cobrindo a geometria da cena, a matemática da animação, a
-fila, as poses da mão, a tela da urna, o placar, o protocolo do servidor, os
-campos do painel, as duas pontas da voz, o narrador, o log da live e o desenho
-da urna contra a foto. A suíte roda em poucos segundos e não precisa de navegador.
+São **855 testes** cobrindo a geometria da cena, a matemática da animação, a
+fila, as poses da mão, a tela da urna, o placar, o rodapé, o som, o protocolo
+do servidor, os campos do painel, as duas pontas da voz, o narrador, o log da
+live e o desenho da urna contra a foto. A suíte roda em poucos segundos e não
+precisa de navegador.
 
 O que a suíte **não** cobre sozinha é o que só existe dentro de um navegador
 de verdade — se a mão aparece, se o placar sobe na hora certa, se o que o
@@ -251,7 +293,7 @@ painel salva chega à tela do ar. Para isso existem as sondas em
 protocolo de depuração. Elas não fazem parte do `npm test` porque precisam de
 um navegador instalado.
 
-**A suíte está inteira verde: 760 de 760.**
+**A suíte está inteira verde: 855 de 855.**
 
 ---
 
@@ -266,8 +308,8 @@ public/
     scene.css           O cenário: parede, mesa, piso
     urna.css            A urna eletrônica inteira
     hand.css            A mão e a sombra dela
-    placar.css          O placar e o resultado
-    cronometro.css      O relógio da rodada
+    placar.css          As duas TVs do placar e a placa de status
+    cronometro.css      O relógio de parede da rodada
     presentes.css       Os avisos de presente que entram na tela
     painel.css          A moldura da cena do ar
     resultado.css       O cartão de fim de rodada
@@ -284,8 +326,8 @@ public/
     resultado.js        O cartão de fim de rodada
     cronometro.js       O relógio, que obedece ao servidor
     presentes.js        O aviso de presente que entra na tela
-    som.js              Os sons da urna
-    painel.js           A fila e o ranking do rodapé
+    som.js              Os sons da urna (as notas e o confirm.mp3)
+    painel.js           O rodapé: a fila, ou os dois monitores
     narrador.js         A voz e a faixa: quem toca o áudio que o servidor gravou
     config.js           A configuração que chega do servidor
     net.js              O canal WebSocket, dos dois lados
@@ -327,7 +369,7 @@ ponte/
 config/local.json       A configuração do Leonardo (nasce vazia)
 dados/                  O banco, a voz gravada e o log do dia (`dados/logs/`)
 fotos/                  Os retratos dos candidatos
-tests/                  760 testes, rodando no `node --test`
+tests/                  855 testes, rodando no `node --test`
 .superpowers/sonda/     As sondas de navegador (não rodam no `npm test`)
 docs/superpowers/       A spec do produto e o plano de implementação
 ```

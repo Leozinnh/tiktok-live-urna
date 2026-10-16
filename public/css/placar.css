@@ -1,5 +1,5 @@
 /*
- * O placar — a faixa de status e os dois cartões.
+ * O placar — a faixa de status e as duas televisões.
  *
  * Ele começa em y=290, logo abaixo do cronômetro, e termina em y=784: daí
  * para baixo começa a cena da mesa, com as urnas e a mão. As duas medidas
@@ -11,6 +11,13 @@
  * rodapé com o percentual de um lado e a distância do outro. A cor vem da
  * urna por `--cor-urna`, escrita pelo placar.js — o cartão não sabe se é
  * azul ou vermelho, ele sabe usar a cor que recebeu.
+ *
+ * O cartão não é um retângulo: é uma TELEVISÃO pendurada na parede, uma por
+ * candidato. Quem faz o olho ler isso não é a moldura preta — é o conjunto:
+ * a carcaça com fio de luz em cima e sombra embaixo, a luz da tela vazando na
+ * parede cor-de-rosa em volta, e o reflexo do vidro atravessando o painel. A
+ * faixa de status, acima, continua sendo uma placa — ela informa, as duas
+ * televisões mostram.
  */
 
 .placar {
@@ -21,7 +28,13 @@
   height: 494px;
   display: flex;
   flex-direction: column;
-  gap: 34px;
+  /*
+   * 26px, e não os 34 de antes. As televisões ganharam moldura, e a moldura
+   * come os 8px de cima do cartão: mantido o vão antigo, a placa de status
+   * ficaria visivelmente mais longe das TELAS do que estava. O que o olho lê
+   * como separação é a distância até a parte acesa, e não até a carcaça.
+   */
+  gap: 26px;
   font-family: "Segoe UI", "Inter", system-ui, sans-serif;
   color: #ffffff;
 }
@@ -38,13 +51,23 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  height: 94px;
+  /* 90px, e não 94: são os quatro pixels que o queixo das televisões pediu
+     emprestado. A placa ainda sobra em volta dos dois blocos de número. */
+  height: 90px;
   padding: 0 14px;
+  /*
+   * A moldura da placa, com a mesma receita do relógio e das televisões: um
+   * anel escuro, aceso em cima e na sombra embaixo. É o que impede que ela
+   * seja a única coisa da cena a flutuar sem espessura em cima da parede.
+   */
+  border: 6px solid #12161f;
+  border-top-color: #232b3a;
+  border-bottom-color: #05070b;
   border-radius: 47px;
   background: linear-gradient(180deg, #16203a 0%, #0e1526 100%);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    0 14px 30px rgba(0, 0, 0, 0.35);
+    0 20px 34px rgba(24, 6, 18, 0.45);
 }
 
 .placar__bloco {
@@ -144,30 +167,147 @@
 }
 
 /*
- * O cartão é uma moldura na cor da urna com o corpo escuro dentro.
+ * A televisão.
  *
- * A cor não é fundo do cartão inteiro: ela fica na borda e no cabeçalho, e
- * o miolo é escuro para o número branco saltar. Um cartão inteiramente azul
- * com número branco tem menos contraste do que parece, e a contagem é o
- * dado que precisa ser lido de longe.
+ * A cor da urna não é mais a moldura inteira: ela fica no cabeçalho, na barra
+ * e no brilho que a tela joga na parede. O miolo é escuro para o número branco
+ * saltar — um cartão inteiramente azul com número branco tem menos contraste do
+ * que parece, e a contagem é o dado que precisa ser lido de longe.
+ *
+ * O aparelho é uma moldura FINA em cima e nos lados, com um QUEIXO grosso
+ * embaixo — é assim que uma TV é desenhada desde que a tela virou a peça
+ * maior, e é o queixo que carrega a marca e o LED de presença. Uma borda da
+ * mesma espessura nos quatro lados não é uma TV: é uma moldura de quadro.
+ *
+ * O fio de luz na aresta de cima e o preto embaixo não são enfeite: são eles
+ * que dão espessura ao aparelho. Sem os dois, o queixo é uma faixa escura
+ * colada na tela.
+ *
+ * A moldura come 10px de cada lado e o queixo come 26 de altura, e é por isso
+ * que os recheios daqui para baixo estão mais justos do que estavam. A sonda
+ * `.superpowers/sonda/placar.js` mede a folga que sobrou no rodapé: se ela
+ * virar negativa, o `overflow: hidden` corta o rodapé e o cartão passa a
+ * mentir sobre o placar.
  */
 .cartao {
+  position: relative;
   display: flex;
   flex-direction: column;
-  border-radius: 22px;
+  padding: 10px 10px 26px;
+  border-radius: 20px;
   overflow: hidden;
-  border: 5px solid var(--cor-urna, #666);
-  background: var(--cor-urna, #666);
-  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.40);
+  background: linear-gradient(180deg, #171d2a 0%, #0a0e15 100%);
+  box-shadow:
+    /* A sombra que o aparelho joga na parede. É ela que diz que ele está NA
+       FRENTE dela, e não impresso nela. */
+    0 26px 44px rgba(24, 6, 18, 0.55),
+    /* E a luz da tela vazando na parede em volta, na cor do candidato — o que
+       uma TV acesa faz com a parede de um quarto escuro. Duas camadas: uma
+       colada na carcaça e outra que se espalha mais longe. */
+    0 0 42px -6px var(--cor-urna, #6b7280),
+    0 0 110px -12px var(--cor-urna, #6b7280),
+    /* A aresta de cima pegando a lâmpada, e a de baixo na sombra. */
+    inset 0 2px 0 rgba(190, 210, 245, 0.16),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.65);
 }
 
+/*
+ * O queixo: a marca e o LED de presença.
+ *
+ * É o pedaço de moldura abaixo da tela, e é o que faz a TV parecer um
+ * aparelho e não um painel: toda televisão tem o nome da marca impresso ali,
+ * em letra pequena e espaçada, e uma luzinha dizendo que ela está ligada.
+ *
+ * O LED é aceso na COR DO CANDIDATO. Custa um gradiente e vale por um
+ * letreiro: a queixa de quem olha a live de longe é "qual é o azul mesmo?",
+ * e a luzinha responde antes de o olho chegar no número.
+ *
+ * O vão escuro no alto do queixo separa a tela da moldura; sem ele as duas
+ * superfícies viram uma só e o queixo some dentro do cartão.
+ */
+.cartao::before {
+  content: 'ARENA';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  line-height: 1;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.52em;
+  text-indent: 0.52em;   /* compensa o espaço que o letter-spacing deixa à direita */
+  color: rgba(176, 192, 218, 0.62);
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.75) 0 2px, rgba(0, 0, 0, 0) 2px),
+    radial-gradient(circle 3px at calc(100% - 26px) 50%,
+      var(--cor-urna, #6b7280) 0 100%, rgba(0, 0, 0, 0) 100%);
+}
+
+/*
+ * O vidro e os pixels.
+ *
+ * Um painel escuro com um número branco dentro é um letreiro. O que faz o olho
+ * ler "tela" é a soma de quatro camadas, de cima para baixo:
+ *
+ *   1. o reflexo atravessando o vidro na diagonal, que é a única coisa nesta
+ *      pilha que está NA FRENTE do vidro;
+ *   2. a malha de subpixels RGB — as três faixas de 1px, vermelha, verde e
+ *      azul, de que toda tela é feita. De perto num monitor é isso que se vê,
+ *      e é o que separa "uma foto de tela" de "uma tela";
+ *   3. as linhas de varredura, na horizontal, que dão o brilho de LCD;
+ *   4. o escurecimento das bordas do painel, que é o que faz o vidro parecer
+ *      fundo dentro da moldura em vez de estampado nela.
+ *
+ * As opacidades são baixas de propósito (0,03 a 0,06). Esta é uma textura
+ * vista de longe num celular: forte o bastante para dar matéria à tela, fraca
+ * o bastante para não virar listras — e listras finas num vídeo são um
+ * moiré esperando a hora de aparecer na transmissão.
+ *
+ * O `inset` repete o recheio do `.cartao` — 10px em cima e nos lados, 26px
+ * embaixo, que é o queixo. É a única medida deste arquivo presa a outra por
+ * cópia, e ela existe porque o vidro tem que cobrir a TELA e nada mais: o
+ * queixo não é vidro, é plástico.
+ */
+.cartao::after {
+  content: '';
+  position: absolute;
+  inset: 10px 10px 26px;
+  border-radius: 10px;
+  pointer-events: none;
+  background:
+    linear-gradient(167deg,
+      rgba(255, 255, 255, 0.13) 0%,
+      rgba(255, 255, 255, 0.05) 19%,
+      rgba(255, 255, 255, 0.012) 34%,
+      rgba(255, 255, 255, 0) 48%),
+    repeating-linear-gradient(90deg,
+      rgba(255, 68, 68, 0.055) 0 1px,
+      rgba(68, 255, 120, 0.055) 1px 2px,
+      rgba(86, 132, 255, 0.055) 2px 3px),
+    repeating-linear-gradient(180deg,
+      rgba(255, 255, 255, 0.030) 0 1px,
+      rgba(0, 0, 0, 0.060) 1px 3px),
+    radial-gradient(128% 98% at 50% 42%,
+      rgba(0, 0, 0, 0) 58%,
+      rgba(0, 0, 0, 0.42) 100%);
+}
+
+/*
+ * A faixa do cabeçalho é o que a TV está MOSTRANDO: o canal, na cor do
+ * candidato. O recuo e o espaço entre as peças são mais justos do que eram —
+ * a carcaça come 10px de cada lado, e sem esse aperto o nome do candidato
+ * passaria a ser cortado na tela (ver `.cartao__nome`).
+ */
 .cartao__topo {
   flex: none;
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   height: 78px;
-  padding: 0 18px;
+  padding: 0 14px;
   background: linear-gradient(180deg,
     rgba(255, 255, 255, 0.20) 0%,
     rgba(255, 255, 255, 0) 60%),
@@ -207,15 +347,32 @@
   text-shadow: 0 3px 0 rgba(0, 0, 0, 0.22);
 }
 
+/*
+ * O nome do candidato, em até duas linhas.
+ *
+ * Ele era uma linha só com reticências, e o aperto da carcaça ia encurtar
+ * ainda mais o que sobra para ele. Medido na sonda com o pior caso da
+ * configuração do Leonardo — "Flavio Bolsonaro" no cartão de quem lidera, que
+ * é o único que carrega o selo —, o nome pedia 194px e recebia 140: no ar,
+ * "FLAVIO BOLSON…". Ninguém repara num nome cortado, e é por isso que ele fica
+ * cortado por meses.
+ *
+ * Duas linhas resolvem sem mexer no tamanho da letra: "FLAVIO" numa e
+ * "BOLSONARO" na outra ocupam 97px de largura cada, que cabem com folga. O
+ * limite de duas linhas é o que impede um nome comprido de empurrar o
+ * cabeçalho para fora do cartão.
+ */
 .cartao__nome {
   font-size: 18px;
   font-weight: 700;
+  line-height: 1.15;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   opacity: 0.82;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 /*
@@ -250,9 +407,12 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 12px 20px 18px;
-  border-radius: 0 0 17px 17px;
-  background: linear-gradient(180deg, #131b2e 0%, #0a1020 100%);
+  padding: 10px 18px;
+  /* Sem canto arredondado embaixo: os cantos de baixo do cartão são os cantos
+     de baixo da TELA, e o queixo vem depois deles. Arredondar aqui abriria
+     uma fresta de moldura entre a tela e o queixo. */
+  border-radius: 0;
+  background: linear-gradient(180deg, #101728 0%, #070b14 100%);
 }
 
 /*
@@ -261,7 +421,7 @@
  * olha de relance para a live.
  */
 .cartao__votos {
-  /* 140px é o maior número que cabe no cartão de 366px de altura com a
+  /* 140px é o maior número que cabe na tela de 346px de altura com a
      unidade, a barra e o rodapé abaixo — e ainda é o maior número da cena,
      que é o que importa. */
   font-size: 140px;
@@ -269,7 +429,12 @@
   line-height: 1;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.04em;
-  text-shadow: 0 6px 0 rgba(0, 0, 0, 0.35);
+  /* Dois brilhos: o clarão que a tela faz em volta do próprio dígito, que é
+     o que faz o número parecer ACESO em vez de impresso, e a sombra que o
+     separa do fundo. */
+  text-shadow:
+    0 0 46px rgba(186, 212, 255, 0.30),
+    0 6px 0 rgba(0, 0, 0, 0.35);
 }
 
 .cartao__unidade {
@@ -312,12 +477,16 @@
   align-items: baseline;
   justify-content: space-between;
   gap: 10px;
-  margin-top: 14px;
+  margin-top: 10px;
 }
 
 .cartao__percentual {
   font-size: 38px;
   font-weight: 800;
+  /* `line-height: 1` aqui devolve 13px de altura para a tela. Sem ele, a
+     caixa de linha de 38px vira 51px e é essa folga invisível — em cima e
+     embaixo dos dígitos — que empurrava o rodapé para fora do cartão. */
+  line-height: 1;
   font-variant-numeric: tabular-nums;
 }
 

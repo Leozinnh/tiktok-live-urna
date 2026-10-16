@@ -52,10 +52,9 @@ export function escalaDaCena({ ligado, pedida, larguraJanela, alturaJanela }) {
 export function montarCenario(raiz) {
   /*
    * A ordem aqui é a ordem de pintura de trás para a frente: parede, piso,
-   * mesa, postes, e só então as camadas de conteúdo. Cada peça também
-   * declara o próprio z-index, mas manter a ordem do documento igual à da
-   * profundidade é o que faz a cena continuar legível para quem for mexer
-   * nela depois.
+   * mesa, e só então as camadas de conteúdo. Cada peça também declara o
+   * próprio z-index, mas manter a ordem do documento igual à da profundidade
+   * é o que faz a cena continuar legível para quem for mexer nela depois.
    */
   raiz.innerHTML = `
     <div class="palco" id="palco">
@@ -63,17 +62,19 @@ export function montarCenario(raiz) {
       <div class="piso"></div>
       <div class="mesa">
         <div class="mesa__tampo"></div>
+        <div class="mesa__borda"></div>
         <div class="mesa__saia"></div>
+        <div class="mesa__sombra"></div>
         <div class="mesa__pe mesa__pe--esq"></div>
         <div class="mesa__pe mesa__pe--dir"></div>
       </div>
-      <div class="cabine__poste cabine__poste--esq"></div>
-      <div class="cabine__poste cabine__poste--dir"></div>
+      <div class="luz"></div>
       <div class="camada camada--placar"  id="camada-placar"></div>
       <div class="camada camada--urnas"   id="camada-urnas"></div>
       <div class="camada camada--mao"     id="camada-mao"></div>
       <div class="camada camada--efeitos" id="camada-efeitos"></div>
       <div class="camada camada--resultado" id="camada-resultado"></div>
+      <div class="camada camada--popup" id="camada-popup"></div>
     </div>
   `;
 
@@ -106,6 +107,7 @@ export function montarCenario(raiz) {
     camadaMao: raiz.querySelector('#camada-mao'),
     camadaEfeitos: raiz.querySelector('#camada-efeitos'),
     camadaResultado: raiz.querySelector('#camada-resultado'),
+    camadaPopup: raiz.querySelector('#camada-popup'),
     /**
      * Liga e desliga o tamanho real do palco.
      *

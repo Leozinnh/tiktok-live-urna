@@ -713,15 +713,110 @@ test('a faixa do presente leva o desenho do presente que chegou', () => {
   return respirar().then(() => {
     const fala = tela.de('narrate')[0];
     assert.ok(fala, 'o presente contado ficou mudo');
-    assert.equal(fala.payload.desenho, 'rose');
+    /*
+     * O desenho viaja DENTRO do presente, com o nome e a urna.
+     *
+     * A faixa quer a figura, o pop-up quer o nome de quem mandou e para onde
+     * foi o voto — e os dois mostram o mesmo presente. Campo solto aqui e
+     * objeto acolá daria dois lugares afirmando a mesma coisa, e no dia em que
+     * discordassem a faixa e o pop-up mostrariam presentes diferentes no mesmo
+     * instante da live.
+     */
+    assert.equal(fala.payload.presente?.desenho, 'rose');
+    assert.equal(fala.payload.presente?.nome, 'Rosa');
+    assert.equal(fala.payload.presente?.urna, CONFIG_COM_DESENHO.urnas.u2.apelido);
+    // O campo antigo não sobrevive ao lado do novo: dois lugares para o mesmo
+    // dado é o que esta mudança veio desfazer.
+    assert.equal(fala.payload.desenho, undefined);
   });
 });
 
-test('o aviso social não leva desenho nenhum', () => {
+/*
+ * Duas urnas, duas cores — e a mesma Rosa caindo nas duas.
+ *
+ * É o que prende o pedido do Leonardo olhando o pop-up já na tela: "a cor do
+ * pop-up tem que ser de acordo com o voto dele, se for Lula vermelho e tal".
+ * A cor não é do presente: a mesma rosa é vermelha na 13 e azul no 22, então
+ * ela só pode sair da urna que recebeu o voto — a MESMA consulta que já
+ * resolve o nome e o apelido da frase, e é por isso que ela nasce ali.
+ *
+ * A cor vem da `corPrimaria` da configuração, que é a cor que o Leonardo
+ * escolheu para cada urna e a que já pinta o painel da urna na cena. O pop-up
+ * não escolhe cor nenhuma: ele mostra a do voto.
+ */
+const CONFIG_COM_CORES = normalizar({
+  urnas: {
+    u1: { id: 'u1', nome: 'Flavio', apelido: 'Flavio', numero: '22', corPrimaria: '#1a5fd0' },
+    u2: { id: 'u2', nome: 'Lula', apelido: 'Lulinha', numero: '13', corPrimaria: '#e02020' },
+  },
+  presentes: [
+    { id: 'p1', nome: 'Heart Me', giftId: '1', urnaId: 'u1', votos: 1 },
+    { id: 'p2', nome: 'Rosa', giftId: '2', urnaId: 'u2', votos: 1 },
+  ],
+  narracao: { falas: { presente: ['{nome} pra {urna}!'] } },
+}).config;
+
+test('a cor do pop-up é a da urna que recebeu o voto', () => {
+  const { hub, fonte } = montar({ config: CONFIG_COM_CORES });
+  const tela = hub.conectar(cliente('broadcast'));
+  fonte.emitir({
+    plataforma: 'simulador', userId: 'ana', usuario: 'Ana', giftId: '2', combo: 1, em: 5,
+  });
+  return respirar().then(() => {
+    const fala = tela.de('narrate')[0];
+    assert.ok(fala, 'o presente contado ficou mudo');
+    /*
+     * Dentro do presente, com o nome e a urna.
+     *
+     * A faixa quer o desenho, o pop-up quer o nome, de quem foi e a cor — e os
+     * dois falam do MESMO presente. Uma `cor` solta ao lado de um
+     * `presente.nome` daria dois lugares afirmando a mesma coisa sobre o mesmo
+     * voto, e no dia em que discordassem a tela mostraria a rosa de um jeito e
+     * o nome de outro.
+     */
+    assert.equal(fala.payload.presente?.cor, '#e02020');
+  });
+});
+
+test('cada presente leva a cor da SUA urna, e não a do presente anterior', () => {
   /*
-   * Um seguidor não manda rosa. O campo só existe no aviso de presente, e a
-   * ausência dele é o que faz a faixa dos outros tipos sair sem figura — e sem
-   * o buraco de 96px que a figura deixaria se o cliente a mantivesse.
+   * O caso que um `cor` guardado fora do evento produziria: a segunda rosa
+   * sairia pintada com a cor da primeira. Duas urnas com cores diferentes na
+   * mesma rodada é a única forma de ver isso — com uma urna só, um valor
+   * grudado de antes passa por acerto.
+   *
+   * Os dois presentes vêm de pessoas diferentes de propósito: o hub silencia
+   * presentes repetidos da mesma pessoa por 30 segundos, e a segunda fala não
+   * chegaria.
+   */
+  const { hub, fonte } = montar({ config: CONFIG_COM_CORES });
+  const tela = hub.conectar(cliente('broadcast'));
+  fonte.emitir({
+    plataforma: 'simulador', userId: 'ana', usuario: 'Ana', giftId: '2', combo: 1, em: 5,
+  });
+  return respirar().then(() => {
+    fonte.emitir({
+      plataforma: 'simulador', userId: 'bia', usuario: 'Bia', giftId: '1', combo: 1, em: 6,
+    });
+    return respirar();
+  }).then(() => {
+    const falas = tela.de('narrate');
+    assert.equal(falas.length, 2, 'os dois presentes tinham que falar');
+    assert.equal(falas[0].payload.presente?.cor, '#e02020', 'a rosa da urna 13 saiu com a cor errada');
+    assert.equal(falas[1].payload.presente?.cor, '#1a5fd0', 'o Heart Me da urna 22 saiu com a cor errada');
+  });
+});
+
+test('o aviso social não leva presente nenhum', () => {
+  /*
+   * Um seguidor não manda rosa. O presente só existe no aviso de presente, e
+   * a ausência dele é o que faz a faixa dos outros tipos sair sem figura — e
+   * sem o buraco de 96px que a figura deixaria se o cliente a mantivesse.
+   *
+   * O `null` é preso de propósito, no lugar do `undefined` de antes: com o
+   * campo antigo, `assert.equal(payload.desenho, undefined)` passava sem
+   * provar nada quando o campo deixou de existir — um teste que fica verde
+   * porque o dado sumiu é pior do que um teste vermelho.
    */
   const { hub, fonte } = montar();
   const tela = hub.conectar(cliente('broadcast'));
@@ -729,7 +824,7 @@ test('o aviso social não leva desenho nenhum', () => {
   return respirar().then(() => {
     const fala = tela.de('narrate')[0];
     assert.ok(fala, 'o seguidor não foi anunciado');
-    assert.equal(fala.payload.desenho, undefined);
+    assert.equal(fala.payload.presente, null);
   });
 });
 
@@ -1137,13 +1232,31 @@ test('o comentário de outra pessoa não resgata o presente', () => {
    * O chat é público. Se qualquer um resgatasse, um espectador levaria o
    * presente caro de outro para a urna que quisesse — e o defeito seria
    * invisível, porque o voto contaria normalmente e o placar subiria.
+   *
+   * O "22" do Zeca NÃO sai daqui de mãos vazias, e é isso que mudou: desde o
+   * voto escrito no chat, o comentário que cita uma urna conta um voto por si
+   * só. O que este teste prende é de QUEM é o voto que subiu o placar — o do
+   * Zeca, escrito por ele —, e nunca o diamante que a Ana pagou e continua
+   * esperando o número dela.
+   *
+   * Os dois votos não têm o mesmo tamanho, e é essa a diferença que o teste
+   * enxerga: o de graça vale um (vezes o multiplicador da urna, que aqui é 2),
+   * e o do presente vale o preço dele em moedas, cinco ou mais.
    */
-  const { fonte, hub, relogio } = montar();
+  const { fonte, hub, relogio, tally } = montar();
   const tela = hub.conectar(cliente('broadcast'));
   fonte.enviar(orfao({ em: relogio.t }));
   tela.recebidas.length = 0;
   fonte.comentario({ userId: 'zeca', userName: 'Zeca', texto: '22', em: relogio.t });
-  assert.equal(tela.de('vote.counted').length, 0, 'o presente da Ana foi para a urna do Zeca');
+
+  const contado = tela.de('vote.counted')[0];
+  assert.ok(contado, 'o voto escrito no chat não contou');
+  assert.equal(contado.payload.usuario, 'Zeca', 'o voto do chat ficou com o dono errado');
+  assert.equal(contado.payload.origem, 'chat');
+  assert.equal(contado.payload.presente, 'Voto no chat', 'o voto de graça vestiu o presente da Ana');
+  assert.equal(contado.payload.votos, 2, 'o voto de graça levou os votos do presente da Ana');
+  assert.equal(tally.estado().urnas.find((u) => u.id === 'u1').votos, 2,
+    'o presente da Ana foi para a urna do Zeca');
 });
 
 test('o comentário comum do chat não vira fala nem voto', () => {
@@ -1292,8 +1405,14 @@ test('o painel tem como disparar o presente órfão e o número do chat', () => 
   assert.equal(tally.estado().total, 0, 'o presente de teste contou antes do número');
   falar(painel, { tipo: 'sim.comment', userId: 'ana', userName: 'Ana', texto: '22' });
   assert.equal(tela.de('vote.counted').length, 1, 'o caminho do painel não conta voto');
-  // 22 é a urna de multiplicador 2, então um voto vale dois pontos.
-  assert.equal(tally.estado().total, 2);
+  /*
+   * Cinco votos do piso do presente, vezes o multiplicador 2 da urna do 22.
+   *
+   * O comentário aqui RESGATA o presente órfão da Ana — é o caminho do
+   * resgate, e não o voto de graça: quem escreve o número para o presente que
+   * mandou está escolhendo a urna dele, e leva os votos que o presente vale.
+   */
+  assert.equal(tally.estado().total, 10);
 });
 
 /* ------------------------------------------------------------------ o log */

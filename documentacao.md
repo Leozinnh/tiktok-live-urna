@@ -31,7 +31,7 @@ cd C:\xampp\htdocs\tiktok-live-urna
 npm start          # sobe o servidor
 npm run dev        # sobe e recarrega sozinho quando um arquivo do servidor muda
 npm run reiniciar  # derruba quem está na porta 3000 e sobe de novo
-npm test           # a suíte inteira (760 testes, poucos segundos)
+npm test           # a suíte inteira (855 testes, poucos segundos)
 ```
 
 | Endereço | O que é |
@@ -69,6 +69,20 @@ manda um `sim.gift` para o servidor, e o servidor o trata como trataria o
 presente de qualquer pessoa. É a mesma estrada. O que entra por ali fica
 gravado com a origem `simulador`, então quem olhar os votos depois sabe de
 onde cada um veio.
+
+**Voto que não vem de presente.** Nem todo voto chega por um presente
+mapeado. São **três** estradas, e todas desembocam no mesmo `tally.contar`:
+
+| Estrada | Quem manda | Quanto vale |
+|---|---|---|
+| Presente mapeado | a live, um presente que o painel conhece | `5 × round(√moedas)`, ou o `votos` escrito à mão |
+| Presente resgatado | um presente fora do mapeamento, e o número que a pessoa **escreveu** no chat | o piso de 5 |
+| Voto escrito no chat | a pessoa apenas **comentou** o nome ou o número de uma urna | 1 |
+
+O multiplicador da urna (`urnas[].multiplicador`) e o combo valem para as
+três, e é por isso que o `+N` que a tela mostra não é sempre o mesmo número.
+
+Veja **"O voto escrito no chat"** mais adiante para as regras da terceira.
 
 **2. O hub** (`server/hub.js`) traduz o presente em três mensagens, nesta
 ordem, que é a da seção 4.5 da spec:
@@ -122,12 +136,12 @@ diferença entre os dois é intencional.
 | `hand-team.js` | As duas mãos: quem pega o próximo voto da fila |
 | `vote-sequence.js` | A coreografia de um voto, em passos |
 | `placar.js` | O placar — sobe quando a cédula cai |
-| `painel.js` | A fila e o ranking do rodapé, um de cada vez |
+| `painel.js` | O rodapé: a fila sozinha, ou os **dois monitores** — ranking e últimos votos |
 | `narrador.js` | A voz e a faixa: toca o áudio que o servidor gravou |
 | `resultado.js` | O cartão de fim de rodada |
 | `cronometro.js` | O relógio, que **obedece ao servidor** |
 | `presentes.js` | O aviso de presente que entra na tela |
-| `som.js` | Os sons da urna |
+| `som.js` | Os sons da urna: as notas sintetizadas e o `confirm.mp3` do CONFIRMA |
 | `config.js` | A configuração que chega do servidor |
 | `net.js` | O canal WebSocket, dos dois lados |
 | `admin.js` | Ponto de entrada do **painel** |
@@ -411,6 +425,41 @@ viraria um falso positivo no dia em que ele cadastrasse o 9999.
 
 ---
 
+## O voto escrito no chat
+
+Alguém escreve **"bolsonaro, 22, flavio e tal"** e o voto entra. Sem presente,
+sem clique, sem resgate: o comentário em si vale 1 voto para a urna que ele
+nomeia (`server/chat-voto.js`).
+
+Ele passa pelas MESMAS peneiras que o número resgatado, porque é a mesma
+pergunta — *qual urna esta pessoa está nomeando?* — e duas respostas
+diferentes para a mesma pergunta é o defeito que este projeto mais teme:
+
+- vale o **número** (`22`, `13`) e vale o **nome ou o apelido** da urna, sem
+  acento e sem maiúscula (`flavio` acha `Flávio Bolsonaro`, cujo apelido é
+  "Flavio");
+- nome com menos de **4 letras** não vale, e há uma lista de palavras neutras
+  (`PALAVRAS_NEUTRAS`) — "brasil", "vote", "presidente" — que não nomeiam
+  ninguém: sem ela, "vote 22 no brasil" e "o brasil precisa" dariam votos a
+  urnas diferentes;
+- **duas** urnas citadas no mesmo comentário não valem nada. Na dúvida, o
+  sistema fica quieto e deixa a pessoa escrever de novo;
+- **`1222` e `2022` não são o 22.** O número só conta como palavra inteira.
+
+Três regras de convivência, e cada uma existe por um motivo:
+
+| Regra | Por quê |
+|---|---|
+| **1 voto por pessoa a cada 3 s** (`INTERVALO_DO_CHAT_MS`) | É o que impede um único espectador de virar uma máquina de votos escrevendo "22" cinquenta vezes |
+| O voto do chat **não é narrado** | A fila de voz é o gargalo da cena; um voto de 1 ponto não pode atrasar a fala de um presente de 50 |
+| Ele é contado **depois** do resgate | Quem escreve o número para resgatar o próprio presente não ganha um voto de chat de brinde |
+
+A recusa **sempre** deixa linha no log (`⏱` para o intervalo, `⛔` para o
+resto). Um comentário que não vira voto por não citar urna nenhuma é o único
+caso calado — e é o caso normal: a maior parte do chat não é voto.
+
+---
+
 ## O log da live
 
 `server/log.js`, no formato do `tiktok-live-horse`: hora, nível, assunto e
@@ -436,6 +485,8 @@ história tem linha própria:
 | `✅ Fulano mandou 3x Rosa para a Urna 2 (+3 votos)` | O voto contou |
 | `⛔ Rodada fechada: o presente Rosa de Fulano não contou` | O voto **não** contou, e por quê |
 | `⏳ ... esperando o número da urna no chat` | Presente fora do mapeamento |
+| `✅ Fulano votou no chat: 22 · Flavio (+1 voto)` | O comentário virou voto |
+| `⏱ o voto do chat tem intervalo de 3s` | A pessoa escreveu de novo antes da hora |
 | `🗣 "..."` | A frase que está indo ao ar |
 | `🤐 silêncio: ...` | O narrador ficou quieto, e por quê |
 | `⚠️ nenhuma tela conectada` | Ninguém ia ouvir a fala |
@@ -449,6 +500,246 @@ delas deixa a sua linha.
 
 ---
 
+## A cena
+
+O cenário é uma SALA, e não um desenho, e quem manda em tudo é uma lâmpada
+só — no teto, à frente da mesa. A parede é clara em cima e escura embaixo, a
+quina do tampo pega a luz, a saia fica na sombra dele, o piso tem uma poça de
+luz no meio e os quatro cantos escurecem. Os tokens de `tokens.css` dizem isso
+um por um, e é a primeira coisa a consultar antes de mexer em qualquer cor
+deles: quando alguém troca um valor sem saber de onde a luz vem, a peça fica
+bonita sozinha e errada no conjunto.
+
+**A urna é uma caixa.** O gabinete tem quatro faces desenhadas — frente, topo,
+lateral e a sombra de contato —, e a profundidade é `--urna-profundidade`
+(80px, contra 54 antes: a 22px de topo o olho não lê superfície, lê cartaz). A
+lateral só existe de um lado, e é o `ladoVisivel()` do `urna.js` que decide
+qual, a partir da posição e do giro da urna. **`.camada--urnas` declara
+`transform-style: preserve-3d`**: sem isso o navegador achata a subárvore e as
+duas urnas passam a mostrar exatamente a mesma face, o que parece certo em
+cada uma e errado no par.
+
+**As três faces ganharam luz própria** (2026-10-16), e a regra de como mexer
+nelas é a que fecha o assunto: a forma e o degrau de valor entre frente, topo e
+lateral já estavam certos, e o que faltava era a luz da sala em cada uma. Isso
+entra sempre em `::before` / `::after` — **`::before`/`::after` novos, nenhuma
+declaração do Leonardo reescrita** —, porque o fundo de cada face é um valor que
+ele ajustou na mão e conferiu na foto. A camada nova é por CIMA, nunca no lugar.
+
+Três defeitos de direção, um por face: a **lateral** era um degradê de 90° e SÓ,
+então tinha o mesmo valor na aresta do tampo e na mesa — face de valor constante
+não é superfície de pé, é adesivo colado na quina (`.urna__lado::before`, a luz
+do teto caindo pela altura, o pé afundando, e o rebote laranja da mesa por baixo
+da sombra); o **tampo** era claro e uniforme, e plano claro e uniforme lê como
+papel, não como verniz (`.urna__topo::after`, o reflexo da lâmpada esticado no
+sentido da **profundidade** — comprido lê como verniz, redondo leria como
+lustre); e o **pé** tem os cantos redondos desenhados com a mesma cor de ponta a
+ponta, quando é justamente onde a superfície curva para trás e chega menos luz
+(`.urna__base::before`, os dois extremos escurecendo — é o que faz o contorno e
+a luz contarem a mesma história).
+
+`tests/css.test.js` prende as três coisas que, faltando, viram defeito de
+verdade: a camada não participa do layout (`position: absolute` + `inset: 0`), a
+camada não pega o clique (`pointer-events: none`) e as cores de fundo originais
+das três faces continuam no arquivo. O valor de cada camada é gosto e muda com a
+foto; a sonda é quem julga isso (`node .superpowers/sonda/urna.js <nome> 3311`).
+
+**O placar são duas televisões penduradas na parede**, uma por candidato, e o
+cronômetro é o relógio de parede acima delas. Não é enfeite: quem faz o olho
+ler "aparelho" é o conjunto — a moldura fina com um queixo grosso embaixo
+(onde ficam a marca `ARENA` e o LED de presença na cor do candidato), a luz da
+tela vazando na parede cor-de-rosa em volta, o reflexo do vidro atravessando o
+painel, a malha de subpixels RGB e as linhas de varredura na tela. As
+opacidades da malha são baixas de propósito (0,03 a 0,06): listras finas num
+vídeo são um moiré esperando a hora de aparecer na transmissão.
+
+Duas medidas desta reforma estão presas por cópia e merecem atenção de quem
+for mexer: o `inset` do `.cartao::after` (o vidro) repete o `padding` do
+`.cartao`, porque o vidro cobre a tela e não o queixo; e o miolo do cartão
+ficou 20px mais baixo por causa da moldura, com **10px de folga** entre o
+rodapé e a borda de dentro. Se essa folga virar negativa, o `overflow: hidden`
+corta o rodapé em silêncio.
+
+Foi essa mesma folga que revelou outro defeito, e ele é mais antigo que a TV:
+com o selo "na frente" no cartão de quem lidera e o nome mais longo da
+configuração, o nome pedia 194px e recebia 140 — no ar, "FLAVIO BOLSON…". O
+`.cartao__nome` passou a quebrar em duas linhas, e é a sonda que mostra isso,
+não o olho.
+
+**Os postes das laterais saíram** (2026-10-15). Eram duas colunas escuras que
+"fechavam a composição" na referência, e no enquadramento de 9:16 liam como
+duas barras pretas coladas na parede — nada a ver com a cena. Com eles saíram
+os tokens `--cabine-poste` e `--cabine-poste-2`.
+
+**A ficha do voto.** Quando alguém vota, sai do dedo da mão uma etiqueta com
+duas linhas — quem votou, e o que aquilo foi: o desenho e o nome do presente,
+ou o número que a pessoa escreveu no chat (`public/css/hand.css`,
+`mao__badge`). Na ponta direita, o peso num selo de duas linhas: **`+5` sobre
+`VOTOS`**, em maiúsculas espaçadas — e `+1` sobre `VOTO`, no singular, porque
+uma etiqueta que diz "+1 votos" é a etiqueta contando errado na frente de todo
+mundo. Depois do CONFIRMA o selo vira **`NO PLACAR`**, que é a informação que
+o número sozinho não dava: o voto já entrou, não está a caminho. Um voto sem
+peso nenhum esconde o selo (`mao__badge--sem-peso`) em vez de mostrar `+0`.
+
+A etiqueta é **irmã** da mão, e não filha (`hand-svg.js`): dentro de `.mao` o
+nome herdaria a rotação do pulso e a escala de 0,8 e sairia torto e ilegível
+exatamente no quadro em que a mão pousa na tecla. A âncora é a borda DIREITA,
+na ponta do dedo — por isso ela cresce para a esquerda, para longe da mão.
+
+Ela é a mesma peça da faixa do presente, de propósito: mesmo raio de 30px
+(contra os 999px das pílulas), mesmo fundo quase-preto, mesma lombada clara.
+As duas falam do mesmo voto no mesmo segundo, e parecerem uma peça só é o que
+faz a cena inteira ler como uma coisa em vez de duas.
+
+Três armadilhas estão presas por comentário no CSS, e as três são invisíveis
+até alguém mexer: **nada pode animar o `transform` da própria etiqueta** (o
+`posicionar` reescreve o `--bx/--by` a cada quadro, e uma transição ali
+deixaria a ficha atrás do dedo), então a entrada mora no `-conteudo` e o
+reflexo que atravessa a chapa mora no `::after`; e a figura tem **largura fixa
+no CSS**, porque a etiqueta é medida uma vez, no nascimento, e uma imagem
+ainda não carregada mediria zero — a ficha sairia do enquadramento e ninguém
+saberia por quê.
+
+**A faixa da narração fica em cima do rodapé, e a altura é medida.** O painel
+do rodapé tem uma linha quando só há ranking, duas quando há fila e nenhuma
+quando não há voto nenhum; a faixa tem `bottom: calc(var(--rodape-altura,
+186px) + 22px)`, e quem escreve a variável é o `painel.js`, a cada redesenho,
+medindo o palco. Com o `bottom: 186px` fixo que existia antes, a lista de quem
+mais presenteou crescia para cima e **passava por cima do aviso do presente**,
+cortando a frase no meio — no ar.
+
+E essa medida é **dividida pela escala do palco**. O `getBoundingClientRect`
+devolve pixel de TELA, o `--rodape-altura` é lido pelo CSS em pixel de PALCO, e
+o palco é desenhado em 1080x1920 e escalado para caber na janela (`scene.js`:
+0,56 numa janela deitada, 0,38 conferindo). Sem a divisão, a mesma cena media
+251px na sonda em tela cheia e **95px na janela pequena** — e a faixa descia
+para dentro do painel, que é `z 60` contra o `z 50` dela: a camada de efeitos
+sendo coberta pelo placar inferior, no ar, sem nada no console. É o mesmo
+`paraCoordenadasDoPalco` da urna, aqui sem importar ninguém: a escala sai do
+próprio retângulo. A conta é uma função pura (`alturaDoRodape`, no `painel.js`)
+para dar para conferir sem navegador, e a medida é refeita em `resize` e em
+`palco:redimensionado` — redimensionar troca a escala e invalida o número que
+está na variável.
+
+**A faixa do presente é pintada com a cor da urna.** Não existe mais o dourado
+fixo: numa cena em que toda cor quer dizer uma urna — o placar, a etiqueta na
+mão, o pop-up —, uma cor que não quer dizer nada é ruído. Quem escreve
+`--narracao-cor` é o `narrador.js`, a cada fala, a partir do `presente.cor`
+que o servidor já manda; ausente ou inválida, a propriedade é REMOVIDA e vale
+a reserva cinza do CSS. A peneira (`COR_VALIDA`) é **importada** do
+`popup-presente.js`, não copiada: os dois escrevem a mesma cor no `style`, e
+duas cópias da expressão é uma cópia a mais para esquecer.
+
+O que se mede, e como:
+
+```powershell
+node .superpowers/sonda/cenario.js antes           # parede, piso e mesa
+node .superpowers/sonda/urna.js antes 3311         # as duas urnas, de perto
+node .superpowers/sonda/placar.js antes 3311       # o relógio e as duas TVs
+```
+
+A `placar.js` tira a régua de tudo o que está acima da mesa, a folga do rodapé
+de cada cartão e o pior caso do cabeçalho; e fotografa o alto do palco, o
+queixo de uma TV e a malha de pixels ampliada. Precisa do servidor descartável
+em `3311` — **nunca a `3000`**, que é a mesa do Leonardo.
+
+---
+
+## O rodapé
+
+São **três estados**, e o rodapé escolhe sozinho entre eles:
+
+| Estado | O que aparece |
+|---|---|
+| Ninguém presenteou | Nada. `.painel-area--vazio`, e nenhuma caixa no quadro |
+| Tem gente na fila | **Um** aparelho só, de ponta a ponta: `NA FILA`, com o `+N` do que sobrou |
+| Fila vazia, com histórico | **Dois** aparelhos lado a lado: `QUEM MAIS PRESENTEOU` e `ÚLTIMOS VOTOS` |
+
+A troca é pelo mesmo fato que move a mão: enquanto há voto esperando, o que
+interessa a quem assiste é quem vem a seguir; quando a fila esvazia, o que
+interessa é o que já aconteceu.
+
+**A fila manda.** O painel não guarda estado nenhum — ele desenha o que lhe
+derem, e o `atualizarPainel()` de `ao-vivo.js` recalcula a partir da fila do
+ator, do ranking do servidor e da janela dos últimos votos. Ele é chamado no
+**ticker da mão**, e não num `setInterval` próprio: um segundo laço de quadro
+para desenhar texto brigaria com o único `requestAnimationFrame` do projeto e
+deixaria a fila um quadro atrás da mão. E há uma **assinatura** — o texto de
+tudo o que seria desenhado — comparada antes de escrever: sem ela o `innerHTML`
+seria reescrito sessenta vezes por segundo para desenhar exatamente o mesmo.
+
+**ÚLTIMOS VOTOS são quatro linhas, e a janela é do tamanho da tela.** O nome de
+quem mandou o presente, uma seta na cor do candidato e o número da urna que
+recebeu o voto — o nome e o número só andam juntos neste instante, e é por isso
+que o `aoContarVoto` do `hand-actor.js` leva o `usuario` junto da contagem. Um
+voto sem nome não entra: uma linha vazia no painel é um defeito visível. A
+lista vive em `ao-vivo.js`, e não no painel, pela mesma razão que a fila vive
+no ator — quem tem o fato guarda o fato, quem desenha não guarda nada.
+
+As quatro linhas são o **tamanho exato** do que cabe, e é por isso que este
+monitor não tem `+N`, ao contrário do da fila: ele é uma janela que anda, e não
+uma lista que transborda. O voto seguinte empurra o mais velho para fora.
+
+**O que faz o olho ler "aparelho", e não "caixa de texto"** é o mesmo conjunto
+das TVs do placar: a marca `ARENA` no pé, o LED de presença aceso na cor do
+candidato, o pé que apoia o aparelho no chão e a sombra no piso. Quando o
+rodapé passou a ter dois aparelhos, tudo isso **saiu da área e entrou em cada
+`.painel`** como nó de verdade: um pseudo-elemento da área esticaria por cima
+dos dois, e o segundo aparelho ficaria sem pé e sem marca.
+
+> Duas medidas ficaram presas por cópia e são a primeira coisa a conferir se
+> alguém mexer no rodapé: a área ganhou `align-items: flex-end`, que é o que
+> põe os **pés dos dois na mesma linha do chão** mesmo com alturas diferentes
+> (o da fila, com o `+N`, é mais baixo), e o `.painel` ganhou `min-width: 0`,
+> sem o qual o texto de uma linha só — que não quebra — empurra o aparelho
+> para fora da tela em vez de deixá-lo encolher.
+
+O que se mede, e como:
+
+```powershell
+node .superpowers/sonda/monitores.js v1 3311
+```
+
+Ela manda **quatro presentes de verdade** pelo canal do painel (`sim.gift`,
+`papel=admin`) com quatro nomes diferentes, espera a mão contar os quatro — a
+espera é por LINHA na tela, e não por relógio —, e então mede: os dois
+aparelhos existem, um não fica por cima do outro, os dois cabem na largura do
+palco, os pés estão na mesma linha, e nenhum sobe por cima da vitrine de
+presentes. Confere também a ordem das linhas (o último a votar é o primeiro da
+lista), a cor da seta de cada uma, e que o console da transmissão ficou limpo.
+
+### O clique do CONFIRMA
+
+O único som da cena que é **arquivo**, e não nota sintetizada:
+`public/sound/confirm.mp3`, trazido pelo Leonardo. Ele toca no instante em que
+o voto passa a valer — o mesmo `aoContarVoto` que conta o voto e escreve a
+linha dos últimos votos.
+
+Três decisões, e cada uma tem um número medido atrás:
+
+- **`VOLUME_CONFIRMA = 0.15`** em `som.js`, e é o único número a mexer se um
+  dia ele achar que ficou alto ou baixo. O arquivo é um mp3 masterizado, medido
+  em **-0,7dB de pico e -10,2dB de média** (`ffmpeg -af volumedetect`): ele
+  chega alto. A 0,15 a média cai para perto de -26dB, que é o volume de um bip
+  de teclado **debaixo** da narração. Já foi 0,25, e ele pediu para descer mais
+  um pouco — o caminho é este número, nunca o volume do arquivo, que é dele.
+- **O arquivo é buscado uma vez, na criação do som.** Buscar na hora do
+  primeiro voto faria o clique chegar atrasado, e um som sem causa visível é
+  pior do que silêncio; buscar a cada voto seria uma requisição por voto, a
+  noite inteira. Enquanto o buffer não estiver decodificado, `tocarConfirmacao`
+  não faz nada, em silêncio.
+- **Um clique por vez.** O arquivo tem 1,5s e o modo lote dispara um voto a
+  cada 260ms por mão: sem desligar o anterior, cem votos em rajada viram cem
+  cópias sobrepostas — um zumbido, e o clique some dentro dele. O anterior sai
+  com uma **queda de 30ms** antes do `stop`, porque cortar uma onda no meio
+  estala, e o estalo é mais audível que o próprio clique.
+
+Todo caminho de falha é mudo: sem Web Audio, com o arquivo faltando ou com a
+mesa calada, a cena segue idêntica. Nenhuma falha de áudio pode chegar ao
+console como erro — a tela do OBS não tem onde escrever log.
+
+---
+
 ## Os testes
 
 ```powershell
@@ -456,7 +747,7 @@ npm test                              # tudo
 node --test tests/voz.test.js         # um arquivo
 ```
 
-**760 testes**, `node --test`, sem navegador. A regra do projeto é **TDD**:
+**855 testes**, `node --test`, sem navegador. A regra do projeto é **TDD**:
 teste que falha primeiro, pelo motivo certo, depois o código.
 
 **Nada de DOM falso.** As funções puras são testadas direto. O que só existe
@@ -520,8 +811,8 @@ O `id` (`p1`, `p2`) é a identidade do presente: é por ele que o log e o banco
 o chamam, e trocá-lo renomearia votos que já aconteceram. Para acrescentar um
 terceiro, invente um id novo em vez de reaproveitar um que já existe.
 
-**`"desenho": "rose"`** é o desenho que aparece na faixa dourada do presente
-quando ele chega — o nome do arquivo em `public/img/`, **sem a extensão**.
+**`"desenho": "rose"`** é o desenho que aparece na faixa do presente quando
+ele chega — o nome do arquivo em `public/img/`, **sem a extensão**.
 Vazio (o caso de hoje) deixa a faixa sem figura; um nome que não existe não
 quebra nada, a figura simplesmente não aparece.
 
@@ -614,8 +905,8 @@ transmissão com as instruções de captura no OBS.
 ### O que a suíte diz hoje
 
 ```
-ℹ tests 760
-ℹ pass 760
+ℹ tests 855
+ℹ pass 855
 ℹ fail 0
 ```
 

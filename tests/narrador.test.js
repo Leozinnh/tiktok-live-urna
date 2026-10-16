@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { falaDoServidor, TIPOS_DA_FAIXA, LIMITE_DO_TEXTO } from '../public/js/narrador.js';
+import {
+  falaDoServidor, falaVelha, VALIDADE_MS, TIPOS_DA_FAIXA, LIMITE_DO_TEXTO,
+} from '../public/js/narrador.js';
 
 /*
  * A fala que chega do servidor, antes de virar desenho.
@@ -109,13 +111,15 @@ test('o desenho do presente é um nome de arquivo, e não um caminho', () => {
    * live buscando em qualquer lugar do projeto — e o valor vem de um arquivo
    * de configuração que é editado à mão, onde um dedo escorregado é normal.
    */
-  assert.equal(falaDoServidor(fala({ tipo: 'presente', desenho: 'rose' })).desenho, 'rose');
-  assert.equal(falaDoServidor(fala({ tipo: 'presente', desenho: 'heart_me' })).desenho, 'heart_me');
+  const comDesenho = (desenho) => falaDoServidor(fala({ tipo: 'presente', presente: { desenho } }));
+
+  assert.equal(comDesenho('rose').presente.desenho, 'rose');
+  assert.equal(comDesenho('heart_me').presente.desenho, 'heart_me');
   for (const ruim of [
     '../../server/hub', 'server/hub', 'rose.webp', 'ROSE', 'rosa ', 'rosa/../x',
     '/img/rose', 'a'.repeat(41), '', null, undefined,
   ]) {
-    assert.equal(falaDoServidor(fala({ tipo: 'presente', desenho: ruim })).desenho, null,
+    assert.equal(comDesenho(ruim).presente.desenho, null,
       `"${ruim}" não podia virar endereço de imagem`);
   }
   /*
@@ -124,23 +128,100 @@ test('o desenho do presente é um nome de arquivo, e não um caminho', () => {
    * por tipo seria uma checagem a mais para o mesmo resultado — o arquivo
    * `42.webp` existiria ou não, e quem decide isso é o `onerror` da figura.
    */
-  assert.equal(falaDoServidor(fala({ tipo: 'presente', desenho: 42 })).desenho, '42');
+  assert.equal(comDesenho(42).presente.desenho, '42');
   // Sem desenho é o caso normal: a vitrine de hoje tem dois presentes e o
   // arquivo do Leonardo não diz desenho nenhum. A faixa dourada continua
   // inteira, sem imagem.
-  assert.equal(falaDoServidor(fala({ tipo: 'presente' })).desenho, null);
+  assert.equal(comDesenho(undefined).presente.desenho, null);
 });
 
-test('só o aviso de presente carrega desenho', () => {
+test('o presente chega inteiro, num campo só', () => {
+  /*
+   * A faixa e o pop-up mostram o MESMO presente, e por caminhos diferentes: a
+   * faixa quer o desenho, o pop-up quer o nome do presente, o apelido de quem
+   * mandou e para qual urna o voto foi.
+   *
+   * Eles viajam num objeto `presente`, e não espalhados pela mensagem. A
+   * alternativa — um `desenho` solto ao lado de um `presente.nome` — daria
+   * dois lugares afirmando a mesma coisa sobre o mesmo presente, e o dia em
+   * que discordassem, a faixa e o pop-up mostrariam presentes diferentes no
+   * mesmo instante da live.
+   */
+  const f = falaDoServidor(fala({
+    tipo: 'presente',
+    usuario: 'Painel',
+    presente: { nome: 'Rosa', desenho: 'rose', urna: 'Lulinha' },
+  }));
+  /*
+   * O `cor` entrou em 2026-10-15, com o pedido da cor por urna; virou `null`
+   * em 2026-10-16, quando a faixa passou a se pintar com ela.
+   *
+   * Este `deepEqual` é o que prende a FORMA do objeto, e foi ele que avisou
+   * que o contrato tinha mudado — não a caixa do pop-up. Um campo a mais aqui
+   * é um campo a mais chegando na tela, e é bom que doa.
+   */
+  assert.deepEqual(f.presente, { cor: null, nome: 'Rosa', desenho: 'rose', urna: 'Lulinha' });
+});
+
+test('a cor da urna atravessa junto do presente', () => {
+  /*
+   * O segundo pedido do Leonardo, olhando este pop-up já na tela: "a cor do
+   * pop-up tem que ser de acordo com o voto dele, se for Lula vermelho e tal".
+   *
+   * A cor não é do presente, é da URNA — a mesma rosa é vermelha na 13 e azul
+   * no 22 —, e por isso ela nasce no hub, na mesma consulta à urna que já
+   * resolve o nome e o apelido. Aqui ela só atravessa, como o nome e a urna.
+   *
+   * Quem CONFERE se o que chegou é uma cor é o pop-up, que é quem a escreve no
+   * estilo. Repetir a peneira aqui seria uma terceira cópia da mesma expressão
+   * para proteger um campo que ainda vai ser conferido antes de virar CSS — e
+   * uma peneira a mais é uma peneira que alguém esquece de atualizar.
+   *
+   * A peneira passou a ser COMPARTILHADA em 2026-10-16, quando a faixa também
+   * começou a escrever esta cor no `style`. Importada do pop-up, e não copiada:
+   * continua sendo uma só, e é por isso que a linha do `deepEqual` acima mudou
+   * junto.
+   */
+  const f = falaDoServidor(fala({
+    tipo: 'presente',
+    presente: { nome: 'Rosa', desenho: 'rose', urna: 'Lulinha', cor: '#e02020' },
+  }));
+  assert.equal(f.presente.cor, '#e02020');
+  /*
+   * O que não é cor vira `null` — e não texto vazio, e não a string crua.
+   *
+   * A faixa escreve este campo direto no `style.setProperty('--narracao-cor')`,
+   * e o `''` que morava aqui tinha um significado só no pop-up: "não veio, cai
+   * no dourado". Na faixa não há dourado nenhum para onde cair, e um texto
+   * arbitrário viraria uma declaração de CSS inválida — silenciosa, como toda
+   * declaração inválida. `null` é o que faz o `narrador.js` REMOVER a
+   * propriedade e deixar a reserva do CSS valer.
+   */
+  assert.equal(falaDoServidor(fala({ tipo: 'presente', presente: { nome: 'Rosa' } })).presente.cor, null);
+  assert.equal(
+    falaDoServidor(fala({ tipo: 'presente', presente: { nome: 'Rosa', cor: 'vermelho' } })).presente.cor,
+    null,
+    'um nome de cor em inglês não é hexadecimal, e não pode virar CSS',
+  );
+});
+
+test('só o aviso de presente carrega o presente', () => {
   /*
    * O desenho é do PRESENTE, e o resto da faixa não tem o que desenhar: um
    * seguidor não manda rosa, e uma curtida não tem figura. Aceitar o campo em
    * qualquer tipo deixaria a porta aberta para uma imagem entrar num aviso
    * onde ela não significa nada — e o dia em que isso acontecesse, ninguém
-   * estaria olhando para cá.
+   * estaria olhando para cá. Com o pop-up, a mesma porta valeria para uma tela
+   * inteira tomada por um presente que não houve.
    */
-  assert.equal(falaDoServidor(fala({ tipo: 'seguidor', desenho: 'rose' })).desenho, null);
-  assert.equal(falaDoServidor(fala({ tipo: 'curtida', desenho: 'rose' })).desenho, null);
+  const alheio = { nome: 'Rosa', desenho: 'rose', urna: 'Lulinha' };
+  assert.equal(falaDoServidor(fala({ tipo: 'seguidor', presente: alheio })).presente, null);
+  assert.equal(falaDoServidor(fala({ tipo: 'curtida', presente: alheio })).presente, null);
+  assert.equal(falaDoServidor(fala({ tipo: 'social', presente: alheio })).presente, null);
+  // Sem presente nenhum, o campo é nulo — e não um objeto vazio, que faria o
+  // pop-up abrir um cartão em branco.
+  assert.equal(falaDoServidor(fala({ tipo: 'presente' })).presente, null);
+  assert.equal(falaDoServidor(fala({ tipo: 'presente', presente: 'Rosa' })).presente, null);
 });
 
 test('o nome de quem chegou é aparado, e não cresce sem fim', () => {
@@ -162,4 +243,45 @@ test('o usuário também é texto, e some quando não vem', () => {
   assert.equal(falaDoServidor(fala({ usuario: '  Bia  ' })).usuario, 'Bia');
   assert.equal(falaDoServidor(fala({ usuario: null })).usuario, '');
   assert.equal(falaDoServidor(fala({ usuario: 42 })).usuario, '42');
+});
+
+test('a fala que esperou demais não é dita', () => {
+  /*
+   * A conta que a página faz enquanto toca uma fala de cada vez.
+   *
+   * O Leonardo ouviu "muuuuuuito atraso nas falas", e a medida deu razão a
+   * ele: numa rajada de três presentes, o terceiro foi ouvido 7,8 segundos
+   * depois de ter sido mandado — o servidor já tinha o áudio pronto, e era a
+   * fila da página que andava devagar, porque cada fala espera a anterior
+   * terminar de tocar.
+   *
+   * Falar do passado é pior do que não falar: quem ouve o nome de quem mandou
+   * uma Rosa três falas atrás não sabe de qual presente se trata.
+   */
+  const naFila = (esperouMs) => ({ texto: 'Chegou Rosa de Ana!', desde: 1_000, wav: null });
+
+  assert.equal(falaVelha(naFila(0), 1_000), false, 'a fala que chegou agora vale');
+  assert.equal(falaVelha(naFila(0), 1_000 + VALIDADE_MS), false, 'no limite ainda vale');
+  assert.equal(falaVelha(naFila(0), 1_000 + VALIDADE_MS + 1), true, 'passou do limite, venceu');
+
+  /*
+   * A fala SEM relógio nunca vence.
+   *
+   * Ela é a de uma versão antiga da página, e uma fala sem `desde` não é uma
+   * fala velha: é uma fala sem informação. Descartar por um campo que não veio
+   * seria engolir a voz inteira depois de uma atualização do servidor sem
+   * recarregar o OBS.
+   */
+  assert.equal(falaVelha({ texto: 'oi' }, 999_999), false);
+  assert.equal(falaVelha(null, 999_999), false);
+});
+
+test('a validade é curta o bastante para a fala ainda ser sobre agora', () => {
+  /*
+   * O teto tem que caber entre "a fala mais longa do baralho" (uns quatro
+   * segundos) e o que o Leonardo aceita ouvir de atraso. Um número grande
+   * demais aqui é o mesmo bug de volta, só que documentado.
+   */
+  assert.ok(VALIDADE_MS >= 4_000, 'curta demais: a fala seguinte seria sempre descartada');
+  assert.ok(VALIDADE_MS <= 8_000, 'longa demais: é o atraso que ele reclamou');
 });

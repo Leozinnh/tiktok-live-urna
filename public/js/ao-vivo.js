@@ -28,7 +28,8 @@ import { criarCronometro } from './cronometro.js';
 import { criarPresentes, PRESENTES_PADRAO } from './presentes.js';
 import { criarEquipeDeMaos } from './hand-team.js';
 import { criarReservaDeUrnas } from './urnas-livres.js';
-import { criarNarrador } from './narrador.js';
+import { criarNarrador, falaDoServidor } from './narrador.js';
+import { criarPopupPresente } from './popup-presente.js';
 import { carregarConfig, aplicarConfig, aplicarConfigDoPlacar, duracaoDaRodada } from './config.js';
 import { criarRede } from './net.js';
 
@@ -205,9 +206,16 @@ const equipe = criarEquipeDeMaos({
   quantidade: 2,
   opcoes: {
     reservaDeUrnas: criarReservaDeUrnas(CONFIG_URNAS.map((c) => urnas[c.id])),
-    aoContarVoto: ({ urnaId, votos }) => {
+    aoContarVoto: ({ urnaId, numero, votos, usuario }) => {
       contagem[urnaId] = (contagem[urnaId] ?? 0) + votos;
       atualizarPlacar();
+      registrarVoto({ usuario, numero, urnaId });
+      /*
+       * E o clique da tecla verde — este aviso sai no toque do CONFIRMA, que
+       * é exatamente o instante em que a urna de verdade apita. Pedido do
+       * Leonardo, e baixo: ver o volume em som.js.
+       */
+      som.tocarConfirmacao();
     },
   },
 });
@@ -247,6 +255,40 @@ const painel = criarPainel(camadaPlacar);
  */
 let rankingDoServidor = [];
 
+/*
+ * Os últimos votos que passaram, do mais novo para o mais velho.
+ *
+ * A lista vive aqui, e não no painel, pela mesma razão que a fila vive no
+ * ator: o painel é a tela, e a tela não guarda estado — ela desenha o que
+ * lhe derem. Quem guarda é quem tem o fato.
+ *
+ * A janela é curta de propósito. Ela é do tamanho do que cabe na tela e mais
+ * nada: quatro linhas, e o voto seguinte empurra o mais velho para fora. Um
+ * histórico de mil votos na memória de uma página que fica doze horas no ar
+ * é memória crescendo por nada, e nada além das quatro primeiras linhas
+ * chega a ser desenhado.
+ */
+const ULTIMOS_GUARDADOS = 4;
+let ultimosVotos = [];
+
+/**
+ * Um voto contado entra na janela dos últimos votos.
+ *
+ * A cor vem da urna do CANDIDATO — a mesma cor que o placar dele usa —, e é
+ * ela que faz a linha do painel apontar para o aparelho na tela sem ninguém
+ * precisar ler o número. Voto de uma urna que não está na cena (número
+ * digitado à mão numa sonda) entra sem cor, e a linha cai no cinza padrão em
+ * vez de não aparecer.
+ */
+function registrarVoto({ usuario, numero, urnaId }) {
+  const cor = CONFIG_URNAS.find((c) => c.id === urnaId)?.corPrimaria;
+  // Sem nome não há o que escrever na linha: um voto anônimo entraria como
+  // uma linha vazia, e uma linha vazia no painel é um defeito visível.
+  if (!usuario) return;
+  ultimosVotos.unshift({ usuario, numero, cor });
+  if (ultimosVotos.length > ULTIMOS_GUARDADOS) ultimosVotos.length = ULTIMOS_GUARDADOS;
+}
+
 function definirRanking(apoiadores) {
   if (!Array.isArray(apoiadores)) return;
   // `usuario` no banco, `nome` no painel: a tradução é aqui, e não lá, porque
@@ -269,11 +311,12 @@ function atualizarPainel() {
   const fila = ator.fila.esperando();
   const ranking = rankingDoServidor;
   const assinatura = fila.map((i) => i.id).join(',')
-    + '|' + ranking.map((p) => `${p.nome}:${p.presentes}`).join(',');
+    + '|' + ranking.map((p) => `${p.nome}:${p.presentes}`).join(',')
+    + '|' + ultimosVotos.map((v) => `${v.usuario}:${v.numero}`).join(',');
 
   if (assinatura === assinaturaDoPainel) return;
   assinaturaDoPainel = assinatura;
-  painel.atualizar({ fila, ranking });
+  painel.atualizar({ fila, ranking, ultimos: ultimosVotos });
 }
 
 /*
@@ -297,8 +340,36 @@ const resultado = criarResultado(cenario.camadaResultado);
  * —, e a faixa aparece mesmo quando ele não vem: perder a fala é um detalhe,
  * perder as boas-vindas é a tela parecer morta para quem acabou de seguir.
  */
-const narrador = criarNarrador(cenario.camadaEfeitos);
+/*
+ * A fala que a tela não conseguiu dizer volta para o servidor.
+ *
+ * O `rede` só existe daqui a duzentas linhas, e isso não é problema: o
+ * ouvinte é chamado quando uma fala falha, muito depois de o módulo ter
+ * terminado de carregar. Quem decide o que fazer com o aviso é o hub, e é de
+ * propósito — a tela do OBS não tem para onde escrever log, e o Leonardo lê a
+ * noite pelo console do servidor.
+ */
+const narrador = criarNarrador(cenario.camadaEfeitos, {
+  aoPerder: (fala, motivo) => rede.enviar({ tipo: 'narracao.perdida', texto: fala?.texto, motivo }),
+});
 narrador.definirVolume(configDoUsuario?.narracao?.volume ?? 1);
+
+/*
+ * O pop-up do presente — a tela tomada por alguns segundos.
+ *
+ * Ele é irmão da faixa, e não uma parte dela: a faixa é uma linha no rodapé,
+ * do tamanho de um aviso, e some no meio de tudo o que já está na cena. Para
+ * quem PAGOU o presente, isso não é resposta — o pedido do Leonardo foi
+ * literal: "não quero só um badge falando, quero um pop-up na tela com a
+ * imagem do presente; se não tiver a imagem, falar o nome e tal".
+ *
+ * Fica na camada de pop-up, e não na de efeitos, porque ele TOMA a tela. Na
+ * camada de efeitos (z 50) ele ficava abaixo do placar (z 60): a sonda flagrou
+ * o nome do presente desenhado atrás do placar, e o véu sem apagar o
+ * cronômetro. A camada própria é a mesma solução que a tela de fim de rodada
+ * já tinha usado, pela mesma razão.
+ */
+const popup = criarPopupPresente(cenario.camadaPopup);
 
 /*
  * O segundo tempo do fim da rodada: quando é que a fila acabou de passar.
@@ -451,7 +522,33 @@ function tratarMensagem({ tipo, payload }) {
     case 'round.update': return aplicarRodada(payload);
     case 'round.finished': return encerrarRodada(payload);
     case 'config.changed': return aplicarConfigNova(payload?.config);
-    case 'narrate': return narrador.narrar(payload);
+    /*
+     * O presente abre o pop-up, e a fala entra na fila.
+     *
+     * A mesma mensagem alimenta os dois, e ela é repartida aqui — o único
+     * ponto do caminho em que as duas telas se encontram.
+     *
+     * O pop-up NÃO entra na fila, e a assimetria é de propósito: a fila existe
+     * porque duas VOZES sobrepostas viram uma terceira coisa que não é nenhuma
+     * das duas. O pop-up não tem esse problema — ele não fala, ele mostra —, e
+     * um presente esperando a vez atrás de três seguidores chegaria à tela
+     * quando a live já fosse outra.
+     *
+     * E ele recebe a fala já PENEIRADA, e não o `payload` cru. O `desenho` que
+     * chega da rede vira endereço de imagem por concatenação
+     * (`/img/` + desenho + `.webp`), e quem aplica a expressão que barra barra,
+     * ponto e maiúscula é o `falaDoServidor`. O pop-up copia o campo adiante
+     * confiando nessa peneira — e é isto que sustenta essa confiança. Passar o
+     * payload cru deixaria o pop-up montando endereço a partir de texto que
+     * ninguém conferiu.
+     */
+    case 'narrate': {
+      const fala = falaDoServidor(payload);
+      if (fala) popup.mostrar(fala);
+      // O narrador recebe o `payload`, e não a fala: o `esperou` dele sai de
+      // `em` e `ts`, campos que a peneira acima não devolve.
+      return narrador.narrar(payload);
+    }
     default:
       // Tipo desconhecido é ignorado, e não erro: uma versão mais nova do
       // servidor pode mandar mensagem que esta página ainda não conhece, e a
@@ -554,6 +651,17 @@ function enfileirarDoServidor(p) {
     votos: Number(p.votos) || 1,
     usuario: p.usuario ?? '',
     presente: p.presente ?? '',
+    /*
+     * De onde veio o voto, e com que cara ele chega.
+     *
+     * Os dois viajam JUNTOS e daqui até a etiqueta da mão: `origem` diz se
+     * alguém mandou um presente ou escreveu no chat, e `desenho` é a figura
+     * do presente que chegou. Sem eles a etiqueta mostraria a figura de um
+     * presente para quem não mandou nada — ou procuraria o desenho de um
+     * presente chamado "Voto no chat", que não existe.
+     */
+    origem: p.origem ?? 'presente',
+    desenho: p.desenho ?? '',
     prioridade: Number(p.prioridade) || 0,
   });
   return true;

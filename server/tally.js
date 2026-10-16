@@ -22,7 +22,8 @@
  * server/index.js.
  */
 
-import { pontosDoPresente } from './config.js';
+import { pontosDoPresente, VOTOS_DO_PRESENTE } from './config.js';
+import { VOTOS_DO_CHAT } from './chat-voto.js';
 
 /**
  * A chave de deduplicação da especificação: `plataforma:userId:giftId:timestamp:comboIndex`.
@@ -254,7 +255,58 @@ export function criarTally({ db, config }) {
        * nome — sem o fallback, ela mostraria "undefined" no ar.
        */
       const nome = String(evento.giftNome ?? '').trim() || 'Presente';
-      return contar(evento, chave, { nome, votos: 1, ativo: true }, urna);
+      /*
+       * E ele vale o PISO dos presentes, e não um voto.
+       *
+       * Um presente resgatado é um presente que alguém pagou — só não tem
+       * preço no painel, porque não tem mapeamento. Valendo um voto, ele seria
+       * o presente mais caro da noite contando menos que o Heart Me, que é
+       * exatamente o contrário do que o preço manda. Sem preço conhecido, o
+       * piso é a resposta honesta: vale o mesmo que o presente mais barato.
+       */
+      return contar(evento, chave, { nome, votos: VOTOS_DO_PRESENTE, ativo: true }, urna);
+    },
+
+    /**
+     * O voto que o CHAT escreveu.
+     *
+     * O caminho de graça: quem não tem moeda escreve o nome ou o número do
+     * candidato e o voto entra. Vale UM voto, e é isso que mantém o presente
+     * valendo a pena — ver o cabeçalho do `chat-voto.js`.
+     *
+     * Quem decide a urna é o `acharUrna` de lá, e ele só devolve urna quando o
+     * texto cita UMA. Aqui a urna chega já decidida, e o que sobra é o mesmo
+     * caminho de sempre: deduplicar, gravar, somar, conferir a liderança. É de
+     * propósito que os três caminhos até o voto terminem no mesmo `contar` —
+     * um deles que esquecesse a liderança seria o voto que não move o placar.
+     */
+    contarPeloChat(evento, { urnaId, chave } = {}) {
+      const negar = (motivo) => ({ contado: false, motivo, chave: null, animar: false, lideranca: null });
+
+      /*
+       * A rodada fechada AVISA, como no presente: fora de uma rodada, o voto
+       * escrito não conta — e sem esta linha o espectador que digitou "22"
+       * ficaria sem saber por que não aconteceu nada.
+       */
+      if (!tally.aberta) {
+        avisar('o voto escrito no chat não conta: a rodada está fechada');
+        return negar('rodada-fechada');
+      }
+
+      const urna = cfg.urnas?.[urnaId];
+      if (!urna || urna.ativo === false) {
+        avisar(`voto escrito no chat para a urna ${urnaId}, que não está ativa`);
+        return negar('urna-inativa');
+      }
+
+      const k = chave ?? chaveDoEvento(evento);
+      if (db.jaContado(k)) return negar('duplicado');
+
+      /*
+       * O nome do presente daqui é o que a etiqueta da mão escreve, e ele não
+       * pode ser o nome de um presente: quem votou pelo chat não mandou nada.
+       */
+      return contar(evento, k, { nome: 'Voto no chat', votos: VOTOS_DO_CHAT, ativo: true }, urna, 'chat');
     },
 
     /** O retrato completo, para `state.full` e para o painel. */
@@ -347,10 +399,26 @@ export function criarTally({ db, config }) {
    * O `presente` daqui é o mínimo que a conta precisa: um nome para a
    * etiqueta e quantos votos ele vale. O da configuração passa direto; o
    * resgatado no chat chega montado aqui.
+   *
+   * `origem` é de ONDE o voto veio — 'presente' ou 'chat' —, e ele viaja até a
+   * tela porque as duas coisas não são iguais lá: o presente tem desenho, e o
+   * voto escrito não tem. Sem ele, a etiqueta da mão procuraria o desenho de
+   * um presente chamado "Voto no chat" e não acharia nada.
    */
-  function contar(evento, chave, presente, urna) {
+  function contar(evento, chave, presente, urna, origem = 'presente') {
     const combo = evento.combo ?? 1;
-    const pontos = pontosDoPresente({ votos: presente.votos, ativo: presente.ativo !== false }, urna, combo);
+    /*
+     * O presente vai INTEIRO para a conta, e não só o campo `votos`.
+     *
+     * Era `{ votos: presente.votos }`, e isso bastava enquanto o número de
+     * votos era um campo escrito no arquivo. Desde que o preço em moedas
+     * decide — "quanto mais caro o presente, mais voto" —, montar um objeto
+     * novo aqui joga fora justamente o `moedas`, e todos os presentes passam a
+     * valer o piso: o diamante e o Heart Me, o mesmo tanto. O defeito não
+     * deixa rastro, porque o voto continua contando e o placar continua
+     * subindo — só que sempre igual.
+     */
+    const pontos = pontosDoPresente(presente, urna, combo);
     const em = evento.em ?? Date.now();
 
     /*
@@ -395,6 +463,7 @@ export function criarTally({ db, config }) {
       candidato: urna.candidato,
       usuario: evento.usuario ?? '',
       presente: presente.nome,
+      origem,
       votos: pontos,
       animar: true,
       lideranca: descreverVirada(antes, antesEmpate, agora),

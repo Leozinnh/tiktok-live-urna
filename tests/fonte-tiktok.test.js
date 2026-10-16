@@ -26,13 +26,14 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 import { criarFonteTiktok } from '../server/sources/tiktok.js';
+import { criarSimulador } from '../server/sources/simulator.js';
 import { criarTrocaDeFontes } from '../server/sources/troca.js';
 import { montarMotor } from '../server/index.js';
 import { criarHub } from '../server/hub.js';
 import { LIMIAR_DA_CURTIDA } from '../server/narracao.js';
 import { criarTally } from '../server/tally.js';
 import { abrirBanco } from '../server/db.js';
-import { carregar, normalizar } from '../server/config.js';
+import { carregar, normalizar, pontosDoPresente } from '../server/config.js';
 import { criarFonte } from '../server/sources/base.js';
 
 /*
@@ -345,6 +346,40 @@ test('o motor escolhe a fonte pela configuração', async () => {
   }
 });
 
+test('os três botões de ensaio do painel atravessam a troca de fontes', () => {
+  /*
+   * O presente, o evento social e o comentário: os três botões com que o
+   * operador ensaia a cena antes de ir ao ar.
+   *
+   * Os dois primeiros foram consertados quando já tinham ficado inertes uma
+   * vez — a troca de fontes repassava só a interface comum, e o botão
+   * respondia na tela sem que nada chegasse na cena. O comentário ficou para
+   * trás: o hub chama `fonte.comentario?.()`, o método não existia no objeto
+   * da troca, e o `?.` engoliu a chamada sem erro nenhum. Achado pela sonda
+   * `ficha-do-voto.js`, que manda o comentário pelo canal do painel.
+   *
+   * O teste usa o simulador de VERDADE: um dublê aqui concordaria com a troca
+   * sobre um método que o simulador real talvez não tivesse.
+   */
+  const troca = criarTrocaDeFontes({ config: normalizar({}).config, criar: () => criarSimulador() });
+  const eventos = [];
+  troca.aoEvento((e) => eventos.push(e));
+  troca.iniciar();
+
+  for (const [botao, chamar, tipo] of [
+    ['presente', () => troca.enviar({ giftId: '1', userId: 'u9', userName: 'Zeca' }), 'presente'],
+    ['social', () => troca.social({ tipo: 'seguidor', userId: 'u9', userName: 'Zeca' }), 'seguidor'],
+    ['comentário', () => troca.comentario({ userId: 'u9', userName: 'Zeca', texto: '22' }), 'comentario'],
+  ]) {
+    eventos.length = 0;
+    assert.equal(chamar(), true, `o botão de ${botao} não chegou na fonte`);
+    assert.equal(eventos.length, 1, `o botão de ${botao} não virou evento`);
+    assert.equal(eventos[0].tipo, tipo, `o botão de ${botao} virou outro evento`);
+  }
+  assert.equal(eventos[0].texto, '22', 'o texto do comentário não atravessou');
+  assert.equal(eventos[0].userId, 'u9', 'sem o autor, o voto por escrito não tem dono');
+});
+
 test('a configuração padrão continua sendo o simulador', async () => {
   const { config } = await carregar(null);
   const motor = montarMotor({ config, caminhoDoBanco: ':memory:', aoSalvar: null, log: SEM_LOG });
@@ -392,7 +427,18 @@ test('um presente da ponte conta voto de verdade no placar', async () => {
 
     const urnas = motor.tally.estado().urnas;
     const alvo = urnas.find((u) => u.id === presente.urnaId);
-    assert.equal(alvo.votos, 2,
+    /*
+     * Quanto ele vale sai da REGRA, e não de um número escrito aqui.
+     *
+     * Quando este teste nasceu, o presente valia um voto vezes o combo, e o
+     * `2` era isso. Hoje ele vale cinco ou mais, pelo preço em moedas — e um
+     * número fixo aqui passaria a falhar por causa da tabela de preço,
+     * apontando para a ponte, que não tem defeito nenhum. O que este teste
+     * prova é o CAMINHO: o presente que entra pela ponte vira voto no placar.
+     */
+    const esperado = pontosDoPresente(presente, config.urnas[presente.urnaId], 2);
+    assert.ok(esperado > 0, 'o presente padrão precisa valer alguma coisa');
+    assert.equal(alvo.votos, esperado,
       'o presente chegou pela ponte e não virou voto — é o defeito que não deixa rastro');
   } finally {
     motor.fonte.parar();

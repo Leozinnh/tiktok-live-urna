@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizar, mesclar, pontosDoPresente, PADRAO } from '../server/config.js';
+import {
+  normalizar, mesclar, pontosDoPresente, votosPeloPreco, VOTOS_DO_PRESENTE, PADRAO,
+} from '../server/config.js';
 
 /*
  * A configuração que o SERVIDOR lê.
@@ -243,6 +245,99 @@ test('combo inválido conta como um, e não como zero', () => {
   const urna = { ativo: true, multiplicador: 1 };
   for (const combo of [undefined, null, 0, -3, 'muito', NaN]) {
     assert.equal(pontosDoPresente({ votos: 1, ativo: true }, urna, combo), 1, `combo ${combo}`);
+  }
+});
+
+/*
+ * O preço do presente, que é o segundo pedido do Leonardo, literal: "quando
+ * for presente, contar 5x o voto ... e quanto mais caro o caro presente, mais
+ * voto".
+ *
+ * A conta é a RAIZ do preço em moedas, e não o preço. Sem ela, o primeiro
+ * diamante da noite decidiria a eleição e o Heart Me — que é o presente de
+ * todo mundo — viraria enfeite. Com ela, o caro ganha com folga e o barato
+ * ainda pesa. Os testes abaixo prendem as duas metades: o piso de cinco e a
+ * curva.
+ */
+
+test('um presente vale cinco votos, e cinco é o piso', () => {
+  // O piso, e não o teto: a vitrine da cena já prometia "5x" no rótulo de
+  // cada presente, e um presente valendo um voto faria a tela prometer uma
+  // coisa e o placar entregar outra.
+  const urna = { ativo: true, multiplicador: 1 };
+  assert.equal(VOTOS_DO_PRESENTE, 5);
+  assert.equal(pontosDoPresente({ moedas: 1, ativo: true }, urna), 5);
+  assert.equal(votosPeloPreco(1), 5);
+});
+
+test('quanto mais caro o presente, mais votos ele vale', () => {
+  /*
+   * A tabela do `votosPeloPreco`, escrita por extenso de propósito: é o
+   * contrato dele com o Leonardo, e um número que muda sem ninguém ver muda o
+   * peso de uma eleição inteira. A raiz é o que faz 100 moedas valerem dez
+   * vezes o Heart Me, e não cem.
+   */
+  const esperado = [[1, 5], [4, 10], [9, 15], [25, 25], [100, 50], [1000, 160]];
+  for (const [moedas, votos] of esperado) {
+    assert.equal(votosPeloPreco(moedas), votos, `${moedas} moedas deveriam valer ${votos} votos`);
+  }
+});
+
+test('o preço nunca faz um presente valer menos que outro mais barato', () => {
+  // A garantia que a tabela não dá sozinha: se um dia a curva mudar, ela não
+  // pode virar uma escada quebrada — o presente caro valendo menos que o
+  // barato é o defeito que ninguém percebe olhando o código.
+  for (let moedas = 1; moedas < 300; moedas += 1) {
+    assert.ok(
+      votosPeloPreco(moedas + 1) >= votosPeloPreco(moedas),
+      `${moedas + 1} moedas valem menos que ${moedas}`,
+    );
+  }
+});
+
+test('preço ausente ou absurdo vale o piso, e não zero', () => {
+  /*
+   * É o caso do presente que a TikTok inventou ontem e ainda não tem preço no
+   * arquivo. Ele conta, e conta os cinco votos de sempre: zero votos seria um
+   * presente pago que não fez nada.
+   */
+  for (const ruim of [undefined, null, 0, -10, 'muito', NaN, '']) {
+    assert.equal(votosPeloPreco(ruim), VOTOS_DO_PRESENTE, `preço "${ruim}" não caiu no piso`);
+  }
+});
+
+test('o `votos` escrito no arquivo manda no preço', () => {
+  /*
+   * A saída de emergência: quem quiser um presente valendo um número redondo,
+   * fora da curva do preço, escreve o número no arquivo e ele vale. Sem esta
+   * porta, a única forma de ajustar um presente seria mentir no preço em
+   * moedas — e aí o painel mostraria um preço que não é o da TikTok.
+   */
+  const urna = { ativo: true, multiplicador: 1 };
+  assert.equal(pontosDoPresente({ moedas: 1000, votos: 7, ativo: true }, urna), 7);
+  // E o zero escrito é uma decisão, não um campo esquecido.
+  assert.equal(pontosDoPresente({ moedas: 1000, votos: 0, ativo: true }, urna), 0);
+});
+
+test('um `votos` escrito e inválido vira aviso e cai no preço', () => {
+  // O arquivo é editado à mão. Um `votos: "muitos"` não pode virar um presente
+  // que conta zero — nem um que conta NaN, que é pior: ele sumiria do placar
+  // sem deixar rastro em lugar nenhum.
+  const { config, avisos } = normalizar({
+    urnas: { u1: { id: 'u1', numero: '22' } },
+    presentes: [{ id: 'p1', giftId: '1', moedas: 9, urnaId: 'u1', votos: 'muitos' }],
+  });
+  assert.ok(avisos.some((a) => /votos/.test(a)), 'o arquivo errado não avisou nada');
+  assert.equal(config.presentes[0].votos, null, 'o número inválido ficou de pé');
+  assert.equal(pontosDoPresente(config.presentes[0], config.urnas.u1), 15,
+    'o presente sem número válido não voltou para o preço');
+});
+
+test('o presente padrão nasce sem número de votos, e vale pelo preço', () => {
+  // Sem `votos` no PADRAO, quem manda é o preço — e é isso que impede a
+  // regra nova de nascer desligada num projeto recém-criado.
+  for (const p of PADRAO.presentes) {
+    assert.equal(p.votos, undefined, `${p.id} nasceu com um número fixo de votos`);
   }
 });
 

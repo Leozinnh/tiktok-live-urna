@@ -14,17 +14,44 @@
    * A mesa é LARANJA e saturada, com pés pretos — não é madeira clara. É a
    * cor que mais aparece no enquadramento depois da parede, e é ela que
    * separa visualmente "onde a votação acontece" do resto.
+   *
+   * A cena é iluminada por UMA lâmpada, no teto, à frente da mesa. Quase
+   * todo token daqui para baixo é consequência disso, e é o que faz a cena
+   * deixar de ser um desenho plano: a parede é clara em cima e escura
+   * embaixo, o tampo pega luz na quina, a saia fica na sombra dele, o piso
+   * tem uma poça de luz no meio, e os quatro cantos escurecem. Quando
+   * alguém for mexer numa dessas peças, o lugar de onde a luz vem é o que
+   * decide o resto.
    */
   --parede-alta:      #dcaea8;
   --parede-baixa:     #c08d88;
   --parede-junta:     #b8837e;
+  /* O fim da parede, já na altura da mesa — o ponto mais escuro dela. */
+  --parede-fim:       #b07a75;
+  /*
+   * A quina do tampo é o ponto mais claro da cena inteira, e de propósito:
+   * é uma aresta viva apontada para a lâmpada, e é ela que dá espessura à
+   * mesa. Sem esse fio, o tampo é uma folha de papel laranja.
+   */
   --mesa-clara:       #f5861f;
   --mesa-escura:      #cf5c07;
+  --mesa-quina:       #ffc078;
+  /*
+   * A saia é a MESMA chapa do tampo, e é por isso que ela não é um laranja
+   * qualquer: é o tampo na sombra. Escurecer o laranja em vez de escolher
+   * outro mantém a mesa sendo um objeto só.
+   */
+  --mesa-saia:        #9a4205;
+  --mesa-saia-fim:    #6f2f03;
   --mesa-veio:        rgba(120, 45, 0, 0.16);
+  /* A estrutura de aço: pés e travessas. */
   --mesa-pe:          #16121c;
   --mesa-pe-luz:      #2a2434;
   --piso-claro:       #c99a95;
   --piso-escuro:      #ad7d79;
+  /* O piso escurece também para o lado da câmera: a luz é lá no fundo. */
+  --piso-fim:         #9c716d;
+  --piso-mancha:      rgba(255, 255, 255, 0.085);
   /*
    * A junta do ladrilho. Ela era 0.35 de opacidade e virava uma grade
    * desenhada por cima do chão: na referência as juntas aparecem, mas o
@@ -32,8 +59,22 @@
    * elas continuam marcando o plano sem disputar atenção com a mesa.
    */
   --piso-junta:       rgba(90, 55, 52, 0.20);
-  --cabine-poste:     #17131d;
-  --cabine-poste-2:   #302a3c;
+  /*
+   * A luz da lâmpada, e a falta dela nos cantos.
+   *
+   * Os dois primeiros são o halo quente do teto: o da parede abre largo no
+   * alto do quadro, o do piso é a poça que a mesma lâmpada faz no chão,
+   * adiante da mesa. O terceiro é a vinheta — o que sobra de luz nos cantos
+   * depois que a lâmpada acabou.
+   *
+   * A vinheta vai numa camada própria, acima do cenário e abaixo das urnas
+   * (`.luz`, em scene.css). Sobre a mesa e o piso ela é luz; sobre as urnas,
+   * o placar e os avisos seria sujeira — e é por isso que ela não está
+   * simplesmente pintada no fundo do palco.
+   */
+  --luz-parede:       rgba(255, 224, 190, 0.30);
+  --luz-piso:         rgba(255, 222, 186, 0.28);
+  --vinheta:          rgba(30, 8, 20, 0.42);
 
   /* Gabinete da urna */
   --urna-plastico:    #e8e6e1;
@@ -79,7 +120,19 @@
    */
   --urna-largura:     500px;
   --urna-altura:      340px;
-  --urna-profundidade: 54px;
+  /*
+   * A profundidade do gabinete — e ela é a única medida da urna que o público
+   * não vê de frente. É dela que saem as duas faces que fazem a caixa parecer
+   * uma caixa: o topo, que sobe 80·cos 66° = 32px acima da aresta de cima, e
+   * a lateral, que sai 80·cos 70° = 27px para fora da aresta do lado.
+   *
+   * Eram 54px, e com 54 o topo desenhava 22px e a lateral 18 — abaixo do que
+   * o olho precisa para ler uma superfície como superfície, e a urna ficava
+   * com cara de cartaz impresso. A urna de verdade tem 40cm de profundidade
+   * para 48 de largura, ou seja 83% — os 80px daqui são 16%, e ainda estão
+   * bem mais perto do que estava antes.
+   */
+  --urna-profundidade: 80px;
   --perspectiva:      1600px;
 
   /*
@@ -145,6 +198,7 @@
   --z-efeitos:   50;
   --z-placar:    60;
   --z-resultado: 70;
+  --z-popup:     80;
 
   /* Movimento */
   --transicao-curta:  180ms;

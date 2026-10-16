@@ -20,11 +20,25 @@
   position: absolute;
   left: 50%;
   /*
-   * 186px: logo acima do painel do rodapé, que ocupa os últimos 40px mais a
-   * altura dele. É o número que decide onde a faixa encosta — subir demais
-   * cobre a vitrine dos presentes.
+   * Logo acima do rodapé — e "logo acima" é medido, não chutado.
+   *
+   * `--rodape-altura` é escrito pelo `painel.js` a cada redesenho do painel:
+   * é a distância da borda de baixo do palco até o alto da carcaça. O painel
+   * do rodapé tem uma linha quando só há ranking, duas quando há fila, e
+   * nenhuma quando não há voto nenhum; com o `bottom: 186px` fixo que existia
+   * aqui, a lista crescia para cima e passava por cima da faixa — o Leonardo
+   * viu o aviso do presente cortado ao meio pela carcaça, no ar.
+   *
+   * Os 186px continuam aqui como RESERVA, para o caso de a faixa ser montada
+   * antes do primeiro desenho do painel: é a posição antiga, que valia com o
+   * rodapé de duas linhas. Vinte e dois pixels de ar entre os dois: encostada,
+   * a faixa dourada e a carcaça escura viram uma peça só.
+   *
+   * A transição daqui de baixo é o que faz a faixa SUBIR quando o painel
+   * aparece, em vez de pular — e é a única propriedade animada que o
+   * `posicionar` da mão não reescreve a cada quadro.
    */
-  bottom: 186px;
+  bottom: calc(var(--rodape-altura, 186px) + 22px);
   transform: translate(-50%, 24px);
   display: flex;
   align-items: center;
@@ -53,6 +67,7 @@
   transition:
     opacity var(--transicao-media) var(--ease-padrao),
     transform var(--transicao-media) var(--ease-padrao),
+    bottom var(--transicao-media) var(--ease-padrao),
     visibility 0s linear var(--transicao-media);
 }
 
@@ -120,9 +135,22 @@
  * um Chromium 103, e o que existe aqui é CSS de 2015.
  */
 .narrador--presente {
-  /* Dourado: a única cor quente da faixa, e a que a live inteira associa a
-     dinheiro entrando. Nenhum outro aviso usa. */
-  --narracao-cor: #f5b301;
+  /*
+   * A cor vem da URNA, e quem a escreve é o `narrador.js` a cada fala — é a
+   * mesma cor da etiqueta na mão, do placar e do pop-up.
+   *
+   * Aqui fica só a reserva, para o dia em que o servidor mandar um presente
+   * sem dizer de que urna ele é: um cinza de ardósia, o mesmo da classe
+   * neutra. A faixa continua legível e continua dizendo "presente" pelo
+   * tamanho, pela figura e pela lombada — o que ela não faz é vestir a cor de
+   * uma urna que ninguém escolheu.
+   *
+   * Antes daqui havia um dourado fixo, e o Leonardo olhou a faixa na tela e
+   * disse o que era: "a cor dourada está sem sentido algum na tela". Numa
+   * cena em que toda cor quer dizer uma urna, uma cor que não quer dizer nada
+   * é ruído.
+   */
+  --narracao-cor: #8a8f98;
   /*
    * 1040 dos 1080 de largura da tela: é a faixa que mais precisa de espaço —
    * ela carrega a figura além do texto —, e as frases do presente são as mais
@@ -131,23 +159,63 @@
    */
   max-width: 1040px;
   padding: 20px 40px 20px 30px;
-  /* Um fundo mais quente que o das outras faixas: sobre a mesa laranja, um
-     preto azulado faz o dourado parecer amarelo sujo. */
-  background: rgba(40, 24, 4, 0.94);
+  /*
+   * O fundo é escuro e neutro, e essa é a diferença que faz a cor da urna
+   * aparecer.
+   *
+   * Ele era um marrom quente, escolhido para o dourado não parecer amarelo
+   * sujo sobre a mesa laranja. Com a cor vindo da urna, o marrom brigaria com
+   * o azul e com o vermelho — cada uma das duas urnas tem a sua cor, e o
+   * único fundo que serve às duas é o mesmo quase-preto da etiqueta da mão.
+   */
+  background: rgba(10, 12, 20, 0.94);
   border-width: 4px;
-  font-size: 32px;
-  color: #fff7e0;
+  /*
+   * CHAPA, e não pílula.
+   *
+   * As outras faixas são pílulas porque carregam uma frase curta — "Valeu,
+   * Ana" —, e a pílula fecha a frase nas duas pontas. Esta carrega uma figura
+   * e a frase mais longa do sistema, e as duas coisas brigavam com a curva do
+   * cap: o desenho encostava na borda arredondada e o texto era cortado em
+   * cima dela. O raio de 30px é o mesmo desenho da etiqueta que sai do dedo
+   * (`hand.css`), e é de propósito: as duas falam do mesmo presente, no mesmo
+   * instante, e passam a parecer a mesma peça.
+   */
+  border-radius: 30px;
+  font-size: 30px;
+  color: #eef3ff;
   box-shadow:
+    /* O fio de luz no alto, como na etiqueta: é ele que dá volume à chapa. */
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
     0 18px 44px rgba(0, 0, 0, 0.5),
-    0 0 34px rgba(245, 179, 1, 0.45);
+    /* O halo na cor da urna. O `-4px` de espalhamento é o que segura a luz
+       perto da borda: sem ele, uma cor clara vira um borrão de néon em volta
+       da chapa inteira. */
+    0 0 34px -4px var(--narracao-cor, transparent);
 }
 
-/* A marca vira uma barra de ouro, com o brilho no alto como numa barra de
-   metal — a mesma leitura de "vale alguma coisa" que o resto da cena usa. */
+/*
+ * A marca vira a LOMBADA da chapa: uma barra de ouro que acompanha a altura
+ * dela, com o brilho no alto como numa barra de metal — a mesma leitura de
+ * "vale alguma coisa" que o resto da cena usa, e a mesma lombada da etiqueta.
+ */
 .narrador--presente .narrador__marca {
-  width: 14px;
-  height: 48px;
-  background: linear-gradient(180deg, #ffeb9e, #f5b301 55%, #b47d00);
+  align-self: stretch;
+  width: 12px;
+  height: auto;
+  border-radius: 20px;
+  /*
+   * O metal da barra é um VÉU branco sobre a cor da urna, e não um gradiente
+   * de tons fixos: o brilho de uma barra de ouro só funciona porque o ouro é
+   * sempre o mesmo, e aqui a cor muda a cada voto. O véu dá o mesmo realce em
+   * qualquer cor.
+   */
+  background-color: var(--narracao-cor, #8a8f98);
+  background-image: linear-gradient(180deg,
+    rgba(255, 255, 255, 0.55) 0%,
+    rgba(255, 255, 255, 0.08) 45%,
+    rgba(0, 0, 0, 0.22) 100%);
+  box-shadow: 0 0 18px -2px var(--narracao-cor, transparent);
 }
 
 /*
@@ -170,12 +238,20 @@
  */
 .narrador__desenho {
   flex: 0 0 auto;
-  width: 88px;
-  height: 88px;
+  width: 92px;
+  height: 92px;
   object-fit: contain;
-  /* A sombra é o que descola a figura do fundo quente da faixa e da mesa
-     laranja atrás dela. */
-  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.55));
+  /*
+   * Duas sombras, e a segunda é a que faltava.
+   *
+   * A de baixo descola a figura do fundo quente da faixa e da mesa laranja
+   * atrás dela. A de fora é um halo DOURADO, da cor da chapa: sem ele a
+   * figura parecia recortada e colada por cima, e o desenho do presente —
+   * que é a coisa mais cara da cena — saía com menos presença que o texto.
+   */
+  filter:
+    drop-shadow(0 6px 14px rgba(0, 0, 0, 0.55))
+    drop-shadow(0 0 20px var(--narracao-cor, transparent));
 }
 
 /* Escondida, ela não ocupa lugar nenhum: sem esta linha o `flex` deixaria um
@@ -236,8 +312,10 @@
 }
 
 @keyframes narrador-presente-pulso {
-  from { box-shadow: 0 18px 44px rgba(0, 0, 0, 0.5), 0 0 22px rgba(245, 179, 1, 0.3); }
-  to   { box-shadow: 0 18px 44px rgba(0, 0, 0, 0.5), 0 0 48px rgba(245, 179, 1, 0.8); }
+  /* O pulso respira na cor da urna que está recebendo o voto — é o mesmo
+     `--narracao-cor` do resto da faixa, lido a cada quadro. */
+  from { box-shadow: 0 18px 44px rgba(0, 0, 0, 0.5), 0 0 20px -6px var(--narracao-cor, transparent); }
+  to   { box-shadow: 0 18px 44px rgba(0, 0, 0, 0.5), 0 0 48px -2px var(--narracao-cor, transparent); }
 }
 
 @keyframes narrador-presente-brilho {

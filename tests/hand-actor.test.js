@@ -55,7 +55,7 @@ function renderFalso() {
 function urnaFalsa(geometria = { teclas: {}, slot: null }) {
   return {
     el: { classList: { add() {}, remove() {} } },
-    config: { nome: 'URNA X' },
+    config: { nome: 'URNA X', numero: '2', corPrimaria: '#1a5fd0' },
     teclasPressionadas: [],
     contados: 0,
     repousos: 0,
@@ -299,10 +299,65 @@ test('um voto enfileirado é contado na urna certa', async () => {
   assert.equal(ator.ocupado, false);
 
   // O voto que sai na cédula é o voto que foi enfileirado — sem isso a
-  // cédula impressa poderia trazer o presente de outro espectador.
-  assert.deepEqual(urna.cedulas, [{ usuario: 'João', presente: 'Rosa', votos: 1 }],
-    'a cédula não foi impressa com os dados do voto');
+  // cédula impressa poderia trazer o presente de outro espectador. O número
+  // e a cor vão junto pelo mesmo motivo, e são do voto: a máquina imprime o
+  // que foi digitado nela, e não a placa que tem na frente.
+  assert.deepEqual(urna.cedulas, [{
+    usuario: 'João', presente: 'Rosa', votos: 1, numero: '2', cor: '#1a5fd0',
+  }], 'a cédula não foi impressa com os dados do voto');
   assert.ok(urna.cedulaEscondida, 'a cédula ficou visível depois de contabilizada');
+});
+
+test('a etiqueta e a tela seguem o CANDIDATO, e não a máquina em que a mão digita', async () => {
+  /*
+   * O caso que o Leonardo viu no ar: o voto do Flávio (22, azul) sai na urna
+   * DOIS (13, vermelha) porque a do 22 está ocupada. O que a mão digita é o
+   * voto do Flávio — o número, a ficha, a foto e a COR são dele. A cor do
+   * gabinete é a cor do gabinete: pintada no voto, o 22 azul aparecia
+   * vermelho na etiqueta e na tela.
+   *
+   * A cor errada não quebra nada — o voto conta no candidato certo, a ficha
+   * mostra o número certo —, e é por isso que ela passou: só se vê olhando a
+   * tela, e só quando a urna do candidato está ocupada.
+   */
+  const geometria = {
+    teclas: { '2': { centro: { x: 700, y: 900 } }, CONFIRMA: { centro: { x: 820, y: 1120 } } },
+    slot: { centro: { x: 540, y: 620 } },
+  };
+  const maquina = urnaFalsa(geometria);
+  maquina.config = { id: 'u2', nome: 'URNA 13', numero: '13', corPrimaria: '#e02020' };
+  const destino = urnaFalsa(geometria);
+  destino.config = { id: 'u1', nome: 'URNA 22', numero: '22', corPrimaria: '#1a5fd0' };
+
+  const { ator, render, ticker } = montarAtor();
+  const badges = [];
+  render.mostrarBadge = (nome, cor) => badges.push({ nome, cor });
+  const telas = [];
+  maquina.definirTela = (estado) => telas.push(estado);
+
+  ator.fila.enfileirar({
+    id: 'a', urna: maquina, destino, numero: '22', votos: 5,
+    usuario: 'Ana', presente: 'Heart Me',
+  });
+  ator.iniciar();
+  await esvaziarFila(ator, ticker);
+
+  assert.deepEqual(badges, [{ nome: 'Ana', cor: '#1a5fd0' }],
+    'a etiqueta saiu na cor do gabinete emprestado, e não na do candidato');
+
+  const digitando = telas.find((t) => t.tipo === 'digitando' && t.numeroDigitado);
+  assert.ok(digitando, 'a tela nunca passou pelo estado de digitação');
+  assert.equal(digitando.cor, '#1a5fd0',
+    'a tela digitou o voto do 22 com a cor do gabinete em que a mão estava');
+
+  /*
+   * E o papel também: a cédula sai do gabinete emprestado, mas o que está
+   * impresso nela é o voto que foi dado. Sem o número, ela dizia "13" — o
+   * comprovante de um voto que ninguém deu.
+   */
+  assert.deepEqual(maquina.cedulas, [{
+    usuario: 'Ana', presente: 'Heart Me', votos: 5, numero: '22', cor: '#1a5fd0',
+  }], 'a cédula saiu com o número do gabinete, e não com o do voto');
 });
 
 test('remedir invalida a geometria guardada', () => {

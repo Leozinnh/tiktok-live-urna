@@ -33,6 +33,7 @@ import { basename } from 'node:path';
 import { mesclar, normalizar } from './config.js';
 import { criarNarrador, LIMIAR_DA_CURTIDA } from './narracao.js';
 import { criarEspera } from './espera.js';
+import { acharUrna, chaveDoComentario, criarChatVoto } from './chat-voto.js';
 import { criarLog } from './log.js';
 
 export function criarHub({
@@ -234,6 +235,59 @@ export function criarHub({
     agora,
   });
 
+  /*
+   * O voto escrito no chat, e o intervalo entre dois da mesma pessoa.
+   *
+   * Ele é o caminho de graça até o voto — quem não tem moeda escreve o nome ou
+   * o número do candidato. O estado dele (quem votou quando) vive enquanto a
+   * rodada viver, e é por isso que ele nasce aqui, ao lado da espera, e não
+   * dentro do motor: o motor conta, quem lembra das pessoas é o hub.
+   */
+  const chatVoto = criarChatVoto({ agora });
+
+  /**
+   * O comentário que é um voto — ou nada.
+   *
+   * Devolve sem falar quando o texto não cita urna nenhuma, que é a imensa
+   * maioria dos comentários de uma live. Quando cita, e é a primeira vez da
+   * pessoa na janela, o voto entra pelo mesmo `anunciarVoto` do presente: a
+   * mão digita, o placar sobe, o log escreve. A única diferença é o valor —
+   * um voto, contra os cinco ou mais do presente.
+   */
+  function votarPeloChat(evento) {
+    const alvo = acharUrna(evento.texto, urnasAtivas());
+    if (!alvo) return;
+
+    if (!chatVoto.reservar(evento.userId)) {
+      /*
+       * O segundo "22" de quem já votou agora há pouco. Ele não conta e não
+       * merece fala — mas merece linha, porque é por ela que se descobre, numa
+       * live cheia, que o intervalo está curto demais.
+       */
+      log.info('hub', `⏱ ${quemDe(evento)} escreveu "${evento.texto}" de novo; `
+        + `o voto do chat tem intervalo de ${Math.round(chatVoto.intervaloMs / 1000)}s`);
+      return;
+    }
+
+    const r = tally.contarPeloChat(evento, {
+      urnaId: alvo.urnaId,
+      chave: chaveDoComentario(evento),
+    });
+    if (r.contado) {
+      anunciarVoto(r, evento);
+      return;
+    }
+    /*
+     * A recusa do voto escrito, escrita por extenso.
+     *
+     * É a mesma promessa da linha do presente recusado: quem escreveu "22" e
+     * viu o placar parado precisa de uma resposta. A rodada fechada é o caso
+     * que mais acontece — e é justamente o que o operador precisa saber.
+     */
+    const motivo = MOTIVO_DA_RECUSA[r.motivo] ?? r.motivo;
+    log.info('hub', `⛔ ${motivo}: o voto de ${quemDe(evento)} escrito no chat não contou`);
+  }
+
   /**
    * O placar, no formato do `tally.update` da especificação.
    *
@@ -363,6 +417,30 @@ export function criarHub({
     }
     if (msg.tipo === 'state.request') {
       enviarA(cliente, 'state.full', retrato(cliente));
+      return;
+    }
+
+    /*
+     * A fala que a TELA não conseguiu dizer.
+     *
+     * Vem antes da porteira de admin, e isso é o ponto: quem perde fala é a
+     * página do ar, que não é admin e nunca vai ser. É um aviso de quem está
+     * com o alto-falante, e não um comando — a tela não pede nada, ela conta o
+     * que aconteceu.
+     *
+     * Existe porque o defeito mais caro desta noite foi mudo por fora: o
+     * `play()` recusado pelo navegador era engolido num `catch`, a fala não
+     * saía, a faixa piscava e o log não escrevia nada. Quem olhasse o console
+     * diria que estava tudo dito. O Leonardo julga o sistema pelo console, e
+     * por isso a recusa tem que chegar até ele.
+     */
+    if (msg.tipo === 'narracao.perdida') {
+      // Esta mensagem chega de um socket que qualquer um alcança, e o texto
+      // dela vai direto para o arquivo de log. Cortado e numa linha só: um
+      // aviso de fora não enche o log da live.
+      const texto = String(msg.texto ?? '').trim().replace(/\s+/g, ' ').slice(0, 120);
+      const motivo = String(msg.motivo ?? '').trim().replace(/\s+/g, ' ').slice(0, 80);
+      if (texto) log.aviso('voz', `⚠ a tela perdeu "${texto}": ${motivo || 'sem motivo'}`);
       return;
     }
 
@@ -614,8 +692,17 @@ export function criarHub({
     avisarEspera();
   }
 
-  /** Esquece as esperas em aberto. É o que a virada de rodada faz. */
+  /**
+   * Esquece as esperas em aberto. É o que a virada de rodada faz.
+   *
+   * O intervalo do voto escrito cai junto, e ANTES do atalho das esperas: uma
+   * rodada pode virar sem nenhuma espera pendente — e quem votou pelo chat no
+   * último segundo da anterior tem que poder votar na nova na hora. Deixar o
+   * `return` na frente faria o relógio do chat atravessar a virada, que é
+   * exatamente o voto que a virada deveria liberar.
+   */
   function esquecerEsperas() {
+    chatVoto.limpar();
     if (espera.pendentes === 0) return;
     espera.limpar();
     avisarEspera();
@@ -663,12 +750,36 @@ export function criarHub({
       tipo: evento.tipo,
       usuario: evento.usuario,
       /*
-       * O desenho do presente que chegou, e só ele tem um: chegada, follow e
-       * curtida chegam aqui sem este campo, e a faixa deles sai só com o
-       * texto — como sempre saiu.
+       * O presente que chegou, num objeto só.
+       *
+       * A faixa quer o desenho, o pop-up quer o nome, quem mandou e para qual
+       * urna foi — e os dois mostram o MESMO presente. Espalhar isso em campos
+       * soltos daria dois lugares afirmando a mesma coisa, e no dia em que
+       * discordassem a faixa e o pop-up mostrariam presentes diferentes no
+       * mesmo instante da live. Só o presente tem um: chegada, follow e
+       * curtida chegam aqui sem ele.
        */
-      desenho: evento.desenho,
+      presente: evento.tipo === 'presente'
+        ? {
+          nome: evento.presente,
+          desenho: evento.desenho,
+          // O apelido quando existe: "vai pra Lulinha" é o que a live fala, e
+          // o pop-up tem que dizer o mesmo que a voz.
+          urna: evento.apelido ?? evento.urna,
+          // A cor da urna do voto, para o pop-up inteiro sair na cor de quem
+          // recebeu — a mesma rosa é vermelha na 13 e azul no 22.
+          cor: evento.cor,
+        }
+        : null,
       em: evento.em,
+      /*
+       * `em` e `ts` contados os dois pelo relógio do SERVIDOR, e é isso que
+       * deixa a página medir o atraso sem sincronizar relógio nenhum: o que
+       * ela usa é a diferença entre os dois, que é o tempo que a fala passou
+       * na fila daqui — síntese incluída. Sem isso, uma fala que esperou dois
+       * segundos para ser sintetizada chegava à página parecendo nova, e a
+       * fila de lá contava o atraso a partir do zero.
+       */
       ts: agora(),
     });
   }
@@ -697,7 +808,19 @@ export function criarHub({
        * abaixo, na linha do voto.
        */
       const resgate = espera.resgatar({ userId: evento.userId, texto: evento.texto, urnas: urnasAtivas() });
-      if (!resgate) return;   // a imensa maioria dos comentários morre aqui
+      if (!resgate) {
+        /*
+         * Não é resgate. Então o comentário tenta ser um VOTO.
+         *
+         * É o caminho de graça, e ele vem DEPOIS do resgate de propósito: quem
+         * mandou um presente órfão e escreveu "22" está escolhendo a urna
+         * daquele presente, e não pedindo mais um voto. Invertendo a ordem, o
+         * mesmo "22" contaria o presente resgatado (cinco votos ou mais) E um
+         * voto de chat, e o espectador ganharia um voto por ter sido claro.
+         */
+        votarPeloChat(evento);
+        return;
+      }
       const r = tally.contarPeloNumero(
         { ...evento, giftId: resgate.giftId, giftNome: resgate.presente, combo: resgate.combo },
         { numero: resgate.numero },
@@ -815,8 +938,19 @@ export function criarHub({
      * presente que não entrou.
      */
     const urna = cfg.urnas?.[r.urnaId]?.nome ?? r.urnaId;
-    log.info('hub', `✅ ${r.usuario || 'alguém'} mandou ${vezesDe(evento.combo)}${r.presente} `
-      + `para a ${urna} (+${r.votos} ${r.votos === 1 ? 'voto' : 'votos'})`);
+    /*
+     * Duas linhas, e não uma com um campo a mais.
+     *
+     * Quem votou pelo chat não MANDOU nada, e "mandou Voto no chat para a
+     * Lula" é uma frase que faz procurar defeito no lugar errado. A linha do
+     * chat diz o que aconteceu — o texto escrito —, e é ela que responde
+     * "por que esta urna subiu?" numa live em que ninguém mandou presente.
+     */
+    log.info('hub', r.origem === 'chat'
+      ? `✅ ${r.usuario || 'alguém'} votou no chat: ${r.numero} · ${urna} `
+        + `(+${r.votos} ${r.votos === 1 ? 'voto' : 'votos'})`
+      : `✅ ${r.usuario || 'alguém'} mandou ${vezesDe(evento.combo)}${r.presente} `
+        + `para a ${urna} (+${r.votos} ${r.votos === 1 ? 'voto' : 'votos'})`);
 
     enviarATodos('vote.counted', {
       id: r.chave,
@@ -824,6 +958,7 @@ export function criarHub({
       userId: evento.userId,
       usuario: r.usuario,
       presente: r.presente,
+      origem: r.origem,
       votos: r.votos,
       em: evento.em,
       ts: agora(),
@@ -844,7 +979,25 @@ export function criarHub({
       // etiqueta da fila escreve ele, e uma edição no painel entre o voto e
       // a animação renomearia um voto que já aconteceu.
       presente: r.presente,
-      giftId: String(evento.giftId),
+      /*
+       * De onde o voto veio. A etiqueta da mão mostra o desenho do presente, e
+       * o voto escrito no chat não tem desenho nenhum: sem este campo ela
+       * procuraria a figura de um presente chamado "Voto no chat" e sairia sem
+       * figura — ou, pior, com a figura de outro presente que tivesse o mesmo
+       * nome.
+       */
+      origem: r.origem,
+      giftId: String(evento.giftId ?? ''),
+      /*
+       * O desenho do presente, para a etiqueta da mão mostrar a figura do que
+       * chegou.
+       *
+       * Ele sai daqui pela mesma razão que a figura da faixa dourada sai: o
+       * nome que a TikTok manda ("Rosa") não é nome de arquivo nenhum, e
+       * adivinhar a figura a partir dele daria uma rosa sem rosa no dia em que
+       * o nome não batesse. Quem sabe o mapeamento é o servidor.
+       */
+      desenho: presente?.desenho ?? '',
       usuario: r.usuario,
       votos: r.votos,
       prioridade: presente?.prioridade ?? 0,
@@ -878,25 +1031,44 @@ export function criarHub({
      * nascem juntos — o voto e o nome de quem ganhou não podem discordar.
      * O `combo` é o do evento, e sem ele quem manda cinco presentes ouve a
      * mesma frase de quem mandou um.
+     *
+     * O voto ESCRITO no chat não fala, e é a diferença que sustenta a de
+     * valor: quem paga pelo presente tem a voz dizendo o nome dele, e quem
+     * escreve um número no chat tem o voto contado e a mão digitando na tela.
+     * Além disso a fala é o gargalo de tudo — são segundos por frase, e o
+     * chat de uma live movimentada engoliria a fila da voz inteira em um
+     * minuto, deixando o presente pago esperando atrás de cem "22".
      */
-    narrar({
-      ...evento,
-      tipo: 'presente',
-      presente: r.presente,
-      urna: cfg.urnas?.[r.urnaId]?.nome,
-      apelido: cfg.urnas?.[r.urnaId]?.apelido,
-      /*
-       * O desenho do presente, para a faixa mostrar a figura do que chegou.
-       *
-       * Ele sai do MAPEAMENTO (o presente da configuração), e não do evento:
-       * o nome que a TikTok manda para o presente ("Rosa") não é o nome de
-       * arquivo nenhum em `public/img/`, e adivinhar a figura a partir dele
-       * daria uma rosa sem rosa no dia em que o nome não batesse. Sem
-       * mapeamento não há desenho — e a faixa sai dourada, sem figura.
-       */
-      desenho: presente?.desenho,
-      combo: evento.combo,
-    });
+    if (r.origem !== 'chat') {
+      narrar({
+        ...evento,
+        tipo: 'presente',
+        presente: r.presente,
+        urna: cfg.urnas?.[r.urnaId]?.nome,
+        apelido: cfg.urnas?.[r.urnaId]?.apelido,
+        /*
+         * O desenho do presente, para a faixa mostrar a figura do que chegou.
+         *
+         * Ele sai do MAPEAMENTO (o presente da configuração), e não do evento:
+         * o nome que a TikTok manda para o presente ("Rosa") não é o nome de
+         * arquivo nenhum em `public/img/`, e adivinhar a figura a partir dele
+         * daria uma rosa sem rosa no dia em que o nome não batesse. Sem
+         * mapeamento não há desenho — e a faixa sai dourada, sem figura.
+         */
+        desenho: presente?.desenho,
+        /*
+         * A cor da urna que recebeu o voto, para o pop-up pintar com ela.
+         *
+         * Ela sai da MESMA consulta que o nome e o apelido acima, e é por isso
+         * que nasce aqui: a mesma rosa é vermelha na 13 e azul no 22, então a
+         * cor não é do presente — é de quem recebeu o voto. É a `corPrimaria`
+         * da configuração, a mesma que já pinta o painel da urna na cena, e não
+         * uma cor que o pop-up escolheria sozinho.
+         */
+        cor: cfg.urnas?.[r.urnaId]?.corPrimaria,
+        combo: evento.combo,
+      });
+    }
 
     if (r.lideranca) {
       enviarATodos('lead.changed', {

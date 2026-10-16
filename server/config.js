@@ -82,12 +82,15 @@ export const PADRAO = Object.freeze({
     }),
   }),
   presentes: Object.freeze([
+    // Sem `votos`: quem decide quantos votos cada um vale é o preço em moedas
+    // (`votosPeloPreco`). Um `votos` escrito aqui seria justamente o número
+    // fixo que a regra do preço veio substituir.
     Object.freeze({
-      id: 'p1', nome: 'Heart Me', giftId: '1', moedas: 1, urnaId: 'u1', votos: 1,
+      id: 'p1', nome: 'Heart Me', giftId: '1', moedas: 1, urnaId: 'u1',
       ativo: true, efeito: 'faisca', prioridade: 0, cooldownMs: 0,
     }),
     Object.freeze({
-      id: 'p2', nome: 'Rosa', giftId: '2', moedas: 1, urnaId: 'u2', votos: 1,
+      id: 'p2', nome: 'Rosa', giftId: '2', moedas: 1, urnaId: 'u2',
       ativo: true, efeito: 'faisca', prioridade: 0, cooldownMs: 0,
     }),
   ]),
@@ -255,16 +258,28 @@ function conferirPresente(bruto, idsDeUrna, avisos, indice) {
     avisos.push(`presentes[${indice}]: sem id, recusado — sem nome pelo qual ser mapeado`);
     return null;
   }
+  /*
+   * `votos: null` é "não me disseram", e não "zero votos".
+   *
+   * A diferença é a regra do preço: um presente SEM `votos` no arquivo vale o
+   * que o preço dele em moedas mandar (`votosPeloPreco`), e é assim que o
+   * Leonardo quer — "quanto mais caro o presente, mais voto". Um presente COM
+   * `votos` escrito vale exatamente aquilo, e é a saída para quem quiser um
+   * número redondo fora da curva.
+   */
   const p = {
-    id, nome: id, giftId: id, moedas: 0, urnaId: null, votos: 1,
+    id, nome: id, giftId: id, moedas: 0, urnaId: null, votos: null,
     ativo: true, efeito: '', desenho: '', prioridade: 0, cooldownMs: 0,
   };
   const g = { ...p, ...bruto, id };
   g.nome = texto(g.nome) || id;
   g.giftId = texto(g.giftId) || id;
-  if (!numeroFinito(g.votos) || g.votos < 0) {
-    avisos.push(`presentes.${id}.votos: "${g.votos}" não é uma contagem; usei 1`);
-    g.votos = 1;
+  // O `null` do padrão não é erro: ele é a resposta para "quantos votos?", e a
+  // resposta é "os do preço". Só um valor ESCRITO e inválido vira aviso.
+  if (g.votos != null && (!numeroFinito(g.votos) || g.votos < 0)) {
+    avisos.push(`presentes.${id}.votos: "${g.votos}" não é uma contagem; `
+      + 'vou usar o preço em moedas');
+    g.votos = null;
   }
   for (const campo of ['moedas', 'prioridade', 'cooldownMs']) {
     if (!numeroFinito(g[campo]) || g[campo] < 0) g[campo] = 0;
@@ -471,6 +486,38 @@ export function normalizar(bruto = {}) {
 }
 
 /**
+ * Quantos votos vale um presente que chegou da live. O pedido, literal:
+ * "quando for presente, contar 5x o voto".
+ *
+ * Cinco é o PISO, e não o teto: a vitrine da cena já prometia "5x" no rótulo
+ * de cada presente antes de isto existir, e um presente que contasse um voto
+ * faria a tela prometer uma coisa e o placar entregar outra.
+ */
+export const VOTOS_DO_PRESENTE = 5;
+
+/**
+ * Quantos votos vale um presente, pelo preço dele em moedas.
+ *
+ * O outro pedido, literal: "quanto mais caro o presente, mais voto". A conta
+ * é a RAIZ do preço, e não o preço: um presente de 100 moedas vale dez vezes
+ * mais votos que um de 1, e não cem vezes. Sem a raiz, o primeiro diamante da
+ * noite decidiria a eleição e o Heart Me — que é o presente de todo mundo —
+ * viraria enfeite. Com ela, o caro ganha com folga e o barato ainda pesa.
+ *
+ *   moedas    1    4    9   25   100   1000
+ *   votos     5   10   15   25    50    160
+ *
+ * Preço que não é número, ou que é 1, vale o piso. É o caso do presente que a
+ * TikTok inventou ontem e ainda não tem preço na configuração: ele conta, e
+ * conta os cinco votos de sempre.
+ */
+export function votosPeloPreco(moedas) {
+  const m = Number(moedas);
+  if (!Number.isFinite(m) || m <= 1) return VOTOS_DO_PRESENTE;
+  return VOTOS_DO_PRESENTE * Math.max(1, Math.round(Math.sqrt(m)));
+}
+
+/**
  * Quanto vale este presente nesta urna.
  *
  * A conta da seção 6.1: `votos × multiplicador da urna × combo`. O combo é o
@@ -484,7 +531,10 @@ export function normalizar(bruto = {}) {
 export function pontosDoPresente(presente, urna, combo = 1) {
   if (!presente || !urna) return 0;
   if (presente.ativo === false || urna.ativo === false) return 0;
-  const votos = numeroFinito(presente.votos) ? presente.votos : 1;
+  // O `votos` escrito no arquivo MANDA quando existe — é a saída de emergência
+  // de quem quiser um presente valendo um número redondo, fora da curva do
+  // preço. Sem ele, quem decide é o preço em moedas.
+  const votos = numeroFinito(presente.votos) ? presente.votos : votosPeloPreco(presente.moedas);
   const multiplicador = numeroFinito(urna.multiplicador) && urna.multiplicador > 0 ? urna.multiplicador : 1;
   const vezes = numeroFinito(combo) && combo > 0 ? Math.floor(combo) : 1;
   return votos * multiplicador * vezes;

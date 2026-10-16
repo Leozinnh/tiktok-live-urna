@@ -17,6 +17,7 @@ function audioFalso({ estado = 'running' } = {}) {
   let retomadas = 0;
   const osciladores = [];
   const ganhos = [];
+  const fontes = [];
 
   const parametro = () => ({
     valor: null,
@@ -60,9 +61,49 @@ function audioFalso({ estado = 'running' } = {}) {
       ganhos.push(g);
       return g;
     },
+    /* O CONFIRMA toca um arquivo: o dublê precisa saber decodificar e tocar
+       uma fonte de buffer, que são os dois nós que as notas não usam. */
+    decodeAudioData() { return Promise.resolve({ duracao: 1.54 }); },
+    createBufferSource() {
+      const f = {
+        buffer: null,
+        ligado: false,
+        parado: null,
+        connect(destino) { f.destino = destino; return destino; },
+        start() { f.ligado = true; },
+        stop(quando) { f.parado = quando; },
+      };
+      fontes.push(f);
+      return f;
+    },
   };
-  return { ctx, osciladores, ganhos, retomadas: () => retomadas };
+  return { ctx, osciladores, ganhos, fontes, retomadas: () => retomadas };
 }
+
+/*
+ * O `fetch` do arquivo, substituído pelo tempo do teste.
+ *
+ * O módulo busca `public/sound/confirm.mp3` na criação do som, e o `fetch` do
+ * Node não sabe ler uma URL relativa — sem o dublê, todo teste daqui falharia
+ * por um motivo que não é o do módulo. O que se prende é o TRATO: busca uma
+ * vez, guarda o buffer, e falha em silêncio.
+ */
+async function comArquivo(fn, { ok = true } = {}) {
+  const original = globalThis.fetch;
+  const chamadas = [];
+  globalThis.fetch = (url) => {
+    chamadas.push(url);
+    return Promise.resolve({ ok, status: ok ? 200 : 404, arrayBuffer: () => Promise.resolve(new ArrayBuffer(8)) });
+  };
+  try {
+    await fn(chamadas);
+  } finally {
+    globalThis.fetch = original;
+  }
+}
+
+/* Deixa as promessas do carregamento assentarem. */
+const assentar = () => new Promise((r) => setTimeout(r, 0));
 
 test('sem AudioContext nenhum, tocar não derruba a página', () => {
   /*
@@ -177,4 +218,103 @@ test('o silêncio é reversível', () => {
   som.tocarVirada();
   assert.ok(osciladores.length > 0);
   assert.equal(som.ligado, true);
+});
+
+/* ---------- O CONFIRMA: o som que é arquivo ---------- */
+
+test('sem áudio, tocar a confirmação não derruba a página', () => {
+  // O mesmo contrato das notas: o som é enfeite, a live é o produto.
+  const som = criarSom({ Contexto: undefined });
+  assert.doesNotThrow(() => som.tocarConfirmacao());
+});
+
+test('o arquivo do CONFIRMA é buscado uma vez, na criação do som', async () => {
+  /*
+   * Buscar na hora do primeiro voto faria o clique chegar atrasado — som sem
+   * causa visível é pior do que silêncio. E buscar a cada voto seria uma
+   * requisição por voto, a noite inteira.
+   */
+  const { ctx } = audioFalso();
+  await comArquivo(async (chamadas) => {
+    const som = criarSom({ Contexto: function () { return ctx; } });
+    await assentar();
+    assert.equal(chamadas.length, 1, `buscou ${chamadas.length} vezes`);
+    assert.match(chamadas[0], /confirm\.mp3$/);
+    som.tocarConfirmacao();
+    som.tocarConfirmacao();   // o segundo sai antes do intervalo mínimo
+    som.tocarConfirmacao();
+    await assentar();
+    assert.equal(chamadas.length, 1, 'buscou de novo na hora de tocar');
+  });
+});
+
+test('o CONFIRMA sai baixo, e num nó de ganho próprio', async () => {
+  /*
+   * "Toque o barulho baixo" — o pedido, literal. O arquivo é um mp3
+   * masterizado (-0,7dB de pico), então o volume tem de ser uma fração
+   * pequena: a 1.0 ele passaria por cima da narração e do áudio da live.
+   */
+  const { ctx, ganhos, fontes } = audioFalso();
+  await comArquivo(async () => {
+    const som = criarSom({ Contexto: function () { return ctx; } });
+    await assentar();
+    som.tocarConfirmacao();
+    assert.equal(fontes.length, 1, 'o arquivo não foi tocado');
+    assert.ok(fontes[0].ligado, 'a fonte não foi iniciada');
+    const doClique = ganhos.at(-1);
+    assert.ok(doClique.gain.valor > 0 && doClique.gain.valor < 0.5,
+      `o clique saiu a ${doClique.gain.valor}: nem mudo, nem por cima da live`);
+  });
+});
+
+test('numa rajada, o clique anterior sai antes de o novo entrar', async () => {
+  /*
+   * O arquivo tem 1,5s e o modo lote dispara um voto a cada 260ms por mão.
+   * Sem desligar o anterior, cem votos em rajada viram cem cópias
+   * sobrepostas — um zumbido, e o clique some dentro dele.
+   *
+   * A queda de 30ms antes do `stop` é o outro lado: cortar uma onda no meio
+   * estala, e o estalo é mais audível que o próprio clique.
+   */
+  const { ctx, fontes } = audioFalso();
+  await comArquivo(async () => {
+    const som = criarSom({ Contexto: function () { return ctx; } });
+    await assentar();
+
+    // O `currentTime` do dublê é parado: para o segundo clique passar pelo
+    // intervalo mínimo, o tempo anda à mão entre um e outro.
+    som.tocarConfirmacao();
+    ctx.currentTime = 0.5;
+    som.tocarConfirmacao();
+
+    assert.equal(fontes.length, 2, 'o segundo clique não tocou');
+    assert.equal(fontes[0].parado, 0.55, 'o clique anterior ficou tocando por cima do novo');
+    assert.equal(fontes[1].parado, null, 'o clique novo já nasceu parado');
+  });
+});
+
+test('arquivo faltando não vira erro no console', async () => {
+  /*
+   * Se alguém renomear o mp3, o certo é a live seguir sem clique — e não a
+   * tela do OBS, que não tem onde escrever log, encher o console de erro
+   * vermelho que ninguém vai ler.
+   */
+  const { ctx, fontes } = audioFalso();
+  await comArquivo(async () => {
+    const som = criarSom({ Contexto: function () { return ctx; } });
+    await assentar();
+    assert.doesNotThrow(() => som.tocarConfirmacao());
+    assert.equal(fontes.length, 0, 'tocou um arquivo que não existe');
+  }, { ok: false });
+});
+
+test('calado, o CONFIRMA também cala', async () => {
+  const { ctx, fontes } = audioFalso();
+  await comArquivo(async () => {
+    const som = criarSom({ Contexto: function () { return ctx; } });
+    await assentar();
+    som.calar();
+    som.tocarConfirmacao();
+    assert.equal(fontes.length, 0, 'tocou com a mesa calada');
+  });
 });

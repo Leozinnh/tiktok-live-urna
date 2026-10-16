@@ -1,5 +1,5 @@
 /*
- * O painel do rodapé: a fila e o ranking.
+ * O painel do rodapé: a fila, e — parado — os dois monitores de quem manda.
  *
  * Onde ele mora, e por quê: medido no navegador em 1080x1920, o palco já está
  * ocupado de cima a baixo — cronômetro em 117-263, placar em 290-784, urnas
@@ -10,6 +10,39 @@
  * O custo disso está dito: o TikTok desenha a caixa de comentário dele sobre
  * o rodapé do vídeo. Se o painel ficar escondido atrás dela na live, ele sobe
  * mudando o `bottom` abaixo — é o único número que decide a altura dele.
+ *
+ * O QUE ELE É. Ele era um retângulo navy de cantos bem redondos, com linhas
+ * translúcidas dentro, boiando sobre o ladrilho. Numa cena de objetos, essa
+ * peça é a que sobra quando o rodapé é feito de interface — e a 6% de
+ * transparência o chão rosa aparecia por dentro dela, que é o que denuncia o
+ * adesivo.
+ *
+ * Agora ele é o TERCEIRO APARELHO do estúdio, com a receita das duas TVs e do
+ * relógio: carcaça de alumínio escuro, bezel de 10px, queixo de 26 com a marca
+ * e o LED de presença, o vidro por cima da tela, e o aparelho APOIADO no chão
+ * — com pé, sombra de contato e a luz da própria tela derramada no ladrilho.
+ * A diferença entre ele e as TVs é o que eles fazem: as TVs são da cor do
+ * candidato, ele é azul de produção, como o relógio e a placa de status.
+ *
+ * E ele virou DOIS. Com fila, um aparelho de ponta a ponta; parado, dois
+ * monitores lado a lado — "quem mais presenteou" e "últimos votos". Foi
+ * pedido do Leonardo, e o desenho obedeceu à bancada e não ao contrário:
+ * dividir a tela de um aparelho ao meio daria duas telas estreitas dentro de
+ * uma carcaça só. Dois aparelhos custam um `gap` e um par de nós a mais, e é
+ * o que se vê numa bancada de verdade.
+ *
+ * A marca e o pé saíram da ÁREA e viraram filhos de cada `.painel`. Enquanto
+ * havia um aparelho só, os pseudo-elementos da área davam conta; com dois, a
+ * palavra ARENA esticaria por cima dos dois e a travessa do pé sairia de um
+ * aparelho para o outro. Os dois pseudo-elementos de `.painel` já são a tela
+ * e o vidro, e por isso a marca e o pé precisaram de nó próprio.
+ *
+ * O que ele diz é uma fila, e fila é chamada: por isso a tela é um painel de
+ * chamada — cabeçalho com o LED de "no ar", linhas separadas por fio de
+ * varredura e, em cada linha, a urna acesa numa tarja de LED. A primeira
+ * linha sai acesa: na fila ela é a próxima a ser chamada, no ranking é quem
+ * mais presenteou. É a mesma regra servindo às duas telas, e as duas estão
+ * certas.
  */
 
 .painel-area {
@@ -19,6 +52,21 @@
   bottom: 40px;
   display: flex;
   justify-content: center;
+  /*
+   * Dois aparelhos na mesma bancada, com um vão entre eles: encostados, as
+   * duas carcaças leriam como uma peça só com um vinco no meio.
+   */
+  gap: 24px;
+  /*
+   * E os dois apoiados na MESMA linha do ladrilho.
+   *
+   * As listas têm tamanhos diferentes — o ranking mostra três nomes, os
+   * últimos votos mostram quatro —, então as duas carcaças têm alturas
+   * diferentes. Alinhadas por baixo, os pés e as marcas caem na mesma reta,
+   * que é como dois aparelhos de verdade ficam lado a lado; alinhadas por
+   * cima, o que se veria é um aparelho flutuando.
+   */
+  align-items: flex-end;
   pointer-events: none;
 }
 
@@ -32,56 +80,294 @@
  */
 .painel-area--vazio { display: none; }
 
+
 /* A mesma largura do placar — 16px de cada lado do palco. Um painel mais
    estreito que a caixa logo acima dele parece um enfeite solto em vez de
    parte do mesmo desenho, e o ranking perde o espaço de que precisa para o
-   nome comprido de quem mais presenteou. */
+   nome comprido de quem mais presenteou. As carcaças das duas TVs começam
+   exatamente nessas duas verticais. */
 .painel {
+  position: relative;
+  z-index: 1;
   width: 100%;
-  padding: 22px 34px 26px;
-  border-radius: 34px;
-  background: linear-gradient(180deg,
-    rgba(22, 32, 58, 0.94) 0%,
-    rgba(14, 21, 38, 0.94) 100%);
+  /*
+   * `min-width: 0` porque agora são DOIS aparelhos dividindo a faixa.
+   *
+   * Um item de flex não encolhe abaixo do próprio conteúdo: a largura mínima
+   * automática é a do texto inteiro, e as linhas do painel são `nowrap` com
+   * nome de vinte caracteres. Sem esta linha os dois aparelhos estourariam a
+   * faixa em vez de dividi-la, e o da direita sairia do palco.
+   */
+  min-width: 0;
+  padding: 10px 10px 26px;
+  border-radius: 20px;
+  background:
+    /* O vão escuro entre a tela e o queixo, com a espessura do queixo. */
+    linear-gradient(180deg, rgba(0, 0, 0, 0.78) 0 2px, rgba(0, 0, 0, 0) 2px)
+      bottom / 100% 26px no-repeat,
+    linear-gradient(180deg, #171d2a 0%, #0a0e15 100%);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    0 14px 30px rgba(0, 0, 0, 0.4);
+    /*
+     * O aparelho no chão: a sombra que ele faz no ladrilho (curta e escura,
+     * logo abaixo do pé) e o halo da própria tela em volta da carcaça — a
+     * mesma luz que as TVs jogam na parede, um tom acima porque a tela daqui
+     * é azul de produção e não a cor de um candidato.
+     *
+     * Estas duas camadas eram da ÁREA, quando havia um aparelho só e as duas
+     * caixas coincidiam. Com dois, a área é a bancada inteira: a sombra dela
+     * seria uma tarja escura embaixo do vão entre os aparelhos, que é onde
+     * não há nada. Cada aparelho projeta a sua.
+     */
+    0 30px 42px -10px rgba(24, 6, 18, 0.62),
+    0 0 74px -16px rgba(130, 170, 240, 0.35),
+    /* A aresta de cima pegando a lâmpada, e a de baixo na sombra — a mesma
+       dupla das TVs. */
+    inset 0 2px 0 rgba(190, 210, 245, 0.16),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.65);
   font-family: "Segoe UI", "Inter", system-ui, sans-serif;
   color: #ffffff;
 }
 
+/*
+ * A marca no queixo, impressa por cima do alumínio.
+ *
+ * O LED de presença acende na ponta direita, na mesma posição em que ele
+ * está nas duas TVs — e é o mesmo verde das duas, porque aparelho ligado é
+ * aparelho ligado. O `z-index` é o que a põe acima da tela: os dois
+ * pseudo-elementos da carcaça já estão ocupados, então a marca é um nó de
+ * verdade, e sem o `2` ela ficaria embaixo do vidro.
+ *
+ * O `left/right: 10px` repete o bezel: a impressão fica dentro do alumínio,
+ * e não por cima do canto redondo da carcaça.
+ */
+.painel__marca {
+  display: none !important;
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 0;
+  z-index: 2;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  line-height: 1;
+  font-family: "Segoe UI", "Inter", system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.52em;
+  text-indent: 0.52em;   /* compensa o espaço que o letter-spacing deixa à direita */
+  color: rgba(176, 192, 218, 0.62);
+  background:
+    radial-gradient(circle 3px at calc(100% - 26px) 50%,
+      #7fd6a0 0 100%, rgba(0, 0, 0, 0) 100%);
+  box-shadow: 0 0 14px -2px rgba(127, 214, 160, 0.55);
+}
+
+/*
+ * O pé: uma travessa de aço embaixo da carcaça, mais estreita que ela.
+ *
+ * É o que diz que o aparelho está APOIADO — a mesma chapa dos pés da mesa,
+ * com o mesmo fio de luz na aresta de cima (`--mesa-pe-luz`), para que os
+ * dois objetos que encostam no chão sejam do mesmo material. Ele mora FORA
+ * da carcaça (`bottom: -14px`) e é o que decide a altura da linha do chão
+ * dos dois aparelhos.
+ */
+.painel__pe {
+  position: absolute;
+  left: 48px;
+  right: 48px;
+  bottom: -14px;
+  height: 14px;
+  border-radius: 0 0 6px 6px;
+  background: linear-gradient(180deg,
+    var(--mesa-pe-luz) 0 2px,
+    var(--mesa-pe) 2px 100%);
+}
+
+/*
+ * A tela: um painel de chamada, escuro, com a luz vindo de dentro.
+ *
+ * O `inset` REPETE o padding da carcaça, e é a única medida do arquivo que
+ * depende de outra: o queixo é mais grosso que os outros três lados, então a
+ * moldura é padding e não borda, e o vidro tem que repetir os quatro números
+ * à mão. O teste `o painel do rodapé é um aparelho na cena` prende essa soma.
+ */
+.painel::before {
+  content: '';
+  position: absolute;
+  /*
+   * `z-index: -1`, e não o `auto` das outras camadas do projeto.
+   *
+   * Um pseudo-elemento com `position: absolute` é pintado DEPOIS do conteúdo
+   * que está no fluxo: o cabeçalho é um `<span>` estático, e a tela opaca
+   * passava por cima dele. O que se via na primeira foto foi um painel sem
+   * título nenhum, com o cabeçalho de 57px lá dentro e invisível — e as
+   * linhas aparecendo, porque as linhas são `position: relative` e sobem
+   * junto com a tela. Com o -1 a tela desce para trás do conteúdo e continua
+   * na frente da carcaça, que é o fundo do mesmo contexto de empilhamento.
+   */
+  z-index: -1;
+  inset: 10px 10px 26px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #16203a 0%, #0b1223 62%, #080d18 100%);
+  box-shadow:
+    /* O vão escuro entre a tela e a moldura, e a tela afundada na carcaça. */
+    inset 0 2px 0 rgba(0, 0, 0, 0.85),
+    inset 0 0 34px rgba(0, 0, 0, 0.6),
+    /* E a luz que a tela joga na carcaça em volta dela. */
+    0 0 42px -8px rgba(120, 160, 230, 0.30);
+}
+
+/*
+ * O vidro, por cima de tudo — inclusive do texto.
+ *
+ * Mesma receita das TVs, mais fraca: aqui o que está embaixo são nomes de
+ * 38px lidos de longe, e uma malha de pixels na força das TVs briga com
+ * eles. As linhas de varredura ficam, porque são elas que fazem a superfície
+ * parecer uma tela acesa e não um adesivo impresso.
+ */
+.painel::after {
+  content: '';
+  position: absolute;
+  inset: 10px 10px 26px;
+  border-radius: 10px;
+  pointer-events: none;
+  background:
+    linear-gradient(167deg,
+      rgba(255, 255, 255, 0.11) 0%,
+      rgba(255, 255, 255, 0.04) 18%,
+      rgba(255, 255, 255, 0.01) 32%,
+      rgba(255, 255, 255, 0) 46%),
+    repeating-linear-gradient(90deg,
+      rgba(255, 68, 68, 0.035) 0 1px,
+      rgba(68, 255, 120, 0.035) 1px 2px,
+      rgba(86, 132, 255, 0.035) 2px 3px),
+    repeating-linear-gradient(180deg,
+      rgba(255, 255, 255, 0.022) 0 1px,
+      rgba(0, 0, 0, 0.055) 1px 3px),
+    radial-gradient(132% 100% at 50% 40%,
+      rgba(0, 0, 0, 0) 60%,
+      rgba(0, 0, 0, 0.40) 100%);
+}
+
+/*
+ * O cabeçalho da tela.
+ *
+ * Ele é uma faixa, e não um rótulo solto: é assim que um painel de chamada
+ * separa o assunto da lista. O LED verde à esquerda é o mesmo verde do visor
+ * da urna (`--tela-texto`), e é o "no ar" do aparelho — enquanto ele está
+ * aceso, o painel tem o que dizer.
+ */
 .painel__titulo {
-  display: block;
-  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 0 0 10px;
+  padding: 10px 22px 8px;
+  border-radius: 10px 10px 0 0;
   font-size: 26px;
   font-weight: 800;
   letter-spacing: 0.14em;
-  color: #8fa3c8;
+  color: #9db2d6;
+  background: linear-gradient(180deg,
+    rgba(190, 215, 255, 0.08) 0%,
+    rgba(190, 215, 255, 0) 100%);
+  box-shadow: inset 0 -1px 0 rgba(150, 190, 255, 0.16);
+  text-shadow: 0 0 22px rgba(150, 190, 255, 0.30);
+}
+
+.painel__titulo::before {
+  content: '';
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--tela-texto);
+  box-shadow:
+    0 0 12px var(--tela-texto),
+    0 0 28px var(--tela-brilho);
 }
 
 .painel__lista {
   display: flex;
   flex-direction: column;
-  gap: 10px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
 /*
- * A tarja à esquerda é a cor da urna daquele voto. É o que liga a linha ao
- * objeto na tela sem precisar ler o número: o 22 é azul e a urna do 22
- * também, e quem está na arquibancada lê a cor antes de ler o texto.
+ * A linha, e a tarja de LED na cor da urna daquele voto.
+ *
+ * A tarja é o que liga a linha ao objeto na tela sem precisar ler o número: o
+ * 22 é azul e a urna do 22 também, e quem está na arquibancada lê a cor antes
+ * de ler o texto. Ela era uma `border-left` — uma faixa pintada. Numa tela a
+ * cor sai de um LED aceso, então ela passou a ser um elemento com halo, e o
+ * que se vê é a luz dela borrando por cima do fundo.
+ *
+ * O fundo da linha é um degradê que apaga para a direita, e não uma chapa: é
+ * a luz da tarja caindo sobre a tela, e é o que faz a linha parecer acesa em
+ * vez de pintada.
  */
 .painel__item {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 18px;
-  min-height: 58px;
-  padding: 0 22px;
-  border-radius: 16px;
-  border-left: 8px solid var(--cor-urna, #4a5468);
-  background: rgba(255, 255, 255, 0.05);
+  min-height: 56px;
+  /*
+   * A faixa vai de borda a borda da tela, sem canto redondo: é assim que uma
+   * lista de chamada é desenhada, e é o que a separa de uma lista de cartões
+   * — o painel anterior era uma pilha de retângulos arredondados, que é a
+   * cara de interface que ele tinha.
+   */
+  padding: 0 24px 0 30px;
+  background: linear-gradient(90deg,
+    rgba(255, 255, 255, 0.065) 0%,
+    rgba(255, 255, 255, 0.025) 58%,
+    rgba(255, 255, 255, 0.010) 100%);
+  box-shadow: inset 0 -1px 0 rgba(150, 190, 255, 0.10);
+}
+
+.painel__item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 7px;
+  border-radius: 4px;
+  background: var(--cor-urna, #4a5468);
+  box-shadow:
+    0 0 18px var(--cor-urna, #4a5468),
+    inset 0 0 5px rgba(255, 255, 255, 0.55);
+}
+
+/*
+ * A primeira linha, acesa.
+ *
+ * Na fila ela é a próxima a ser chamada; no ranking, quem mais presenteou. A
+ * regra é a mesma para as duas telas porque nas duas a primeira linha é a que
+ * importa — e é o `:first-child` que a acha, sem o JS ter que marcar nada.
+ */
+.painel__item:first-child {
+  background: linear-gradient(90deg,
+    rgba(150, 190, 255, 0.20) 0%,
+    rgba(150, 190, 255, 0.05) 62%,
+    rgba(150, 190, 255, 0.015) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(190, 215, 255, 0.18),
+    inset 0 -1px 0 rgba(190, 215, 255, 0.18);
+}
+
+.painel__item:first-child::before {
+  width: 9px;
+  top: 6px;
+  bottom: 6px;
+  box-shadow:
+    0 0 24px var(--cor-urna, #4a5468),
+    0 0 54px -6px var(--cor-urna, #4a5468),
+    inset 0 0 5px rgba(255, 255, 255, 0.65);
 }
 
 .painel__numero {
@@ -89,7 +375,12 @@
   min-width: 74px;
   font-size: 34px;
   font-weight: 800;
+  font-variant-numeric: tabular-nums;
   color: var(--cor-urna, #8fa3c8);
+  /* O halo é o que faz até o azul escuro da urna 1 parecer aceso. */
+  text-shadow:
+    0 0 22px var(--cor-urna, #8fa3c8),
+    0 2px 6px rgba(0, 0, 0, 0.6);
 }
 
 /*
@@ -107,6 +398,7 @@
   line-height: 1.1;
   white-space: nowrap;
   text-overflow: ellipsis;
+  text-shadow: 0 0 24px rgba(190, 215, 255, 0.28);
 }
 
 .painel__posicao {
@@ -116,7 +408,10 @@
   width: 46px;
   height: 46px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(150, 190, 255, 0.12);
+  box-shadow:
+    inset 0 0 0 1px rgba(150, 190, 255, 0.24),
+    0 0 20px -4px rgba(150, 190, 255, 0.55);
   font-size: 28px;
   font-weight: 800;
   color: #cfdcf5;
@@ -127,12 +422,52 @@
   font-size: 38px;
   font-weight: 800;
   color: #ffd479;
+  text-shadow: 0 0 24px rgba(255, 212, 121, 0.45);
 }
 
 .painel__resto {
   align-self: flex-end;
-  padding-right: 6px;
+  margin-top: 8px;
+  padding-right: 24px;
   font-size: 28px;
   font-weight: 800;
   color: #8fa3c8;
+  text-shadow: 0 0 20px rgba(150, 190, 255, 0.28);
+}
+
+/*
+ * A linha dos últimos votos: quem votou, e em quem.
+ *
+ * É a linha da fila lida ao contrário, e é de propósito. Na fila o número vem
+ * primeiro porque é o destino de um voto que ainda vai acontecer; aqui o nome
+ * vem primeiro porque o voto JÁ aconteceu, e a frase é "o Fulano votou no 22".
+ * A seta é o "votou no": sem ela os dois lado a lado leem como uma linha da
+ * fila, e a lista passaria a dizer o contrário do que aconteceu.
+ *
+ * A seta é um triângulo de borda, e não um caractere. O "→" da Segoe UI sai
+ * fino, é o traço de um texto e não o de um aparelho — e aqui aceso, na cor
+ * da urna, ele é a mesma luz das tarjas.
+ */
+.painel__item--voto .painel__nome { font-size: 34px; }
+
+.painel__seta {
+  flex: none;
+  width: 0;
+  height: 0;
+  border-top: 9px solid rgba(0, 0, 0, 0);
+  border-bottom: 9px solid rgba(0, 0, 0, 0);
+  border-left: 14px solid var(--cor-urna, #8fa3c8);
+  filter: drop-shadow(0 0 10px var(--cor-urna, #8fa3c8));
+}
+
+/*
+ * O número fecha a linha, encostado na direita: é para onde a seta aponta.
+ *
+ * Sem o `min-width` da fila: num aparelho de meia largura, os 74px fixos do
+ * número sairiam do nome, que é o que se procura na lista. Aqui o número tem
+ * a largura de dois dígitos e nada mais.
+ */
+.painel__item--voto .painel__numero {
+  min-width: 0;
+  text-align: right;
 }

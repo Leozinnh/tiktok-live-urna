@@ -1,5 +1,5 @@
 /*
- * O cronômetro da rodada — o painel do alto do enquadramento.
+ * O cronômetro da rodada — o relógio de parede do alto do enquadramento.
  *
  * Ele fica acima do placar e é a primeira coisa que o olho encontra na
  * vertical: quem chega na live no meio de uma rodada precisa saber quanto
@@ -9,6 +9,12 @@
  * medida: o painel ocupa de y=117 a y=263, deslocado para a esquerda do
  * centro. Ele não é centralizado de propósito — centralizado, encostaria na
  * borda direita e a composição perderia o ar da referência.
+ *
+ * Ele é um APARELHO pendurado na parede, como as duas televisões do placar
+ * logo abaixo, e é o mesmo desenho que diz isso nos dois: carcaça com fio de
+ * luz em cima e sombra embaixo, tela rebaixada dentro dela, e a sombra que o
+ * conjunto joga na parede. O que muda é o que está aceso dentro — lá é a cor
+ * do candidato, aqui é o tempo.
  */
 
 .cronometro {
@@ -19,12 +25,26 @@
   height: 146px;
   display: grid;
   place-items: center;
-  border-radius: 34px;
-  border: 3px solid rgba(255, 255, 255, 0.10);
-  background: linear-gradient(180deg, #1b2740 0%, #0d1424 100%);
+  /*
+   * A carcaça: 10px, a mesma espessura das televisões do placar. O fio claro
+   * em cima é a lâmpada do teto batendo na aresta de cima, e o escuro embaixo
+   * é a aresta que virou para o lado da sombra — sem os dois, a moldura é uma
+   * borda grossa e o relógio vira uma caixa preta.
+   */
+  border: 10px solid #0e131d;
+  border-top-color: #333b4a;
+  border-bottom-color: #05080e;
+  border-radius: 30px;
+  background: radial-gradient(120% 160% at 50% 0%,
+    #1b2740 0%, #0d1424 62%, #080d18 100%);
   box-shadow:
-    inset 0 2px 0 rgba(255, 255, 255, 0.14),
-    0 18px 40px rgba(0, 0, 0, 0.45);
+    /* A sombra que ele joga na parede, deslocada para baixo: é ela que diz
+       que o relógio está na frente da parede, e não pintado nela. */
+    0 22px 36px rgba(24, 6, 18, 0.50),
+    /* A luz do visor vazando na parede em volta, fria como o painel. */
+    0 0 54px -8px rgba(120, 160, 230, 0.34),
+    /* E o fundo da tela, rebaixado dentro da carcaça. */
+    inset 0 0 22px rgba(0, 0, 0, 0.55);
   font-family: "Segoe UI", "Inter", system-ui, sans-serif;
 }
 
@@ -37,19 +57,35 @@
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.02em;
   color: #ffffff;
-  text-shadow: 0 6px 0 rgba(0, 0, 0, 0.40);
+  /* O brilho do painel em volta do próprio dígito — é o que faz o número
+     parecer aceso dentro do vidro, e não impresso nele. */
+  text-shadow:
+    0 0 38px rgba(150, 190, 255, 0.40),
+    0 2px 10px rgba(0, 0, 0, 0.55);
 }
 
 /*
  * Últimos segundos. O tempo acaba uma vez por rodada e precisa ser notado
  * por quem está longe da tela: a cor muda e o painel pulsa, mas nada disso
  * altera o número — a contagem continua sendo a contagem.
+ *
+ * A carcaça também entra no vermelho, e não só a borda de fora: um relógio
+ * que fica vermelho por dentro e continua preto por fora parece um adesivo.
  */
-.cronometro--acabou .cronometro__valor { color: #ff7a6b; }
+.cronometro--acabou .cronometro__valor {
+  color: #ff7a6b;
+  text-shadow:
+    0 0 44px rgba(255, 90, 70, 0.55),
+    0 2px 10px rgba(0, 0, 0, 0.55);
+}
 
 .cronometro--acabou {
-  border-color: rgba(255, 122, 107, 0.55);
+  border-color: #3a1116;
+  border-top-color: #7a2530;
+  background: radial-gradient(120% 160% at 50% 0%,
+    #3a1720 0%, #1d0b11 62%, #120609 100%);
   box-shadow:
-    inset 0 2px 0 rgba(255, 255, 255, 0.14),
-    0 0 44px rgba(255, 90, 70, 0.45);
+    0 22px 36px rgba(24, 6, 18, 0.50),
+    0 0 62px -6px rgba(255, 90, 70, 0.50),
+    inset 0 0 22px rgba(0, 0, 0, 0.50);
 }

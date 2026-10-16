@@ -34,6 +34,26 @@
 export const JANELA_PADRAO_MS = 15_000;
 
 /**
+ * As urnas que têm número, no formato `{ id, numero }`.
+ *
+ * A peneira olha o valor CRU, antes de converter, e a ordem é o teste inteiro:
+ * `Number('')` e `Number(null)` são `0`, e uma urna com o campo apagado no
+ * painel casaria com qualquer "0" escrito no chat — um voto para a urna
+ * errada, do nada. Convertendo depois de peneirar, o campo vazio não chega a
+ * virar número.
+ *
+ * Existe aqui, e é importada por quem também decide voto pelo número escrito
+ * (`chat-voto.js`), porque duas peneiras que decidem a mesma coisa acabam
+ * discordando — e a que ficasse para trás seria a que conta voto errado.
+ */
+export function urnasComNumero(urnas = []) {
+  return (urnas ?? [])
+    .filter((u) => u?.id && u.numero != null && String(u.numero).trim() !== '')
+    .map((u) => ({ id: u.id, numero: Number(u.numero) }))
+    .filter((u) => Number.isFinite(u.numero));
+}
+
+/**
  * O número de urna escrito num texto de chat, se houver.
  *
  * A busca é por NÚMERO INTEIRO, e não por trecho: "1222" não é o voto 22, e
@@ -48,11 +68,7 @@ export const JANELA_PADRAO_MS = 15_000;
  * Compara por VALOR e não por texto: "022" é o mesmo voto que "22".
  */
 export function acharNumero(texto, urnas = []) {
-  const validas = (urnas ?? [])
-    .map((u) => ({ id: u?.id, numero: Number(u?.numero) }))
-    // Uma urna sem número (campo apagado no painel) viraria `0` e casaria com
-    // qualquer "0" escrito no chat.
-    .filter((u) => u.id && Number.isFinite(u.numero) && String(u.numero).trim() !== '');
+  const validas = urnasComNumero(urnas);
   if (validas.length === 0) return null;
 
   for (const run of String(texto ?? '').match(/\d+/g) ?? []) {

@@ -71,6 +71,51 @@ test('todo CSS e JS referenciado pelo HTML existe no disco', async () => {
   }
 });
 
+test('a camada do pop-up fica acima de todas as outras', async () => {
+  /*
+   * O defeito que este teste prende foi visto numa FOTO, e não aqui.
+   *
+   * O pop-up do presente nasceu dentro da camada de efeitos (z 50). O placar
+   * é z 60 — e o nome do presente, que é a primeira coisa do cartão, cai bem
+   * na faixa dele. O resultado na tela de transmissão foi um cartão SEM NOME,
+   * com o "de Painel" e o "vai pra Lulinha" logo abaixo do nada, e o véu sem
+   * apagar o cronômetro. Nada disso dá erro: o CSS aplica, o DOM fica certo,
+   * e a única pista é olhar.
+   *
+   * São duas coisas que precisam valer juntas, e é por isso que elas estão no
+   * mesmo teste: o token mais alto tem que ser o do pop-up, E o pop-up tem que
+   * ser montado na camada que usa esse token. Só a primeira não impede alguém
+   * de pendurar o cartão na camada errada — que foi exatamente o que
+   * aconteceu —, e só a segunda não impede alguém de acrescentar um
+   * `--z-aviso: 90` acima dele.
+   */
+  const tokens = semComentarios(await readFile(DIR_CSS + 'tokens.css', 'utf8'));
+  const zs = [...tokens.matchAll(/--z-([a-z-]+):\s*(\d+)/g)]
+    .map((m) => ({ nome: m[1], valor: Number(m[2]) }));
+  assert.ok(zs.length >= 5, `poucos tokens de camada encontrados: ${zs.length}`);
+
+  const popup = zs.find((z) => z.nome === 'popup');
+  assert.ok(popup, 'não existe --z-popup em tokens.css');
+  for (const z of zs) {
+    assert.ok(z.nome === 'popup' || z.valor < popup.valor,
+      `--z-${z.nome} vale ${z.valor} e --z-popup vale ${popup.valor}: `
+      + 'há camada desenhada por cima do pop-up, e o cartão sai atrás dela');
+  }
+
+  const cena = semComentarios(await readFile(DIR_CSS + 'scene.css', 'utf8'));
+  assert.match(cena, /\.camada--popup\s*\{[^}]*z-index:\s*var\(--z-popup\)/,
+    'a camada do pop-up não usa --z-popup');
+
+  /*
+   * E o outro lado do fio: quem MONTA o pop-up tem que apontá-lo para essa
+   * camada. É a metade que faltava — o token estava certo desde que a camada
+   * nasceu, e o cartão foi pendurado na camada de efeitos assim mesmo.
+   */
+  const aoVivo = await readFile(fileURLToPath(new URL('../public/js/ao-vivo.js', import.meta.url)), 'utf8');
+  assert.match(aoVivo, /criarPopupPresente\(\s*cenario\.camadaPopup\s*\)/,
+    'o pop-up não é montado na camada de pop-up: ele volta a ficar atrás do placar');
+});
+
 test('o palco se centra sem depender do alinhamento do container', async () => {
   /*
    * O palco é MAIOR que a janela (1080x1920 contra qualquer monitor), e um
@@ -403,4 +448,162 @@ test('a figura do presente na faixa tem estilo, e sabe ficar escondida', async (
     'a figura escondida continuaria ocupando lugar na faixa');
   assert.match(css, /\.narrador__desenho\s*\{[^}]*width:\s*\d+px/,
     'a figura sairia no tamanho natural do arquivo');
+});
+
+test('o painel do rodapé é um aparelho na cena, e não um cartão por cima dela', async () => {
+  /*
+   * A queixa foi curta: "o painel-area está ruim demais".
+   *
+   * Ele era um retângulo navy de cantos bem redondos com linhas igualmente
+   * redondas e translúcidas dentro — a única peça de interface numa cena que
+   * já era feita de objetos. E a 6% de transparência o ladrilho rosa aparecia
+   * por dentro dele: um painel que deixa o chão atravessar não está apoiado
+   * no chão, está impresso nele.
+   *
+   * Agora ele é o terceiro aparelho do estúdio, junto das duas TVs e do
+   * relógio: carcaça opaca, tela recuada pelo MESMO bezel dos outros dois, e
+   * a cor da urna acesa em cada linha. Três coisas disso quebram em silêncio,
+   * e são as três que este teste prende.
+   */
+  const css = semComentarios(await readFile(DIR_CSS + 'painel.css', 'utf8'));
+  const bloco = (seletor) => {
+    const alvo = seletor.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const m = new RegExp(String.raw`(?:^|\n)\s*${alvo}\s*\{([^}]*)\}`).exec(css);
+    assert.ok(m, `regra não encontrada: ${seletor}`);
+    return m[1];
+  };
+  const declaracao = (texto, prop) => {
+    const m = new RegExp(String.raw`(?:^|;)\s*${prop}\s*:\s*([^;]+)`, 's').exec(texto);
+    return m ? m[1].trim() : null;
+  };
+  /* topo/direita/base/esquerda, aceitando a forma curta de 1 a 4 valores. */
+  const lados = (texto) => {
+    const v = texto.split(/\s+/).map((n) => parseFloat(n));
+    return [v[0], v[1] ?? v[0], v[2] ?? v[0], v[1] ?? v[0]];
+  };
+
+  /*
+   * A carcaça é opaca e escura.
+   *
+   * O `rgba(22, 32, 58, 0.94)` que estava aqui deixava o ladrilho passar; o
+   * que se cobra agora é a ÚLTIMA camada do fundo — a que forra a carcaça —
+   * seja opaca. As de cima podem ser translúcidas: uma camada preta a 78%
+   * sobre um fundo opaco escurece, e escurecer é o que se quer.
+   *
+   * E a luminância é a mesma conta do miolo dos cartões, com o mesmo limiar,
+   * porque o problema é o mesmo: nome branco em cima.
+   */
+  const carcaça = bloco('.painel');
+  const fundo = declaracao(carcaça, 'background');
+  assert.ok(fundo, 'a carcaça do painel não declara fundo');
+  /* As camadas do fundo, separadas pelas vírgulas de fora dos parênteses. */
+  const camadasDoFundo = (texto) => {
+    const partes = [];
+    let nivel = 0;
+    let atual = '';
+    for (const c of texto) {
+      if (c === '(') nivel += 1;
+      else if (c === ')') nivel -= 1;
+      else if (c === ',' && nivel === 0) { partes.push(atual.trim()); atual = ''; continue; }
+      atual += c;
+    }
+    partes.push(atual.trim());
+    return partes;
+  };
+  const forro = camadasDoFundo(fundo).pop();
+  assert.equal(/rgba\(/.test(forro), false,
+    `a camada que forra a carcaça é translúcida: o ladrilho aparece por dentro dela — ${forro}`);
+  const cores = [...fundo.matchAll(/#([0-9a-f]{6})\b/gi)].map((m) => m[1]);
+  assert.ok(cores.length >= 2, 'a carcaça não tem o degradê de alumínio das TVs');
+  const luminancia = (hex) => {
+    const canal = (i) => {
+      const v = parseInt(hex.slice(i, i + 2), 16) / 255;
+      return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+    };
+    return 0.2126 * canal(0) + 0.7152 * canal(2) + 0.0722 * canal(4);
+  };
+  assert.ok(Math.max(...cores.map(luminancia)) < 0.10,
+    `a carcaça não é escura o bastante: o nome branco das linhas some`);
+
+  /*
+   * E a tela tem que ser recuada EXATAMENTE pelo padding da carcaça.
+   *
+   * O queixo é mais grosso que os outros três lados, então a moldura é
+   * padding e não borda — e o vidro, que é `inset`, tem que repetir os
+   * quatro números à mão. Engrossar o bezel sem mexer no `inset` não dá erro
+   * nenhum: o vidro escorrega para fora da tela e passa a cobrir a marca do
+   * queixo, ou a tela vaza por baixo da carcaça.
+   */
+  const recuo = lados(declaracao(carcaça, 'padding'));
+  for (const camada of ['.painel::before', '.painel::after']) {
+    assert.deepEqual(lados(declaracao(bloco(camada), 'inset') ?? ''), recuo,
+      `${camada} não repete o padding da carcaça: a tela e o vidro saem de lugar`);
+  }
+
+  /*
+   * E a tarja de cada linha continua sendo a cor da urna daquele voto. É ela
+   * que liga a linha ao objeto na tela sem precisar ler o número, e numa
+   * tela a cor sai de um LED aceso — não de uma borda pintada.
+   */
+  assert.match(bloco('.painel__item::before'), /var\(--cor-urna/,
+    'a tarja da linha perdeu a cor da urna: a linha deixa de apontar para a urna');
+});
+
+/*
+ * O acabamento em 3D das três faces do gabinete.
+ *
+ * O topo, a lateral e o pé ganharam camada de luz própria, POR CIMA das
+ * declarações do Leonardo — o padrão que o próprio arquivo já documenta:
+ * nada dele é reescrito, o que entra é `::before`/`::after`.
+ *
+ * O que este teste prende não é o valor de cada camada (isso é gosto, e muda
+ * com a foto). São as três coisas que, faltando, viram defeito de verdade:
+ *
+ *   1. a camada não pode participar do LAYOUT — `position: absolute` com
+ *      `inset: 0`, senão o gabinete cresce e a urna sai de cima da mesa;
+ *   2. a camada não pode pegar o CLIQUE — `pointer-events: none`, senão ela
+ *      vira um vidro na frente do que está embaixo;
+ *   3. a LUZ TEM QUE TER DIREÇÃO. A lateral era um degradê só na horizontal:
+ *      de cima a baixo ela tinha o mesmo valor, e face de valor constante lê
+ *      como adesivo colado no corpo. É a queda da luz do teto e o afundamento
+ *      no pé que dizem que aquilo é uma superfície em pé.
+ */
+test('as faces do gabinete ganham luz por cima, sem sair do lugar', async () => {
+  const css = semComentarios(await readFile(DIR_CSS + 'urna.css', 'utf8'));
+  const bruto = await readFile(DIR_CSS + 'urna.css', 'utf8');
+
+  const bloco = (seletor) => {
+    const alvo = seletor.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const m = new RegExp(String.raw`(?:^|\n)\s*${alvo}\s*\{([^}]*)\}`).exec(css);
+    assert.ok(m, `regra não encontrada: ${seletor}`);
+    return m[1];
+  };
+
+  const camadas = ['.urna__topo::after', '.urna__lado::before', '.urna__base::before'];
+  for (const camada of camadas) {
+    const texto = bloco(camada);
+    assert.match(texto, /content:\s*''/, `${camada} sem content: a camada não existe`);
+    assert.match(texto, /position:\s*absolute/, `${camada} participa do layout`);
+    assert.match(texto, /inset:\s*0/, `${camada} não cobre a face inteira`);
+    assert.match(texto, /pointer-events:\s*none/, `${camada} pega o clique`);
+  }
+
+  /*
+   * E a luz da lateral tem de cair de ALTO para baixo, e o pé afundar na
+   * mesa. Sem o par, a face é chapada na vertical — que é o defeito que a
+   * camada existe para consertar, e o único jeito de o teste saber a
+   * diferença é a direção do degradê.
+   */
+  const lado = bloco('.urna__lado::before');
+  assert.match(lado, /linear-gradient\(180deg/, 'a lateral perdeu a luz do teto caindo pela altura');
+  assert.match(lado, /linear-gradient\(0deg/, 'a lateral perdeu o afundamento no pé');
+
+  /*
+   * E as declarações de face do Leonardo continuam inteiras. A camada é por
+   * CIMA do fundo dele: quem trocar o degradê de lugar em vez de somar por
+   * cima apaga o ajuste dele, e o teste avisa antes de chegar na transmissão.
+   */
+  for (const cor of ['#fdfdfb', '#b3b0a8', '#74716b', '#55524c', '#2e2c28']) {
+    assert.ok(bruto.includes(cor), `o fundo ${cor} de uma face foi apagado`);
+  }
 });

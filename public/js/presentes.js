@@ -64,6 +64,7 @@ export function markupPresente({ nome = '', numero = '', cor = '#8a8f98', desenh
       <div class="presente__etiqueta">
         <span class="presente__verbo">Votar</span>
         <span class="presente__numero">${esc(numero)}</span>
+        <span class="presente__urna">5x</span>
       </div>
       <div class="presente__nome">${esc(nome)}</div>
     </div>`;

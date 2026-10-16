@@ -93,38 +93,57 @@
   inset: 0;
   z-index: var(--z-fundo);
   background:
-    radial-gradient(120% 70% at 50% 8%,
-      rgba(255, 255, 255, 0.16) 0%,
-      rgba(255, 255, 255, 0) 60%),
-    linear-gradient(180deg, var(--parede-alta) 0%, var(--parede-baixa) 100%);
+    /*
+     * O grão. Uma parede lisa de dois milhões de pixels, pintada com um
+     * degradê, chega na tela como uma faixa de cor — e é a faixa de cor que
+     * denuncia o desenho feito em CSS. O grão é a textura mais barata que
+     * existe (duas linhas de 1px em ângulo) e é a mesma receita do corpo da
+     * urna, de propósito: as duas superfícies são o mesmo mundo.
+     */
+    repeating-linear-gradient(101deg,
+      rgba(255, 255, 255, 0.030) 0 1px,
+      rgba(120, 60, 55, 0.022) 1px 4px),
+    /*
+     * A sombra de contato da mesa na parede: uma faixa escura onde o tampo
+     * encosta nela, aos 60% — que é exatamente onde o tampo começa.
+     *
+     * Sem ela, a parede termina e a mesa começa numa linha reta de um lado
+     * ao outro do quadro, e as duas superfícies parecem recortes de papel
+     * encostados. É a mesma função da sombra que a mesa faz no piso, do
+     * outro lado dela.
+     */
+    linear-gradient(180deg,
+      rgba(58, 20, 24, 0) 56%,
+      rgba(58, 20, 24, 0.20) 60%,
+      rgba(58, 20, 24, 0) 63%),
+    /* O halo da lâmpada do teto, quente, aberto no alto do quadro. */
+    radial-gradient(86% 44% at 50% 0%,
+      var(--luz-parede) 0%,
+      rgba(255, 224, 190, 0.10) 44%,
+      rgba(255, 224, 190, 0) 76%),
+    /*
+     * O rebate laranja do tampo na parede, na altura da mesa.
+     *
+     * É o que separa a mesa da parede sem desenhar uma linha entre as duas —
+     * o mesmo truque que a quina do tampo faz do outro lado. Fraco de
+     * propósito: é luz refletida, não uma segunda lâmpada.
+     */
+    radial-gradient(62% 18% at 50% 56%,
+      rgba(255, 150, 60, 0.10) 0%,
+      rgba(255, 150, 60, 0) 74%),
+    /*
+     * E o degrau da luz: claro em cima, escuro embaixo.
+     *
+     * O ponto mais escuro é a 58%, e não o fim do quadro: o fim da parede
+     * está atrás da mesa, e escurecer o que ninguém vê só faria a faixa
+     * visível ficar com um degradê mais curto.
+     */
+    linear-gradient(180deg,
+      var(--parede-alta) 0%,
+      var(--parede-alta) 20%,
+      var(--parede-baixa) 56%,
+      var(--parede-fim) 100%);
 }
-
-/* ---- Postes da cabine ----------------------------------------------- */
-
-/*
- * As duas colunas escuras nas laterais.
- *
- * Elas emolduram o enquadramento: sem elas a cena é uma parede infinita e
- * as urnas parecem flutuar num vazio cor-de-rosa. Na referência são as
- * traves pretas da cabine de votação, e é o que fecha a composição dos
- * dois lados.
- */
-.cabine__poste {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 34px;
-  z-index: calc(var(--z-mesa) + 1);
-  background: linear-gradient(90deg,
-    var(--cabine-poste) 0%,
-    var(--cabine-poste-2) 55%,
-    var(--cabine-poste) 100%);
-  box-shadow:
-    inset 0 0 20px rgba(0, 0, 0, 0.7),
-    0 0 40px rgba(20, 10, 25, 0.45);
-}
-.cabine__poste--esq { left: 0; }
-.cabine__poste--dir { right: 0; }
 
 /* ---- Mesa ----------------------------------------------------------- */
 
@@ -138,9 +157,18 @@
 }
 
 /*
- * O tampo é a superfície onde as urnas se apoiam. A perspectiva em
- * rotateX dá a impressão de que a mesa avança em direção à câmera —
- * sem ela a cena vira um cartaz plano.
+ * O tampo é a superfície onde as urnas se apoiam, e é a peça mais vista da
+ * mesa: as urnas cobrem o meio dele, mas o que sobra é a faixa que fica
+ * logo acima do teclado delas, no meio do enquadramento.
+ *
+ * A perspectiva em rotateX é o que faz a mesa avançar em direção à câmera —
+ * sem ela a cena vira um cartaz plano. As 150px de profundidade projetam
+ * 150 · cos(66°) = 61px de tela, e é desse número que saem o topo da quina
+ * (`--mesa-borda`, logo abaixo) e o resto da mesa.
+ *
+ * O veio corre no COMPRIMENTO, e não no fundo: era `92deg`, o que desenhava
+ * listras verticais que a projeção transformava em nervuras — o tampo
+ * parecia uma chapa corrugada. Madeira em mesa corre no sentido da mesa.
  */
 .mesa__tampo {
   position: absolute;
@@ -151,50 +179,186 @@
   transform: rotateX(66deg);
   transform-origin: top center;
   background:
-    repeating-linear-gradient(
-      92deg,
-      var(--mesa-veio) 0px,
-      var(--mesa-veio) 3px,
-      rgba(0, 0, 0, 0) 3px,
-      rgba(0, 0, 0, 0) 26px
-    ),
+    /* O brilho comprido da lâmpada, correndo no tampo. */
+    linear-gradient(90deg,
+      rgba(255, 238, 208, 0) 10%,
+      rgba(255, 238, 208, 0.16) 46%,
+      rgba(255, 238, 208, 0) 84%),
+    /*
+     * O veio, largo e fraco.
+     *
+     * Ele já foi de 2px a cada 23. Em perspectiva, 23px de profundidade
+     * viram 9px de tela e um fio de 2px vira 0,8px: linha de meio pixel não
+     * é textura, é serrilhado — e o tampo ficava com uma trepidação que
+     * ninguém sabia de onde vinha. Largo e fraco, ele texturiza sem brigar
+     * com o que está em cima dele.
+     */
+    repeating-linear-gradient(0deg,
+      rgba(120, 45, 0, 0.10) 0 6px,
+      rgba(0, 0, 0, 0) 6px 34px),
+    /*
+     * O tampo visto de cima: escuro no fundo, onde a luz esbarra nas urnas,
+     * e mais claro na direção da quina — mas nunca mais claro que a quina.
+     */
+    linear-gradient(180deg,
+      rgba(70, 28, 0, 0.40) 0%,
+      rgba(70, 28, 0, 0.14) 36%,
+      rgba(255, 255, 255, 0.04) 70%,
+      rgba(255, 255, 255, 0.14) 100%),
     linear-gradient(180deg, var(--mesa-clara) 0%, var(--mesa-escura) 100%);
-  box-shadow:
-    inset 0 5px 0 rgba(255, 255, 255, 0.30),
-    0 24px 50px rgba(70, 40, 10, 0.35);
+  box-shadow: 0 24px 50px rgba(70, 40, 10, 0.35);
 }
 
 /*
- * A saia: a espessura da mesa, vista de frente. Sem ela o tampo é uma
- * folha de papel laranja flutuando — é a quina que faz a mesa ter corpo.
+ * A quina: os 16px de espessura do tampo, vistos de frente.
+ *
+ * É a peça que faz a mesa ter corpo. Sem ela o tampo é uma folha de papel
+ * laranja flutuando, e a saia começa sem que nada explique a altura entre
+ * as duas.
+ *
+ * A face da quina é vertical e está de perfil para a lâmpada: ela é MEIO
+ * tom, e não o ponto mais claro da mesa. Quem é claro é o fio de 2px no
+ * alto, que é a aresta viva — e é esse fio, sozinho, que vende a espessura.
+ * A primeira versão desta peça pintava os 16px inteiros de claro, e o
+ * resultado foi o oposto do pretendido: tampo e quina ficaram com o mesmo
+ * valor, os dois viraram uma tábua laranja de 77px, e a mesa ficou mais
+ * chapada do que era antes de existir quina.
+ */
+.mesa__borda {
+  position: absolute;
+  left: -6%;
+  right: -6%;
+  top: 61px;
+  height: 16px;
+  background: linear-gradient(180deg,
+    var(--mesa-quina) 0%,
+    #e0700f 22%,
+    var(--mesa-escura) 62%,
+    #9c4206 100%);
+  box-shadow: 0 4px 8px rgba(90, 36, 0, 0.35);
+}
+
+/*
+ * A saia: a frente da mesa, descendo da quina até a estrutura.
+ *
+ * Ela não pega luz direta — a lâmpada está no alto, e o próprio tampo faz
+ * sombra nela —, então é o MESMO laranja do tampo escurecido, e não outra
+ * cor. A sombra que o tampo joga nela é o degradê escuro dos primeiros
+ * pixels: é o que diz que a quina está acima, e não que a saia começa ali.
  */
 .mesa__saia {
   position: absolute;
   left: -6%;
   right: -6%;
-  top: 56px;
-  height: 34px;
-  background: linear-gradient(180deg,
-    var(--mesa-clara) 0%,
-    var(--mesa-escura) 60%,
-    #8f3d00 100%);
-  box-shadow: 0 14px 28px rgba(70, 30, 0, 0.45);
+  top: 77px;
+  height: 52px;
+  background:
+    /* A sombra que o próprio tampo joga nela lá em cima. */
+    linear-gradient(180deg,
+      rgba(40, 12, 0, 0.50) 0%,
+      rgba(40, 12, 0, 0.18) 22%,
+      rgba(40, 12, 0, 0) 48%),
+    repeating-linear-gradient(0deg,
+      rgba(60, 20, 0, 0.12) 0 3px,
+      rgba(0, 0, 0, 0) 3px 21px),
+    linear-gradient(180deg,
+      var(--mesa-saia) 0%,
+      var(--mesa-saia-fim) 100%);
+  box-shadow:
+    /* O pé da saia pega o rebate do piso encerado. */
+    inset 0 -3px 0 rgba(255, 186, 118, 0.14),
+    0 16px 30px rgba(60, 26, 0, 0.45);
 }
 
 /*
- * Os pés pretos. São o que ancora a mesa no chão: com eles, a mesa tem
+ * A sombra da mesa no piso — e o rebate laranja dela.
+ *
+ * É a peça que assenta a mesa no chão. Sem ela o tampo e a saia terminam, o
+ * piso começa, e a mesa fica boiando a dois centímetros dele: nenhuma das
+ * duas superfícies diz onde a outra encosta.
+ *
+ * A mancha laranja no alto é o tampo se refletindo no piso encerado. É fraca
+ * e some rápido, como tem que ser: piso de porcelanato fosco devolve pouco.
+ *
+ * Ela vem ANTES dos pés na ordem do documento de propósito — os pés são
+ * desenhados por cima dela, que é o que faz a sombra ficar no chão.
+ */
+.mesa__sombra {
+  position: absolute;
+  left: -6%;
+  right: -6%;
+  top: 129px;
+  height: 250px;
+  background:
+    radial-gradient(64% 22% at 50% 0%,
+      rgba(255, 130, 30, 0.18) 0%,
+      rgba(255, 130, 30, 0) 72%),
+    linear-gradient(180deg,
+      rgba(58, 22, 26, 0.48) 0%,
+      rgba(58, 22, 26, 0.30) 16%,
+      rgba(58, 22, 26, 0.11) 48%,
+      rgba(58, 22, 26, 0) 100%);
+}
+
+/*
+ * Os pés de aço. São o que ancora a mesa no chão: com eles, a mesa tem
  * altura e o piso tem onde encostar.
+ *
+ * O tubo é quadrado, e por isso o degradê tem três paradas e não duas: a
+ * face esquerda pega luz, a direita não — duas paradas dariam um cilindro.
+ * O `::after` é o sapato de borracha, e o `::before` é a sombra de contato
+ * que ele deixa no ladrilho.
  */
 .mesa__pe {
   position: absolute;
-  top: 88px;
-  width: 36px;
-  height: 300px;
+  top: 129px;
+  width: 44px;
+  height: 296px;
   background: linear-gradient(90deg,
     var(--mesa-pe) 0%,
-    var(--mesa-pe-luz) 48%,
-    var(--mesa-pe) 100%);
+    var(--mesa-pe-luz) 30%,
+    var(--mesa-pe) 58%,
+    #0d0a12 100%);
   box-shadow: 0 30px 50px rgba(40, 15, 40, 0.45);
+}
+/*
+ * O que o pé deixa no ladrilho: a sombra de contato e o reflexo dele.
+ *
+ * Os dois são o mesmo tipo de informação — onde o pé ENCOSTA —, e é por
+ * isso que moram no mesmo lugar. A sombra cola a mesa no chão; o reflexo,
+ * estreito e sumindo para baixo, é o que diz que o ladrilho é encerado, e
+ * não um papel rosa. Sem nenhum dos dois o pé flutua.
+ */
+.mesa__pe::before {
+  content: '';
+  position: absolute;
+  left: -44px;
+  right: -44px;
+  top: calc(100% + 4px);
+  height: 150px;
+  background:
+    linear-gradient(180deg,
+      rgba(26, 10, 16, 0.30) 0%,
+      rgba(26, 10, 16, 0.10) 38%,
+      rgba(26, 10, 16, 0) 82%) center top / 30px 100% no-repeat,
+    radial-gradient(50% 15% at 50% 6%,
+      rgba(40, 16, 20, 0.62) 0%,
+      rgba(40, 16, 20, 0.24) 52%,
+      rgba(40, 16, 20, 0) 82%);
+}
+/* O sapato. */
+.mesa__pe::after {
+  content: '';
+  position: absolute;
+  left: -7px;
+  right: -7px;
+  bottom: -16px;
+  height: 17px;
+  border-radius: 3px 3px 7px 7px;
+  background: linear-gradient(180deg, #35313c 0%, #14111a 100%);
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.10),
+    0 8px 18px rgba(30, 10, 30, 0.5);
 }
 .mesa__pe--esq { left: 16%; }
 .mesa__pe--dir { right: 16%; }
@@ -224,14 +388,91 @@
   transform-origin: top center;
   transform: rotateX(72deg);
   background:
+    /*
+     * A poça de luz da lâmpada no ladrilho, adiante da mesa.
+     *
+     * Ela é a metade que faltava do par: a mesa faz sombra para um lado e a
+     * lâmpada faz luz para o outro, e as duas juntas dizem onde a luz está.
+     * Sem ela o piso é uniformemente claro, e um piso uniformemente claro é
+     * a coisa que mais se parece com nada.
+     *
+     * São TRÊS círculos concêntricos, e não um. Um só, largo o bastante para
+     * cobrir o chão visível, chega à tela como um clareamento geral — que foi
+     * exatamente o que a primeira versão fazia: medida no pixel, a poça
+     * valia 15 níveis de vermelho entre o centro e a borda, e o olho não lê
+     * 15 níveis. O núcleo pequeno e claro é quem diz "aqui"; os dois maiores,
+     * cada vez mais fracos, são a luz se espalhando. É a diferença entre uma
+     * lâmpada e um holofote.
+     */
+    radial-gradient(22% 9% at 50% 62%,
+      rgba(255, 236, 208, 0.22) 0%,
+      rgba(255, 236, 208, 0) 72%),
+    radial-gradient(38% 16% at 50% 62%,
+      var(--luz-piso) 0%,
+      rgba(255, 222, 186, 0) 80%),
+    radial-gradient(64% 30% at 50% 58%,
+      rgba(255, 222, 186, 0.12) 0%,
+      rgba(255, 222, 186, 0) 82%),
+    /*
+     * O porcelanato não é de uma cor só. Três manchas largas e fracas, em
+     * pontos diferentes do plano, quebram a uniformidade sem virar desenho:
+     * ninguém as identifica uma a uma, mas o olho para de ler "cor chapada".
+     */
+    radial-gradient(34% 22% at 24% 34%, var(--piso-mancha) 0%, rgba(255, 255, 255, 0) 72%),
+    radial-gradient(28% 18% at 76% 68%, rgba(255, 255, 255, 0.045) 0%, rgba(255, 255, 255, 0) 74%),
+    radial-gradient(40% 26% at 62% 12%, rgba(80, 40, 40, 0.10) 0%, rgba(80, 40, 40, 0) 76%),
+    /*
+     * As juntas dos ladrilhos. Os 150px são a medida do ladrilho em
+     * perspectiva, e não uma medida de tela: quem dá a convergência é a
+     * `perspective` do palco.
+     */
     repeating-linear-gradient(90deg,
       var(--piso-junta) 0 3px,
       rgba(0, 0, 0, 0) 3px 150px),
     repeating-linear-gradient(0deg,
       var(--piso-junta) 0 3px,
       rgba(0, 0, 0, 0) 3px 150px),
-    linear-gradient(180deg, var(--piso-escuro) 0%, var(--piso-claro) 100%);
+    /*
+     * O piso escurece nas duas pontas, e por dois motivos diferentes: no
+     * fundo é a luz da lâmpada que não chega, e na frente é a câmera que
+     * está fora da poça. O ponto claro é onde a lâmpada bate — 46%, logo
+     * abaixo do meio do plano.
+     */
+    linear-gradient(180deg,
+      var(--piso-escuro) 0%,
+      var(--piso-claro) 46%,
+      var(--piso-fim) 100%);
   box-shadow: inset 0 0 200px rgba(80, 45, 45, 0.35);
+}
+
+/* ---- A luz ---------------------------------------------------------- */
+
+/*
+ * A camada da luz: o halo da lâmpada, em cima, e a vinheta, nos cantos.
+ *
+ * Ela fica ACIMA do cenário inteiro e ABAIXO das urnas — e o
+ * tests/cenario.test.js prende as duas metades disso: nenhuma peça de
+ * cenário pode subir até aqui, e esta camada não pode passar das urnas.
+ *
+ * O lugar dela é uma decisão, e não um detalhe de empilhamento. Pintada no
+ * fundo do palco, a vinheta escureceria o que está atrás dela e mais nada,
+ * porque a mesa e o piso viriam por cima; pintada sobre tudo, escureceria o
+ * placar, as urnas e o pop-up — sujeira em cima do que o público precisa
+ * ler. Aqui ela é o que a luz faz com a SALA: parede, piso e mesa escurecem
+ * nos cantos, e o que conta o voto fica limpo.
+ */
+.luz {
+  position: absolute;
+  inset: 0;
+  z-index: calc(var(--z-mesa) + 5);
+  pointer-events: none;
+  background:
+    radial-gradient(70% 32% at 50% 0%,
+      rgba(255, 228, 196, 0.14) 0%,
+      rgba(255, 228, 196, 0) 74%),
+    radial-gradient(112% 72% at 50% 44%,
+      rgba(30, 8, 20, 0) 48%,
+      var(--vinheta) 100%);
 }
 
 /* ---- Camadas de conteúdo ------------------------------------------- */
@@ -257,7 +498,20 @@
  * baixo, bem no meio do enquadramento.
  */
 .camada--placar  { z-index: var(--z-placar); }
-.camada--urnas   { z-index: var(--z-urna); }
+/*
+ * A camada das urnas deixa a perspectiva do palco passar.
+ *
+ * Sem isto ela achata o gabinete no próprio plano, e o `perspective` do palco
+ * deixa de valer lá dentro: as faces até giram, mas o desenho vira
+ * ortográfico. A conta que decide de que lado a urna mostra a lateral
+ * (ver `ladoVisivel`) pressupõe uma câmera — e sem perspectiva não há câmera
+ * nenhuma, só um sentido de observação infinitamente distante, em que a urna
+ * do canto e a do meio mostram exatamente a mesma face.
+ */
+.camada--urnas   {
+  z-index: var(--z-urna);
+  transform-style: preserve-3d;
+}
 .camada--mao     { z-index: var(--z-mao); }
 .camada--efeitos { z-index: var(--z-efeitos); }
 
@@ -272,3 +526,21 @@
  * último, que é o tipo de detalhe que ninguém lembra de conferir depois.
  */
 .camada--resultado { z-index: var(--z-resultado); }
+
+/*
+ * A camada do pop-up do presente fica acima de TUDO, e é a última.
+ *
+ * A mesma lição da camada de cima, um degrau adiante. O pop-up nasceu dentro
+ * da camada de efeitos (z 50) — junto da faixa e da vitrine, que é onde mora
+ * tudo o que passa por cima da cena —, e a foto da sonda mostrou o que isso
+ * custou: o placar é z 60, o nome do presente cai bem na faixa dele, e o
+ * cartão apareceu SEM NOME, com o "de Painel" e o "vai pra Lulinha" logo
+ * abaixo do nada. O véu, que existe para apagar o resto do enquadramento,
+ * também não apagava o placar nem o cronômetro.
+ *
+ * A alternativa era subir a camada de efeitos inteira, e ela é pior: a faixa
+ * e a vitrine passariam a ser desenhadas por cima do placar, e aí o defeito
+ * sairia de um lugar para aparecer em dois. O que toma a tela merece uma
+ * camada que diz isso no nome.
+ */
+.camada--popup { z-index: var(--z-popup); }

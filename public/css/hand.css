@@ -47,10 +47,23 @@
   width: 100%;
   height: 100%;
   overflow: visible;
-  /* A sombra do SVG é resolvida pelo elemento .mao__sombra: desenhar
-     drop-shadow num SVG articulado obriga o Chromium a rasterizar o
-     filtro inteiro a cada frame. */
-  filter: drop-shadow(0 18px 26px rgba(60, 32, 16, 0.34));
+  /*
+   * SEM `filter` — e não é economia: é a diferença entre ter braço e não ter.
+   *
+   * Havia aqui um `drop-shadow`, e um `filter` de CSS recorta o elemento na
+   * região do filtro, que é a caixa do svg (420x620) mais o deslocamento e o
+   * borrão. O antebraço é pintado FORA dessa caixa — desce até y=1500 para
+   * sair de cena, porque a mão é ancorada pela ponta do dedo —, então o
+   * filtro o decepava numa aresta reta logo abaixo do punho. O que se via na
+   * transmissão era uma faixa azul flutuando no ar, sem braço nenhum atrás.
+   *
+   * O `overflow: visible` acima não salva: ele vale para o conteúdo do
+   * próprio svg, e o filtro recorta depois, por fora.
+   *
+   * A sombra que ele desenhava continua na cena: é `.mao__sombra`, que
+   * existe exatamente para isso e ainda poupa a rasterização do filtro a
+   * cada quadro (ver a nota abaixo).
+   */
   /* O comentário acima é uma suspeita plausível, e chegou a ser medida:
      com a manga descendo até y=1500 a área filtrada cresce umas sete
      vezes, e "o filtro derruba o quadro" explicaria uma cena que não fica
@@ -81,16 +94,31 @@
 
 .mao .falange,
 .mao .palma {
-  /* Contorno tênue: sem ele as falanges de mesma cor se fundem numa
-     mancha única quando o dedo dobra sobre a palma. */
-  stroke: #9c6642;
-  stroke-width: 1.4;
-  stroke-opacity: 0.35;
+  /*
+   * O contorno, agora como VINCO e não como traço.
+   *
+   * Ele era `#9c6642` a 35% e 1,4px, e o que ele desenhava era a silhueta
+   * de cada falange: a mão saía com treze peças contornadas, do jeito que
+   * um desenho animado mostra uma mão de luvas. Numa pele de verdade não
+   * existe linha em volta do dedo: existe a dobra entre uma falange e a
+   * seguinte, que é mais escura e mais CURTA que a peça.
+   *
+   * Por isso ele continua existindo, num tom mais quente e mais perto do
+   * fundo (a cor da sombra da pele, não a da pele), e enfraquecido: o que
+   * separa dois dedos agora é a costura e a mancha dos nós, que são sombra
+   * desenhada; aqui só fica o fio que fecha a dobra quando o dedo dobra
+   * sobre a palma.
+   */
+  stroke: #a4693f;
+  stroke-width: 1.2;
+  stroke-opacity: 0.10;
 }
 
 .mao .unha {
-  stroke: #c99b7e;
-  stroke-width: 0.8;
+  /* A lâmina: a borda da unha é mais escura que a pele em volta, senão ela
+     some no dorso do dedo — que é claro justamente ali. */
+  stroke: #b8835f;
+  stroke-width: 1;
   stroke-opacity: 0.5;
 }
 
@@ -170,12 +198,18 @@
   left: 0;
   top: 0;
   z-index: calc(var(--z-mao) + 1);
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 9px 24px;
-  border-radius: 999px;
+  padding: 10px 22px 12px 18px;
+  /*
+   * O raio não é 999px como era: a etiqueta agora tem duas linhas, e uma
+   * pílula de duas linhas vira um comprimido. O canto de 26px com a quina
+   * direita mais fechada desenha a FICHA que ela é — um pedaço de papel
+   * pendurado na mão, e não um botão.
+   */
+  border-radius: 28px 20px 20px 28px;
   border: 3px solid var(--cor-urna, #39435c);
+  /* O brilho que atravessa a ficha precisa de uma borda para morrer nela —
+     ver o `::after` lá embaixo. */
+  overflow: hidden;
   background: linear-gradient(180deg, rgba(16, 20, 32, 0.94) 0%, rgba(8, 10, 18, 0.96) 100%);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.12),
@@ -185,6 +219,11 @@
    * Pendurada pela borda DIREITA e centrada na altura do dedo: o `--bx` é o
    * ponto onde a etiqueta termina, e não onde ela começa. É o que faz o nome
    * crescer para a esquerda, para longe da mão, em vez de para cima dela.
+   *
+   * A transição é só de opacidade, e é uma decisão: o `posicionar` reescreve
+   * o `--bx` a cada quadro enquanto a mão anda, então uma transição de
+   * `transform` aqui faria a etiqueta ficar para trás do dedo — chegando
+   * atrasada em cada passo da coreografia.
    */
   transform:
     translate3d(var(--bx, 0px), var(--by, 0px), 0)
@@ -196,22 +235,88 @@
 }
 
 /*
- * A pastilha da cor da urna antes do nome: a etiqueta inteira tem borda na
- * cor, mas a borda é fina e some quando a mão está por cima dela.
+ * O que entra em cena.
+ *
+ * A animação é do CONTEÚDO, e não da etiqueta, de novo por causa do
+ * `transform` reescrito a cada quadro: aqui dentro ninguém escreve transform,
+ * então a ficha pode deslizar para o lugar enquanto a mão já está andando.
+ * Vindo da direita, ela acompanha o gesto — a etiqueta sai do dedo e abre
+ * para a esquerda, que é o lado para onde ela cresce.
+ */
+.mao__badge-conteudo {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.mao__badge--visivel { opacity: 1; }
+.mao__badge--visivel .mao__badge-conteudo {
+  animation: etiqueta-entra 280ms cubic-bezier(0.2, 0.9, 0.25, 1) both;
+}
+
+@keyframes etiqueta-entra {
+  from { opacity: 0; transform: translateX(26px) scale(0.94); }
+  to   { opacity: 1; transform: none; }
+}
+
+/*
+ * A barra da cor da urna antes do nome.
+ *
+ * Era uma pastilha redonda; com a ficha de duas linhas, a barra acompanha a
+ * altura das duas e vira a lombada dela — é o que liga a etiqueta à urna
+ * mesmo quando a mão está por cima da borda colorida.
  */
 .mao__badge::before {
   content: "";
-  flex: none;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  border-radius: 22px 0 0 22px;
   background: var(--cor-urna, #39435c);
-  box-shadow: 0 0 14px var(--cor-urna, transparent);
+  box-shadow: 0 0 18px var(--cor-urna, transparent);
+}
+
+.mao__badge-texto {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+/*
+ * O brilho que atravessa a ficha quando ela entra.
+ *
+ * Ele é do estado VISÍVEL, como o reflexo da faixa dourada: a classe sai
+ * quando o voto termina e volta no seguinte, e é isso que faz o brilho
+ * acontecer uma vez por voto em vez de uma vez por conexão.
+ *
+ * O `overflow: hidden` da ficha é quem o prende dentro dela — sem isso, o
+ * gradiente deslizaria para fora da chapa, por cima da cena.
+ */
+.mao__badge--visivel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(105deg,
+    rgba(255, 255, 255, 0) 38%,
+    rgba(255, 255, 255, 0.22) 50%,
+    rgba(255, 255, 255, 0) 62%);
+  animation: ficha-brilho 900ms ease-out 140ms 1 both;
+}
+
+@keyframes ficha-brilho {
+  from { transform: translateX(-115%); }
+  to   { transform: translateX(115%); }
 }
 
 .mao__badge-nome {
-  font-size: 30px;
+  font-size: 32px;
   font-weight: 800;
+  line-height: 1.1;
   letter-spacing: 0.4px;
   color: #eef3ff;
   white-space: nowrap;
@@ -222,4 +327,144 @@
   max-width: 420px;
 }
 
-.mao__badge--visivel { opacity: 1; }
+/*
+ * A segunda linha: o que a pessoa mandou, ou o que ela escreveu.
+ *
+ * Menor e mais apagada que o nome de propósito — quem está votando é a
+ * informação principal, e o presente é a explicação dela.
+ */
+.mao__badge-por {
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  color: #9fb0cc;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 380px;
+}
+
+.mao__badge-por:empty { display: none; }
+
+/*
+ * A figura do presente, no tamanho da etiqueta.
+ *
+ * A largura e a altura estão AQUI, e não no `img` do arquivo: o desenho ainda
+ * não chegou do disco no primeiro quadro, e uma figura de tamanho automático
+ * mediria zero — a etiqueta seria medida estreita demais e o limite que a
+ * prende dentro do palco erraria por alguns centímetros.
+ */
+.mao__badge-desenho {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  /* O halo é da cor da urna que recebeu o voto: é ele que liga a figura do
+     presente à urna, sem precisar de uma seta. */
+  filter:
+    drop-shadow(0 3px 6px rgba(0, 0, 0, 0.55))
+    drop-shadow(0 0 14px var(--cor-urna, transparent));
+}
+
+/*
+ * O número no lugar da figura, para o voto escrito no chat.
+ *
+ * Quem escreve não manda nada, então não há desenho a mostrar — o que há é o
+ * número que a pessoa escreveu, e ele é a coisa mais parecida com um presente
+ * que este voto tem.
+ */
+.mao__badge-numero {
+  display: grid;
+  place-items: center;
+  min-width: 60px;
+  height: 56px;
+  padding: 0 10px;
+  border-radius: 12px;
+  background: var(--cor-urna, #39435c);
+  color: #0b0e16;
+  font-size: 30px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  box-shadow: 0 0 24px -4px var(--cor-urna, transparent);
+}
+
+.mao__badge-arte:empty { display: none; }
+
+/*
+ * O peso do voto — o número grande e, embaixo, o que ele é.
+ *
+ * Era um número solto na ponta da ficha: `+5`, sem dizer de quê. A palavra
+ * pequena em maiúsculas espaçadas é o que transforma o número num SELO, e é
+ * a peça que faz a ficha parecer desenhada em vez de montada — o mesmo
+ * recurso que os painéis do rodapé usam nos títulos deles.
+ */
+.mao__badge-votos {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 6px 16px 7px;
+  border-radius: 14px;
+  border: 2px solid var(--cor-urna, #39435c);
+  background: rgba(0, 0, 0, 0.35);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.mao__badge-peso {
+  font-size: 30px;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0.5px;
+  color: var(--cor-urna, #8fa4c8);
+  text-shadow: 0 0 18px var(--cor-urna, transparent);
+}
+
+.mao__badge-rotulo {
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 2.4px;
+  /* A maiúscula com espaço é do CSS, e não do texto: o `textContent` do peso
+     continua sendo a palavra simples, que é o que o teste lê. */
+  text-transform: uppercase;
+  color: var(--cor-urna, #8fa4c8);
+  opacity: 0.75;
+}
+
+/* Sem número não há selo: um "+0" na tela é pior do que nenhum número, e uma
+   caixa vazia na ponta da ficha é pior que as duas coisas. */
+.mao__badge--sem-peso .mao__badge-votos { display: none; }
+
+/*
+ * O voto confirmado — a tecla CONFIRMA afundou e o placar subiu.
+ *
+ * O `+5` sai do contorno e vira bloco cheio na cor da urna: é o instante em
+ * que o número deixa de ser uma promessa e passa a estar no placar, e ele
+ * precisa ser legível de longe, num quadro que a audiência está olhando.
+ */
+.mao__badge--contado {
+  border-color: var(--cor-urna, #39435c);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 10px 24px rgba(0, 0, 0, 0.55),
+    0 0 44px -4px var(--cor-urna, transparent);
+}
+
+.mao__badge--contado .mao__badge-votos {
+  background: var(--cor-urna, #8fa4c8);
+  border-color: var(--cor-urna, #8fa4c8);
+}
+
+.mao__badge--contado .mao__badge-peso,
+.mao__badge--contado .mao__badge-rotulo {
+  color: #0b0e16;
+  text-shadow: none;
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* A ficha entra sem deslizar: quem pediu menos movimento não perde a
+     informação, só o percurso. O brilho sai inteiro — ele não é informação. */
+  .mao__badge--visivel .mao__badge-conteudo { animation: none; }
+  .mao__badge--visivel::after { animation: none; display: none; }
+}

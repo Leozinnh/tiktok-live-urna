@@ -250,7 +250,10 @@ export class AtorDaMao {
    * própria máquina, que é como o projeto funcionava antes de existirem as
    * duas mãos.
    */
-  executarVoto({ urna, destino, numero, votos, usuario = '', presente = '' }) {
+  executarVoto({
+    urna, destino, numero, votos, usuario = '', presente = '',
+    origem = 'presente', desenho = '',
+  }) {
     // Quem recebe o voto, e quem apenas o digita.
     const dono = destino ?? urna;
     return new Promise((resolve) => {
@@ -264,8 +267,17 @@ export class AtorDaMao {
        * ela digita, senão o nome chega depois de o voto já ter sido dado e
        * não explica mais nada.
        */
-      tentar('mostrar a etiqueta', () =>
-        this.render.mostrarBadge?.(usuario, urna.config?.corPrimaria));
+      tentar('mostrar a etiqueta', () => this.render.mostrarBadge?.(
+        /*
+         * A cor é a do CANDIDATO, e não a da máquina. O Flávio é o 22 azul,
+         * e o voto dele sai na urna DOIS (13, vermelha) quando a do 22 está
+         * ocupada — com a cor do gabinete, o nome dele entrava na tela em
+         * vermelho, dizendo ao espectador que ele tinha votado no 13. A
+         * máquina empresta o teclado, não a identidade.
+         */
+        usuario, dono.config?.corPrimaria,
+        { votos, presente, numero, origem, desenho },
+      ));
 
       construirSequenciaDeVoto({
         geometria,
@@ -285,7 +297,29 @@ export class AtorDaMao {
              * CONFIRMADO" com a contagem velha e o placar parado por um
              * segundo inteiro, como se o voto não tivesse entrado.
              */
-            if (t === 'CONFIRMA') this.avisarContagem(dono, numero, votos);
+            if (t === 'CONFIRMA') {
+              /*
+               * A urna responde no quadro em que a tecla afunda.
+               *
+               * O voto passa a valer aqui, mas o que se VIA era o dedo parado
+               * em cima da tecla verde por 310ms — o intervalo entre este
+               * toque e a tela do voto confirmado (medido em
+               * .superpowers/sonda/confirmar.js). É o único trecho da
+               * coreografia em que nada se mexe, e ele cai no quadro que a
+               * audiência está olhando.
+               */
+              urna.el.classList.add(CLASSES_DE_ESTADO.confirmando);
+              this.avisarContagem(dono, numero, votos, usuario);
+              /*
+               * E a etiqueta acende aqui, no mesmo quadro.
+               *
+               * O voto passa a valer neste instante, e a etiqueta continua na
+               * tela por mais de um segundo depois dele: sem esta marca, ela
+               * passaria esse tempo igual a antes, sem dizer que o voto já
+               * estava no placar.
+               */
+              tentar('acender a etiqueta', () => this.render.confirmarBadge?.());
+            }
           },
           aoSoltarTecla: (t) => { urna.soltarTecla(t); setTimeout(() => urna.acenderLed(t, false), 140); },
           /*
@@ -302,16 +336,42 @@ export class AtorDaMao {
            * máquina volta a ser ela mesma. É o que ela é entre um eleitor e
            * outro.
            */
-          aoMostrarTela: (estado) => urna.definirTela(estado.tipo === 'ocioso' ? estado : {
-            ...estado,
-            numero,
-            candidato: dono.config?.candidato,
-            // A contagem é a do CANDIDATO, e não a da máquina: a tela
-            // anuncia "VOTO CONFIRMADO" para quem recebeu o voto.
-            votos: dono.config?.contagem?.() ?? votos,
-          }),
+          aoMostrarTela: (estado) => {
+            // O clarão do CONFIRMA vale só até esta tela chegar: a partir
+            // daqui quem fala é o recibo, e o que cobria a espera sai.
+            if (estado.tipo === 'confirmado') {
+              urna.el.classList.remove(CLASSES_DE_ESTADO.confirmando);
+            }
+            urna.definirTela(estado.tipo === 'ocioso' ? estado : {
+              ...estado,
+              numero,
+              candidato: dono.config?.candidato,
+              // A contagem é a do CANDIDATO, e não a da máquina: a tela
+              // anuncia "VOTO CONFIRMADO" para quem recebeu o voto.
+              votos: dono.config?.contagem?.() ?? votos,
+              // Pelo mesmo motivo, a cor: a ficha, a foto e a moldura do
+              // retrato são do candidato que recebeu o voto. O gabinete em
+              // que a mão digitou continua vermelho por fora — o que muda
+              // por dentro é de quem é o voto.
+              cor: dono.config?.corPrimaria,
+            });
+          },
           aoSairCedula: () => {
-            urna.mostrarCedula({ usuario, presente, votos });
+            /*
+             * O papel sai do gabinete emprestado, mas o número impresso nele
+             * é o do voto — a máquina imprime o que foi digitado, e não a
+             * placa que ela tem na frente. Sem isto, o voto do 22 saía da
+             * urna 13 com "13" impresso: o comprovante de um voto que
+             * ninguém deu.
+             */
+            urna.mostrarCedula({
+              usuario,
+              presente,
+              votos,
+              numero: numero || dono.config?.numero,
+              // E a cor, pelo mesmo motivo que o número: o papel é do voto.
+              cor: dono.config?.corPrimaria,
+            });
             urna.el.classList.add(CLASSES_DE_ESTADO.cedulaSaindo);
           },
           aoDepositarCedula: () => urna.el.classList.add(CLASSES_DE_ESTADO.cedulaEntrando),
@@ -413,10 +473,16 @@ export class AtorDaMao {
    * O aviso leva a urna do CANDIDATO — a máquina em que a mão digitou não
    * entra na conta. É esta linha que faz o voto do 13 dado na urna azul
    * somar para o Lula em vez de somar para o dono do gabinete azul.
+   *
+   * Leva também QUEM votou, e não só quanto: é o mesmo voto que o placar
+   * soma e que o monitor de últimos votos escreve. O nome sai daqui em vez
+   * de o painel ir buscar na fila porque a fila já tirou o item quando o
+   * voto é contado — aqui é o único instante em que o nome e o número ainda
+   * andam juntos.
    */
-  avisarContagem(dono, numero, votos) {
+  avisarContagem(dono, numero, votos, usuario = '') {
     tentar('avisar quem conta os votos', () => this.aoContarVoto({
-      urnaId: dono.config.id, numero, votos,
+      urnaId: dono.config.id, numero, votos, usuario,
     }));
   }
 
@@ -431,7 +497,7 @@ export class AtorDaMao {
       // O carimbo não passa pela coreografia, então o aviso sai aqui: sem
       // ele, uma rajada de cem votos movia a mão cem vezes e não somava
       // nenhum no placar.
-      this.avisarContagem(item.destino ?? urna, item.numero, item.votos ?? 1);
+      this.avisarContagem(item.destino ?? urna, item.numero, item.votos ?? 1, item.usuario);
       urna.el.classList.add(CLASSES_DE_ESTADO.destacada, CLASSES_DE_ESTADO.contando);
       urna.pressionarTecla('CONFIRMA');
       urna.acenderLed('CONFIRMA', true);

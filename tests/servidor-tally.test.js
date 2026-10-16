@@ -271,7 +271,12 @@ test('o número do chat conta o voto na urna daquele número', () => {
   assert.equal(r.contado, true);
   assert.equal(r.urnaId, 'u1');
   assert.equal(r.numero, '22', 'a mão não sabe que número digitar');
-  assert.equal(tally.estado().total, 2, 'o multiplicador da urna não foi aplicado');
+  /*
+   * Cinco votos do piso, vezes o multiplicador 2 da urna u1, que é a mesma
+   * conta de qualquer presente. O resgatado não tem preço no painel — não tem
+   * nem mapeamento —, e por isso vale o piso.
+   */
+  assert.equal(tally.estado().total, 10, 'o multiplicador da urna não foi aplicado');
 });
 
 test('o presente resgatado sai com o nome que a TikTok deu a ele', () => {
@@ -294,11 +299,13 @@ test('o presente resgatado sem nome conhecido não vira etiqueta vazia', () => {
 
 test('o combo do presente resgatado vale os votos que ele pagou', () => {
   // Quem mandou cinco diamantes mandou cinco presentes, e o resgate não pode
-  // transformar cinco em um.
+  // transformar cinco em um. O combo multiplica o valor do presente, e não o
+  // número de eventos: a mão digita uma vez, e o placar sobe cinco vezes.
   const { tally } = montar();
   const r = tally.contarPeloNumero(evento({ giftId: '999', combo: 5 }), { numero: '13' });
-  assert.equal(r.votos, 5);
-  assert.equal(tally.estado().total, 5);
+  assert.equal(r.votos, 25, 'o resgate perdeu o combo do presente');
+  assert.equal(r.animar, true, 'um evento é uma animação, mesmo valendo cinco');
+  assert.equal(tally.estado().total, 25);
 });
 
 test('o número errado, ou de urna desligada, não conta nada', () => {
@@ -344,6 +351,175 @@ test('o voto resgatado também move a liderança', () => {
   assert.equal(r.contado, true);
   assert.equal(r.lideranca?.tipo, 'virada', 'a virada não foi detectada');
   assert.equal(r.lideranca?.urnaId, 'u1');
+});
+
+/* ------------------------------------ o voto que o chat escreveu */
+
+/*
+ * O voto escrito no chat.
+ *
+ * O pedido do Leonardo, literal: "quando alguém comentar 'bolsonaro, 22,
+ * flavio e tal' automaticamente computar 1 voto pro candidato". Quem decide a
+ * urna é o `acharUrna` do chat-voto.js — o texto tem que citar UMA urna só —,
+ * e essa regra já está presa em chat-voto.test.js. O que se prende aqui é que
+ * o voto escrito entra pelo MESMO caminho do presente: deduplica, grava,
+ * soma, confere a liderança. Um terceiro caminho que esquecesse um desses
+ * passos seria o voto que conta e não move o placar.
+ */
+
+/** O comentário que virou voto, já com a urna decidida pelo `acharUrna`. */
+const escrito = (extra = {}) => evento({ userId: 'zeca', usuario: 'Zeca', ...extra });
+
+test('o voto escrito no chat conta, e sai com a cara de um voto', () => {
+  const { tally } = montar();
+  const r = tally.contarPeloChat(escrito({ em: 1 }), { urnaId: 'u1', chave: 'chat:simulador:zeca:1:22' });
+  assert.equal(r.contado, true);
+  assert.equal(r.urnaId, 'u1');
+  assert.equal(r.numero, '22', 'a mão não sabe que número digitar');
+  assert.equal(r.origem, 'chat', 'o voto escrito se disfarçou de presente');
+  assert.equal(r.votos, 2, 'o multiplicador da urna não foi aplicado ao voto escrito');
+  assert.equal(tally.estado().total, 2);
+});
+
+test('o voto escrito vale menos que o presente', () => {
+  /*
+   * A diferença de valor é o desenho inteiro: quem paga, vale mais. O
+   * presente de uma moeda vale cinco votos (vezes o multiplicador da urna); o
+   * comentário vale um. Se o escrito valesse o mesmo, ninguém teria motivo
+   * para mandar presente.
+   */
+  /*
+   * Os presentes daqui NÃO têm `votos` escrito: quem decide é o preço em
+   * moedas, que é a regra nova. A configuração do resto do arquivo fixa
+   * `votos: 1` de propósito — ela é antiga, e mexer nela mudaria a conta de
+   * uma dúzia de testes que não têm nada a ver com o preço.
+   */
+  const { tally } = montar(normalizar({
+    urnas: CONFIG.urnas,
+    presentes: [
+      { id: 'p1', nome: 'Heart Me', giftId: '1', moedas: 1, urnaId: 'u1' },
+      { id: 'p2', nome: 'Diamante', giftId: '9', moedas: 100, urnaId: 'u1' },
+    ],
+  }).config);
+  const barato = tally.processar(evento({ usuario: 'ana', giftId: '1', em: 1 }));
+  const caro = tally.processar(evento({ usuario: 'bia', giftId: '9', comboIndex: 1, em: 2 }));
+  const doZeca = tally.contarPeloChat(escrito({ em: 3 }), { urnaId: 'u1', chave: 'chat:zeca:3' });
+
+  assert.ok(doZeca.votos < barato.votos,
+    `o voto de graça vale ${doZeca.votos} e o presente mais barato vale ${barato.votos}`);
+  assert.ok(barato.votos < caro.votos,
+    `o Heart Me vale ${barato.votos} e o diamante vale ${caro.votos}`);
+});
+
+test('o voto escrito leva o nome do caminho, e não o de um presente', () => {
+  /*
+   * É este nome que a etiqueta da mão escreve na cena. Quem votou pelo chat
+   * não mandou nada, e a etiqueta dizendo "Rosa" faria a live inteira
+   * procurar uma rosa que ninguém mandou.
+   */
+  const { tally } = montar();
+  const r = tally.contarPeloChat(escrito(), { urnaId: 'u2', chave: 'chat:zeca:1' });
+  assert.equal(r.presente, 'Voto no chat');
+  const u2 = tally.estado().urnas.find((u) => u.id === 'u2');
+  assert.equal(u2.ultimoVoto.presente, 'Voto no chat');
+});
+
+test('o mesmo comentário não conta duas vezes', () => {
+  // O WebSocket cai e volta, e a fonte reentrega o que não foi confirmado. A
+  // chave do comentário é o autor mais o instante mais o texto, e ela é quem
+  // impede o mesmo "22" de valer dois votos na reconexão.
+  const { tally } = montar();
+  const chave = 'chat:simulador:zeca:1:22';
+  assert.equal(tally.contarPeloChat(escrito({ em: 1 }), { urnaId: 'u1', chave }).contado, true);
+  const depois = tally.estado().total;
+  const segundo = tally.contarPeloChat(escrito({ em: 1 }), { urnaId: 'u1', chave });
+  assert.equal(segundo.contado, false);
+  assert.equal(segundo.motivo, 'duplicado');
+  assert.equal(tally.estado().total, depois, 'o mesmo comentário contou duas vezes');
+});
+
+test('a repetição do comentário não vira aviso', () => {
+  // Pela mesma razão do presente: a deduplicação é o sistema funcionando, e
+  // uma live que reconecta reentrega eventos o tempo todo. A repetição que
+  // merece registro é a do INTERVALO, e essa é do hub.
+  const { tally } = montar();
+  const chave = 'chat:simulador:zeca:1:22';
+  tally.contarPeloChat(escrito({ em: 1 }), { urnaId: 'u1', chave });
+  const antes = tally.estado().avisos.length;
+  tally.contarPeloChat(escrito({ em: 1 }), { urnaId: 'u1', chave });
+  assert.equal(tally.estado().avisos.length, antes);
+});
+
+test('o voto escrito com a rodada fechada avisa que a rodada fechou', () => {
+  /*
+   * A mesma promessa da linha do presente recusado: quem escreveu "22" numa
+   * rodada encerrada e viu o placar parado precisa de uma resposta. Sem o
+   * aviso, o voto escrito seria a única recusa muda do sistema.
+   */
+  const { tally } = montar();
+  tally.fecharRodada({ em: 2000, motivo: 'manual' });
+  const antes = tally.estado().avisos.length;
+  const r = tally.contarPeloChat(escrito(), { urnaId: 'u1', chave: 'chat:zeca:1' });
+  assert.equal(r.contado, false);
+  assert.equal(r.motivo, 'rodada-fechada');
+  assert.equal(tally.estado().avisos.length, antes + 1, 'a recusa não gerou aviso nenhum');
+  assert.match(tally.estado().avisos.at(-1).texto, /chat/i, 'o aviso não diz de que caminho veio');
+});
+
+test('o voto escrito para urna que não está na disputa avisa', () => {
+  // A urna desligada no painel não recebe voto por nenhum caminho — e o
+  // aviso diz QUAL, que é a pergunta que o operador vai fazer.
+  const { tally } = montar();
+  const inexistente = tally.contarPeloChat(escrito(), { urnaId: 'u9', chave: 'chat:zeca:1' });
+  assert.equal(inexistente.contado, false);
+  assert.equal(inexistente.motivo, 'urna-inativa');
+  assert.match(tally.estado().avisos.at(-1).texto, /u9/);
+
+  const desligada = montar(normalizar({
+    urnas: {
+      u1: { id: 'u1', nome: 'Urna 1', numero: '22', multiplicador: 2 },
+      u2: { id: 'u2', nome: 'Urna 2', numero: '13', ativo: false },
+    },
+    presentes: [],
+  }).config);
+  const r = desligada.tally.contarPeloChat(escrito(), { urnaId: 'u2', chave: 'chat:zeca:1' });
+  assert.equal(r.contado, false);
+  assert.equal(r.motivo, 'urna-inativa');
+});
+
+test('o voto escrito também move a liderança', () => {
+  // Sem passar pelo mesmo `contar`, a tela não anunciaria a virada — e o voto
+  // que decidiu a rodada seria o único sem clímax.
+  const { tally } = montar();
+  tally.processar(evento({ usuario: 'ana' }));                       // u2 = 1
+  const r = tally.contarPeloChat(escrito({ em: 42 }), { urnaId: 'u1', chave: 'chat:zeca:42' });
+  assert.equal(r.contado, true);
+  assert.equal(r.lideranca?.tipo, 'virada', 'a virada não foi detectada');
+  assert.equal(r.lideranca?.urnaId, 'u1');
+});
+
+test('o voto escrito entra no ranking de apoiadores como quem votou', () => {
+  /*
+   * Quem escreveu no chat é um apoiador, e o monitor "quem mais presentou"
+   * conta por pessoa. Deixá-lo fora faria o voto de graça sumir do ranking
+   * justamente para quem não tem moeda — e o ranking é o que dá nome a quem
+   * está do outro lado da tela.
+   */
+  const { tally } = montar();
+  tally.contarPeloChat(escrito({ em: 1 }), { urnaId: 'u2', chave: 'chat:zeca:1' });
+  assert.deepEqual(tally.estado().apoiadores.map((a) => a.usuario), ['Zeca']);
+});
+
+test('o voto escrito sobrevive à reconstrução do banco', () => {
+  // O reinício no meio da live é o caso que o banco existe para cobrir. Se o
+  // voto escrito só vivesse em memória, ele sumiria do placar no primeiro
+  // reencontro da noite — e o placar reconstruído seria menor que o mostrado.
+  const { db, tally } = montar();
+  tally.contarPeloChat(escrito({ em: 1 }), { urnaId: 'u1', chave: 'chat:zeca:1' });
+  const outro = criarTally({ db, config: CONFIG });
+  outro.reconstruir();
+  assert.equal(outro.estado().total, tally.estado().total);
+  assert.equal(outro.estado().urnas.find((u) => u.id === 'u1').ultimoVoto.presente, 'Voto no chat');
 });
 
 /* ------------------------------------ a recusa que não avisava ninguém */

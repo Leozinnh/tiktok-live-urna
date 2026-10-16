@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { markupPainel } from '../public/js/painel.js';
+import { alturaDoRodape, markupPainel } from '../public/js/painel.js';
 
 const fila = (...nomes) => nomes.map((nome, i) => ({
   id: `f${i}`, urnaId: i % 2 === 0 ? 'u1' : 'u2', numero: i % 2 === 0 ? '22' : '13',
@@ -91,6 +91,112 @@ test('o ranking também escapa o nome', () => {
   assert.match(html, /&lt;b&gt;/);
 });
 
+const votos = (...linhas) => linhas.map(([usuario, numero, cor]) => ({ usuario, numero, cor }));
+
+/* Quantos aparelhos o markup liga: um por `<div class="painel painel--x">`. */
+const aparelhos = (html) => [...html.matchAll(/class="painel painel--/g)].length;
+
+test('sem fila, os últimos votos ganham um monitor ao lado do ranking', () => {
+  // "no monitor 'quem mais presentou' divida ele com um novo monitor
+  // 'ultimos votos' falando nome e em quem votou" — o pedido do Leonardo.
+  // Dois assuntos que só são verdadeiros juntos, então dois aparelhos.
+  const html = markupPainel({
+    fila: [],
+    ranking: ranking(['Ana', 12], ['Bia', 7]),
+    ultimos: votos(['Caio', '13', '#e02020']),
+  });
+  assert.match(html, /QUEM MAIS PRESENTEOU/);
+  assert.match(html, /ÚLTIMOS VOTOS/);
+  assert.equal(aparelhos(html), 2, 'os dois assuntos não dividem o mesmo aparelho');
+});
+
+test('com fila, os dois monitores saem de cena', () => {
+  // Enquanto há fila, o que o espectador precisa saber é a vez dele. Os dois
+  // monitores de gente (quem mais presenteou, últimos votos) ficam para
+  // quando a fila acabar — senão o painel vira três aparelhos numa faixa só.
+  const html = markupPainel({
+    fila: fila('Ana', 'Bia'),
+    ranking: ranking(['Ana', 12]),
+    ultimos: votos(['Caio', '13', '#e02020']),
+  });
+  assert.equal(aparelhos(html), 1);
+  assert.match(html, /NA FILA/);
+  assert.doesNotMatch(html, /QUEM MAIS PRESENTEOU/);
+  assert.doesNotMatch(html, /ÚLTIMOS VOTOS/);
+});
+
+test('cada monitor carrega a própria marca e o próprio pé', () => {
+  // Eles eram pseudo-elementos da ÁREA enquanto havia um aparelho só. Com
+  // dois, um `::before` da área esticaria a palavra ARENA por cima dos dois
+  // e a travessa do pé sairia de um aparelho para o outro: um aparelho
+  // emprestando o queixo para o vizinho. Um de cada, por aparelho.
+  const html = markupPainel({
+    fila: [],
+    ranking: ranking(['Ana', 12]),
+    ultimos: votos(['Caio', '13', '#e02020'], ['Dora', '22', '#1a5fd0']),
+  });
+  assert.equal(aparelhos(html), 2);
+  assert.equal([...html.matchAll(/painel__marca/g)].length, 2, 'falta a marca em um dos aparelhos');
+  assert.equal([...html.matchAll(/painel__pe"/g)].length, 2, 'falta o pé em um dos aparelhos');
+});
+
+test('a linha do voto diz quem votou e em quem, na cor da urna', () => {
+  // "falando nome e em quem votou" — o nome de quem mandou o presente, e o
+  // número da urna que recebeu o voto. A cor é o que liga a linha ao
+  // aparelho na tela sem ninguém precisar ler o número.
+  const html = markupPainel({ fila: [], ranking: [], ultimos: votos(['Caio', '13', '#e02020']) });
+  assert.match(html, /--cor-urna:#e02020/);
+  assert.match(html, /painel__nome">Caio</);
+  assert.match(html, /painel__seta/);
+  assert.match(html, /painel__numero">13</);
+});
+
+test('os últimos votos vêm do mais novo para o mais velho', () => {
+  // A ordem é a de chegada, e quem manda é quem guarda a lista: o mais novo
+  // no alto, porque quem acabou de presentear olha para a tela agora e
+  // procura o próprio nome ali em cima.
+  const html = markupPainel({
+    fila: [],
+    ranking: [],
+    ultimos: votos(['Novo', '22', '#1a5fd0'], ['Meio', '13', '#e02020'], ['Velho', '22', '#1a5fd0']),
+  });
+  const nomes = [...html.matchAll(/painel__nome">([^<]+)</g)].map((m) => m[1]);
+  assert.deepEqual(nomes, ['Novo', 'Meio', 'Velho']);
+});
+
+test('os últimos votos mostram quatro, e o resto sai por baixo sem "+N"', () => {
+  // A lista é uma janela que anda: o voto mais velho sai sozinho. "E mais
+  // 47" numa lista de votos não quer dizer nada — o que passou, passou.
+  const html = markupPainel({
+    fila: [],
+    ranking: [],
+    ultimos: votos(['A', '22', '#1a5fd0'], ['B', '22', '#1a5fd0'], ['C', '22', '#1a5fd0'],
+      ['D', '22', '#1a5fd0'], ['E', '22', '#1a5fd0']),
+  });
+  assert.equal([...html.matchAll(/painel__item--voto/g)].length, 4);
+  assert.doesNotMatch(html, /painel__resto/);
+});
+
+test('últimos votos sem ranking ligam um monitor só', () => {
+  // Acontece no começo da rodada: já votaram, e o servidor ainda não mandou
+  // a lista de quem mais presenteou. Um monitor ligado sem nada para dizer é
+  // pior do que monitor nenhum.
+  const html = markupPainel({ fila: [], ranking: [], ultimos: votos(['Caio', '13', '#e02020']) });
+  assert.equal(aparelhos(html), 1);
+  assert.match(html, /ÚLTIMOS VOTOS/);
+  assert.doesNotMatch(html, /QUEM MAIS PRESENTEOU/);
+});
+
+test('o nome de quem votou também sai escapado', () => {
+  const html = markupPainel({
+    fila: [],
+    ranking: [],
+    ultimos: votos(['<script>alert(1)</script>', '13', '#e02020']),
+  });
+  assert.doesNotMatch(html, /<script>/);
+  assert.match(html, /&lt;script&gt;/);
+});
+
 test('o título do painel é configurável', () => {
   const html = markupPainel({
     fila: fila('Ana'),
@@ -99,4 +205,28 @@ test('o título do painel é configurável', () => {
   });
   assert.match(html, /PRÓXIMOS A VOTAR/);
   assert.doesNotMatch(html, /NA FILA/);
+});
+
+/*
+ * A altura do rodapé em pixel de PALCO.
+ *
+ * O `getBoundingClientRect` devolve pixel de TELA, e o palco é escalado para
+ * caber na janela (0,56 numa janela deitada, 0,38 conferindo). O CSS lê a
+ * variável em pixel de palco. Sem a divisão, a medida valia 251px na
+ * transmissão em tela cheia e 95px na janela pequena do Leonardo — e a faixa
+ * da narração descia para dentro do painel, que é z 60 contra o z 50 dela:
+ * o placar inferior passava por cima da camada de efeitos, no ar.
+ */
+test('a altura do rodapé divide a medida de tela pela escala do palco', () => {
+  assert.equal(alturaDoRodape({ fundo: 1920, topo: 1669, escala: 1, vazio: false }), 251);
+  assert.equal(alturaDoRodape({ fundo: 960, topo: 865, escala: 0.38, vazio: false }), 250);
+  assert.equal(alturaDoRodape({ fundo: 960, topo: 865, escala: 1, vazio: false }), 95,
+    'sem a divisão, a janela pequena media 95px em vez de 250');
+});
+
+test('o rodapé vazio tem altura zero, e a conta nunca é negativa', () => {
+  assert.equal(alturaDoRodape({ fundo: 1920, topo: 1669, escala: 1, vazio: true }), 0);
+  assert.equal(alturaDoRodape({ fundo: 100, topo: 200, escala: 1, vazio: false }), 0);
+  assert.equal(alturaDoRodape({ fundo: 1920, topo: 1669, escala: 0, vazio: false }), 251,
+    'escala zero não pode dividir por zero');
 });

@@ -20,6 +20,16 @@
  *     tempo de ler: numa rajada, as falas passam em ordem, e não empilhadas.
  */
 
+/*
+ * A peneira da cor, importada do pop-up.
+ *
+ * A faixa do presente passou a se pintar com a cor da urna que recebeu o
+ * voto — a mesma cor da etiqueta na mão e a mesma do pop-up —, e as três
+ * precisam concordar sobre o que é uma cor. Importar, e não reescrever: a
+ * expressão é a mesma, e uma cópia a mais é uma cópia a mais para esquecer.
+ */
+import { COR_VALIDA } from './popup-presente.js';
+
 /**
  * Os tipos que a faixa sabe pintar.
  *
@@ -77,6 +87,34 @@ const TEMPO_MINIMO_MS = 3_500;
 const FILA_MAXIMA = 8;
 
 /**
+ * Até quando uma fala AINDA vale ser dita.
+ *
+ * O Leonardo ouviu "muuuuuuito atraso nas falas" e a medida deu razão a ele: a
+ * página toca uma fala de cada vez e espera a anterior terminar, então uma
+ * rajada empilha — três presentes seguidos, e o terceiro só foi ouvido 7,8
+ * segundos depois de ter sido mandado. Falar do passado é pior do que não
+ * falar: a live já é outra, e quem ouve o nome de quem mandou uma Rosa três
+ * falas atrás não sabe de qual presente se trata.
+ *
+ * Seis segundos é a conta: a fala mais longa que o baralho escreve dura uns
+ * quatro, e o tempo de escolher, sintetizar e buscar o áudio cabe no resto. O
+ * que passar disso é descartado — com uma linha no log, que é a regra da casa.
+ */
+export const VALIDADE_MS = 6_000;
+
+/**
+ * A fala esperou demais para ainda valer?
+ *
+ * Pura, como o `falaDoServidor`: é uma decisão do produto — o que a live deixa
+ * de dizer —, e é a única parte desta correção que dá para conferir sem
+ * navegador.
+ */
+export function falaVelha(fala, agora) {
+  if (!fala || !Number.isFinite(fala.desde)) return false;
+  return agora - fala.desde > VALIDADE_MS;
+}
+
+/**
  * O que o servidor mandou, no formato que a faixa desenha — ou `null`.
  *
  * Pura de propósito: é aqui que mora a decisão sobre o que pode chegar à tela
@@ -99,10 +137,6 @@ export function falaDoServidor(payload) {
    * ninguém confere e todo mundo vê. O `desenho` do servidor já sai só no
    * presente; esta linha é a segunda ponta da mesma regra.
    */
-  const desenho = tipo === 'presente' && NOME_DE_DESENHO.test(String(payload.desenho ?? ''))
-    ? String(payload.desenho)
-    : null;
-
   return {
     // O corte avisa que cortou: um texto que termina no meio da palavra sem
     // reticências parece um defeito da tela, e não um nome comprido.
@@ -110,9 +144,68 @@ export function falaDoServidor(payload) {
       ? `${texto.slice(0, LIMITE_DO_TEXTO - 1).trimEnd()}…`
       : texto,
     wav,
-    desenho,
+    presente: presenteDoServidor(payload.presente, tipo),
+    /*
+     * O tempo que a fala JÁ esperou no servidor, em milissegundos.
+     *
+     * Os dois carimbos são do relógio do servidor, e o que se usa é a
+     * diferença entre eles — o tempo entre o evento acontecer e a fala ser
+     * mandada, que é a síntese e a fila de lá. Diferença entre dois carimbos
+     * da MESMA máquina não precisa de relógio sincronizado, e é por isso que
+     * este número pode atravessar o fio.
+     */
+    esperou: tempoDeEspera(payload),
     tipo,
     usuario: String(payload.usuario ?? '').trim(),
+  };
+}
+
+/** Há quanto tempo a fala espera, do evento até ser mandada. */
+function tempoDeEspera(payload) {
+  const em = Number(payload.em);
+  const ts = Number(payload.ts);
+  if (!Number.isFinite(em) || !Number.isFinite(ts)) return 0;
+  return Math.max(0, ts - em);
+}
+
+/**
+ * O presente que chegou — ou `null`.
+ *
+ * A faixa quer o desenho, o pop-up quer o nome, o apelido de quem mandou e
+ * para qual urna o voto foi. Os dois mostram o MESMO presente, e é por isso
+ * que ele viaja num objeto só: um `desenho` solto ao lado de um
+ * `presente.nome` daria dois lugares afirmando a mesma coisa, e no dia em que
+ * discordassem a faixa e o pop-up mostrariam presentes diferentes no mesmo
+ * instante da live.
+ */
+function presenteDoServidor(presente, tipo) {
+  /*
+   * O desenho é do PRESENTE, e só dele.
+   *
+   * A condição do tipo não é zelo: um seguidor não manda rosa, e uma figura
+   * entrando num aviso onde ela não significa nada seria o tipo de coisa que
+   * ninguém confere e todo mundo vê. Com o pop-up, a mesma porta valeria para
+   * uma tela inteira tomada por um presente que não houve.
+   */
+  if (tipo !== 'presente') return null;
+  if (!presente || typeof presente !== 'object' || Array.isArray(presente)) return null;
+
+  const desenho = NOME_DE_DESENHO.test(String(presente.desenho ?? '')) ? String(presente.desenho) : null;
+  return {
+    /*
+     * A cor da urna que recebeu o voto — e agora ela é peneirada AQUI.
+     *
+     * Ela era copiada crua, com a nota de que quem conferia era o pop-up.
+     * Deixou de ser verdade quando a faixa passou a usá-la também: são dois
+     * consumidores da mesma cor, e uma peneira em um deles é uma porta aberta
+     * no outro. A expressão é IMPORTADA do pop-up em vez de reescrita — duas
+     * cópias da mesma regra divergem no dia em que alguém mexer numa.
+     */
+    cor: COR_VALIDA.test(String(presente.cor ?? '').trim()) ? String(presente.cor).trim() : null,
+    // O `desenho` já sai conferido daqui, e o pop-up só o copia adiante.
+    desenho,
+    nome: String(presente.nome ?? '').trim(),
+    urna: String(presente.urna ?? '').trim(),
   };
 }
 
@@ -123,7 +216,7 @@ export function falaDoServidor(payload) {
  * @param {object} [opcoes]
  * @param {Function} [opcoes.aoFalar] avisado a cada fala que começa
  */
-export function criarNarrador(camada, { aoFalar = null } = {}) {
+export function criarNarrador(camada, { aoFalar = null, aoPerder = null } = {}) {
   const el = document.createElement('div');
   el.className = 'narrador';
   el.setAttribute('aria-live', 'polite');
@@ -181,13 +274,27 @@ export function criarNarrador(camada, { aoFalar = null } = {}) {
      * logo depois de uma com desenho — uma Rosa e depois um seguidor — deixaria
      * a rosa colada no aviso do seguidor se só o `src` fosse trocado.
      */
-    if (fala.desenho) {
-      figura.src = `/img/${fala.desenho}.webp`;
+    if (fala.presente?.desenho) {
+      figura.src = `/img/${fala.presente.desenho}.webp`;
       figura.hidden = false;
     } else {
       figura.hidden = true;
       figura.removeAttribute('src');
     }
+    /*
+     * A cor da faixa do presente é a da URNA que recebeu o voto.
+     *
+     * Ela era dourada, e o dourado não dizia nada: na tela, toda cor com
+     * significado é a de uma urna — o placar, a etiqueta da mão, a tarja da
+     * fila, o pop-up. O Leonardo olhou a faixa dourada no ar e disse o que
+     * era: "a cor dourada está sem sentido algum na tela".
+     *
+     * A propriedade é REMOVIDA quando não há cor, e não escrita vazia: o
+     * `var()` com valor inválido derrubaria a cor da classe do tipo, e a
+     * faixa seguinte — um seguidor — sairia sem cor nenhuma.
+     */
+    if (fala.presente?.cor) el.style.setProperty('--narracao-cor', fala.presente.cor);
+    else el.style.removeProperty('--narracao-cor');
     /*
      * Só a classe do TIPO é trocada, e não o `className` inteiro.
      *
@@ -213,10 +320,26 @@ export function criarNarrador(camada, { aoFalar = null } = {}) {
       /*
        * `play()` devolve promessa, e ela rejeita quando o navegador recusa
        * tocar sem interação do usuário. Numa fonte de navegador do OBS isso
-       * não acontece, mas na janela do Chrome acontece — e a promessa
-       * rejeitada sem tratamento viraria um erro no console e a faixa presa.
+       * não acontece, mas na janela do Chrome acontece.
+       *
+       * A recusa NÃO é mais engolida.
+       *
+       * O `catch` antigo chamava o `terminar` e seguia em frente: a fala não
+       * saía, a faixa piscava e sumia no mesmo quadro, e não sobrava rastro em
+       * lugar nenhum — nem no console do servidor, nem no arquivo de log. É o
+       * sintoma que o Leonardo descreveu como "algumas não estão saindo", e a
+       * prova estava numa sonda do próprio projeto, que gravou `play()
+       * RECUSADO: NotAllowedError` num arquivo de estado. Numa casa onde
+       * silêncio é bug, uma recusa sem linha no log é o bug inteiro.
+       *
+       * Agora a recusa vira uma linha, e a faixa fica o tempo mínimo na tela,
+       * como quando não há som nenhum: o aviso visual acontece do mesmo jeito.
+       * Perder a fala é um detalhe; perder o aviso é a tela parecer morta.
        */
-      audio.play().catch(() => terminar());
+      audio.play().catch((erro) => {
+        aoPerder?.(fala, `o navegador não deixou tocar (${erro?.name ?? 'sem motivo'})`);
+        escondendo = setTimeout(terminar, TEMPO_MINIMO_MS);
+      });
       return;
     }
     // Sem som, quem manda no tempo é a tela.
@@ -225,10 +348,23 @@ export function criarNarrador(camada, { aoFalar = null } = {}) {
 
   function proxima() {
     if (ocupado) return false;
-    const fala = fila.shift();
-    if (!fala) return false;
-    apresentar(fala);
-    return true;
+    for (;;) {
+      const fala = fila.shift();
+      if (!fala) return false;
+      /*
+       * A fala que esperou demais não é dita.
+       *
+       * Ela não some calada: o descarte vai para o log do servidor, porque é
+       * ali que o Leonardo lê a noite. Uma fala engolida sem linha deixaria o
+       * console mentindo — dizendo que tudo saiu, quando a live ouviu menos.
+       */
+      if (falaVelha(fala, Date.now())) {
+        aoPerder?.(fala, `esperou mais de ${Math.round(VALIDADE_MS / 1000)}s na fila`);
+        continue;
+      }
+      apresentar(fala);
+      return true;
+    }
   }
 
   // O fim do áudio é o fim da fala. Um `error` também: um WAV que não veio
@@ -241,9 +377,20 @@ export function criarNarrador(camada, { aoFalar = null } = {}) {
     narrar(payload) {
       const fala = falaDoServidor(payload);
       if (!fala) return false;
+      /*
+       * O relógio da fala começa no EVENTO, e não aqui.
+       *
+       * O `narrate` chega depois da síntese, e uma rajada grande faz o
+       * servidor mandar a terceira fala dois segundos depois da primeira —
+       * que é atraso de verdade e não aparecia em contagem nenhuma feita a
+       * partir da chegada. Descontado o que já passou lá, o `desde` vale o
+       * mesmo nas duas pontas do fio.
+       */
+      fala.desde = Date.now() - fala.esperou;
       // A fila tem teto: numa rajada, quem chegou por último é quem está na
-      // tela agora, e são essas as boas-vindas que importam.
-      if (fila.length >= FILA_MAXIMA) fila.shift();
+      // tela agora, e são essas as boas-vindas que importam. A que sai também
+      // não sai calada — ver o `proxima`.
+      if (fila.length >= FILA_MAXIMA) aoPerder?.(fila.shift(), 'a fila encheu');
       fila.push(fala);
       proxima();
       return true;

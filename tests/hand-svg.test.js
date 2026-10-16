@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { MARCA_DE_JUNTA, markupDaMao, markupDaSombra, PIVOS } from '../public/js/hand/hand-svg.js';
 import { JUNTAS } from '../public/js/hand/poses.js';
 
@@ -24,6 +25,47 @@ test('o markup declara os gradientes de pele', () => {
 
 test('o markup declara o filtro de textura de pele', () => {
   assert.ok(markupDaMao().includes('id="texturaPele"'));
+});
+
+/*
+ * O markup lido como o PARSER lê, e não como o arquivo escreve.
+ *
+ * O teste acima — "declara os gradientes de pele" — ficou verde enquanto
+ * `unhaGrad` não existia na página: ele procura a string `id="unhaGrad"`, e
+ * a string estava lá, dentro de um comentário. Um comentário HTML fechado com
+ * o fim de comentário do JS — que é o que a mão digita no automático, num
+ * arquivo que monta SVG numa template string — não fecha coisa nenhuma: HTML
+ * não aninha comentário, então o parser segue engolindo tudo, elementos
+ * inclusive, até o próximo `-->`.
+ *
+ * Aconteceu quatro vezes neste arquivo. `peleVolume`, `unhaGrad` e
+ * `mangaGrad` foram parar dentro de um comentário e nunca chegaram ao DOM, e
+ * um `fill="url(#x)"` que não resolve não pinta NADA e não avisa no console:
+ * os dedos ficaram sem volume, as unhas sumiram e o antebraço ficou
+ * transparente — três defeitos que nenhum teste de texto via.
+ */
+const semComentarios = (html) => html.replace(/<!--[\s\S]*?-->/g, '');
+
+test('toda referência url(#id) da mão resolve fora de comentário', () => {
+  const html = markupDaMao();
+  const alvos = [...new Set([...html.matchAll(/url\(#([\w-]+)\)/g)].map((m) => m[1]))];
+  assert.ok(alvos.length >= 10, `a mão usa gradientes e recortes; ${alvos.length} alvos é markup vazio`);
+  const visivel = semComentarios(html);
+  for (const id of alvos) {
+    assert.ok(visivel.includes(`id="${id}"`),
+      `url(#${id}) não resolve: ou o id não existe, ou está dentro de um comentário`);
+  }
+});
+
+test('nenhum comentário HTML do markup fecha com */', () => {
+  // A causa, e não o efeito: mesmo um comentário que engula só texto tira do
+  // ar o que vier depois dele, e o defeito aparece longe daqui.
+  for (const [nome, html] of [['mão', markupDaMao()], ['sombra', markupDaSombra()]]) {
+    for (const m of html.matchAll(/<!--([\s\S]*?)-->/g)) {
+      assert.ok(!m[1].includes('*/'),
+        `comentário da ${nome} fechado com */: ele engole o que vier depois até o próximo -->`);
+    }
+  }
 });
 
 test('a sombra projetada é um elemento separado da mão', () => {
@@ -88,4 +130,39 @@ test('as falanges têm preenchimento de pele declarado', () => {
   for (const [tag] of falanges) {
     assert.ok(tag.includes('fill="url(#peleBase)"'), `falange sem pele: ${tag}`);
   }
+});
+
+/*
+ * A etiqueta que nasce e cresce.
+ *
+ * Ela é pendurada pela borda DIREITA no `--bx`, e o `posicionar` prende o
+ * número dentro do palco usando a largura MEDIDA NO NASCIMENTO — a margem de
+ * 24px das laterais, menos a largura, mais a largura do palco. O que mede é a
+ * conta até o dia em que alguma coisa muda o CONTEÚDO depois de nascer: em
+ * 2026-10-16 a etiqueta crescia 41px quando o CONFIRMA trocava o rótulo
+ * "votos" por "no placar", com a medida antiga ainda valendo — e saía 17px
+ * para fora do enquadramento, na frente da live inteira.
+ *
+ * Remedir no navegador é barato aqui (uma leitura de layout por voto, e não
+ * por quadro); o caro seria medir a cada quadro, e é por isso que o
+ * `posicionar` continua só fazendo conta.
+ */
+const JS_DA_MAO = readFileSync(new URL('../public/js/hand/hand-svg.js', import.meta.url), 'utf8');
+
+test('a etiqueta é remedida quando o rótulo muda no CONFIRMA', () => {
+  const confirmar = /confirmarBadge\(\)\s*\{([\s\S]*?)\n    \},/.exec(JS_DA_MAO);
+  assert.ok(confirmar, 'confirmarBadge sumiu do hand-svg.js');
+  assert.ok(/badgeEl\.offsetWidth/.test(confirmar[1]),
+    'confirmarBadge troca o rótulo sem remedir: a etiqueta cresce depois de ' +
+    'nascida e o --bx continua valendo a medida antiga');
+});
+
+test('a medida do nascimento continua presa no mostrarBadge', () => {
+  // O guarda acima verifica a segunda medida; este verifica a primeira. Sem
+  // ela, o clamp do posicionar prende com largura zero e a etiqueta encosta
+  // em tudo quanto é borda desde o primeiro voto.
+  const mostrar = /mostrarBadge\(nome, cor, \{([\s\S]*?)\n    \},/.exec(JS_DA_MAO);
+  assert.ok(mostrar, 'mostrarBadge sumiu do hand-svg.js');
+  assert.ok(/largura = badgeEl\.offsetWidth/.test(mostrar[1]),
+    'mostrarBadge deixou de medir a etiqueta no nascimento');
 });
