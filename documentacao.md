@@ -109,6 +109,32 @@ e o placar já subiu.
 **6. A mão** (`public/js/hand-team.js`) pega o próximo voto e escolhe uma urna
 livre (`public/js/urnas-livres.js`). Duas mãos, duas urnas, ao mesmo tempo.
 
+**A urna é a máquina; o voto é do candidato** (2026-10-16). Quando a urna do
+candidato está ocupada, o voto dele sai no gabinete do outro — e o que está
+ESCRITO naquela tela é o voto, não a máquina. O número, o cargo, o candidato, a
+contagem, a **cor** e a cédula impressa seguem o `destino` (a urna de quem
+RECEBE o voto, ver `hand-actor.js`); a placa, o filete da base, o halo na mesa e
+o LED das teclas continuam sendo os da máquina. O caso que apareceu no ar: o
+voto do Flávio (22, azul) no gabinete do 13 (vermelho) saía inteiro vermelho —
+etiqueta da mão, número grande da tela, dígitos e cédula. Nada disso errava a
+contagem (o voto sempre foi contado no candidato certo), e é por isso que
+passou: só se vê olhando a tela, e só quando a urna do candidato está ocupada.
+
+A correção é de ESCOPO, e é a parte que vale saber: `--cor-urna` é uma variável
+CSS, e `pintarCorDaTela` a escreve no elemento da TELA (e no da cédula), não na
+raiz da urna. Como ela herda, o que está dentro da tela passa a ler a cor do
+voto, e o gabinete — que está fora — continua a cor dele. Escrita na raiz, a cor
+do candidato vestiria a máquina inteira, com a placa ainda dizendo 13. Sem cor
+no estado (o repouso, ou um estado que não é voto), a variável é REMOVIDA e a
+urna volta a ser ela mesma — sem isso ela ficaria com a cara do candidato
+anterior até o próximo voto.
+
+`tests/hand-actor.test.js` (o voto pelo caminho inteiro, com máquina e destino
+diferentes) e `tests/cor-do-voto.test.js` (a herança e a limpeza no repouso)
+prendem as duas metades; a sonda `node .superpowers/sonda/cor-do-voto.js 3311`
+mede a cor COMPUTADA do dígito desenhado no gabinete emprestado, quadro a
+quadro, e confere que o gabinete continuou vermelho.
+
 ### A parte contraintuitiva: a tela é mais lenta que o servidor
 
 O placar da tela **não** sobe quando o presente chega. Ele sobe quando a
