@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { chaveDoTexto, criarVoz } from '../server/voz.js';
@@ -170,6 +170,99 @@ test('trocar a voz no painel vale para a frase seguinte', { skip: !soWindows }, 
 
     assert.equal(voz.partidas, partidasAntes + 1, 'o sintetizador antigo ficou de pé com a velocidade antiga');
     assert.notEqual(depois.arquivo, antes.arquivo, 'a fala nova saiu do arquivo da velocidade antiga');
+  } finally {
+    voz.parar();
+    await rm(pasta, { recursive: true, force: true });
+  }
+});
+
+test('o rodízio alterna as vozes, e a voz da vez entra na chave', async () => {
+  /*
+   * O arquivo em disco é o cache, e a chave dele é o texto. Sem a VOZ DA VEZ
+   * dentro da chave, o rodízio não aconteceria: a segunda frase acharia o
+   * arquivo que a primeira escreveu e a live inteira sairia com uma voz só —
+   * com o sintetizador nunca sendo chamado e nada acusando erro.
+   *
+   * A prova é por AUSÊNCIA de processo: os dois arquivos são deixados na pasta
+   * de antemão, um por voz, e o teste exige que o narrador ache OS DOIS. Ele só
+   * acha se procurar pela chave certa, e como nenhuma síntese chega a
+   * acontecer, `partidas` fica em zero. Isso faz deste o teste que roda em
+   * qualquer máquina, com voz instalada ou não.
+   */
+  const pasta = await mkdtemp(join(tmpdir(), 'urna-voz-'));
+  const vozes = ['pt-BR-FranciscaNeural', 'pt-BR-AntonioNeural'];
+  const frase = 'Bia acabou de seguir a live';
+  const arquivoDe = (nome) => join(pasta, `${chaveDoTexto(frase, { nome })}.wav`);
+  for (const v of vozes) await writeFile(arquivoDe(v), Buffer.alloc(100, 1));
+
+  const voz = criarVoz({ pasta, vozes: () => vozes });
+  try {
+    const primeira = await voz.sintetizar(frase);
+    const segunda = await voz.sintetizar(frase);
+    const terceira = await voz.sintetizar(frase);
+
+    assert.equal(primeira.arquivo, arquivoDe(vozes[0]), 'a primeira fala não saiu na primeira voz');
+    assert.equal(segunda.arquivo, arquivoDe(vozes[1]), 'a segunda fala não saiu na segunda voz');
+    assert.equal(terceira.arquivo, arquivoDe(vozes[0]), 'o rodízio não voltou para a primeira voz');
+    assert.equal(voz.partidas, 0, 'o rodízio subiu um sintetizador em vez de usar o cache');
+  } finally {
+    voz.parar();
+    await rm(pasta, { recursive: true, force: true });
+  }
+});
+
+test('a lista de vozes vazia é uma voz só: a do painel', async () => {
+  /*
+   * `narracao.vozes` vazio é o pedido de uma voz só, e quem a escolhe é o
+   * `narracao.voz` — a mesma precedência que o `config.js` promete. Sem este
+   * teste ela ficaria só no comentário, e o dia em que alguém mexesse nela o
+   * Leonardo ouviria duas vozes sem ter pedido, ou o campo `voz` do painel
+   * viraria enfeite sem nada acusar.
+   *
+   * A prova é a mesma do teste anterior: o arquivo da voz escolhida está no
+   * disco, e achá-lo é a única forma de não subir processo nenhum.
+   */
+  const pasta = await mkdtemp(join(tmpdir(), 'urna-voz-'));
+  const escolhida = 'Microsoft Maria Desktop';
+  const frase = 'Bia acabou de seguir a live';
+  const arquivo = join(pasta, `${chaveDoTexto(frase, { nome: escolhida })}.wav`);
+  await writeFile(arquivo, Buffer.alloc(100, 1));
+
+  const voz = criarVoz({ pasta, nome: () => escolhida, vozes: () => [] });
+  try {
+    const r = await voz.sintetizar(frase);
+    assert.equal(r.arquivo, arquivo, 'a voz do painel foi ignorada');
+    assert.equal(voz.partidas, 0, 'subiu um sintetizador em vez de usar o cache');
+  } finally {
+    voz.parar();
+    await rm(pasta, { recursive: true, force: true });
+  }
+});
+
+test('o rodízio não derruba o sintetizador a cada frase', { skip: !soWindows }, async () => {
+  /*
+   * É o ponto do rodízio inteiro, e o motivo de a voz viajar na LINHA da frase
+   * e não na subida do processo: subir custa ~1,9 s. Se cada troca de voz
+   * derrubasse o sintetizador, uma live movimentada pagaria dois segundos por
+   * frase e a fila nunca alcançaria a live — o narrador falaria de quem chegou
+   * dez minutos atrás, que é o mesmo defeito que o processo de vida longa
+   * existe para evitar.
+   *
+   * As vozes aqui são neurais e o motor é o do Windows, então nenhuma das duas
+   * existe de verdade: o `SelectVoice` falha, o worker ignora e fala com a voz
+   * que já tinha. O que se prende não é o timbre — é que UMA partida atendeu as
+   * duas frases.
+   */
+  const pasta = await mkdtemp(join(tmpdir(), 'urna-voz-'));
+  const vozes = ['pt-BR-FranciscaNeural', 'pt-BR-AntonioNeural'];
+  const voz = criarVoz({ pasta, vozes: () => vozes });
+  try {
+    const primeira = await voz.sintetizar('primeira frase do rodizio');
+    const segunda = await voz.sintetizar('segunda frase do rodizio');
+
+    assert.ok(primeira && segunda, 'uma das duas frases ficou muda');
+    assert.equal(voz.partidas, 1, `o sintetizador subiu ${voz.partidas} vezes para duas frases`);
+    assert.notEqual(primeira.arquivo, segunda.arquivo, 'as duas vozes escreveram o mesmo arquivo');
   } finally {
     voz.parar();
     await rm(pasta, { recursive: true, force: true });

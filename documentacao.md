@@ -31,7 +31,7 @@ cd C:\xampp\htdocs\tiktok-live-urna
 npm start          # sobe o servidor
 npm run dev        # sobe e recarrega sozinho quando um arquivo do servidor muda
 npm run reiniciar  # derruba quem está na porta 3000 e sobe de novo
-npm test           # a suíte inteira (695 testes, poucos segundos)
+npm test           # a suíte inteira (718 testes, poucos segundos)
 ```
 
 | Endereço | O que é |
@@ -150,7 +150,7 @@ diferença entre os dois é intencional.
 | `tally.js` | A contagem e as rodadas — **a verdade** |
 | `config.js` | Lê, **normaliza** e grava a configuração |
 | `db.js` | O banco (SQLite pelo `node:sqlite`, escrito à mão) |
-| `narracao.js` | As frases da voz: sorteia sem repetir e troca `{nome}` |
+| `narracao.js` | As frases da voz: quem fala, quem fica quieto, e os marcadores |
 | `espera.js` | A espera do número no chat, e a cobrança por voz |
 | `voz.js` | A voz: os dois motores, o processo de cada um e o cache |
 | `voz.ps1` | O sintetizador do Windows, falado por linhas de texto |
@@ -268,14 +268,21 @@ Os dois vivem em `server/voz.js`, na tabela `MOTORES`. O lado Node trata os
 dois igual, porque **os dois falam o mesmo protocolo**:
 
 ```
-  entrada   <id>\t<texto>
-  saída     ok\t<id>\t<ext>\t<texto>     (o texto volta como ECO)
+  entrada   <id>\t<voz>\t<texto>          (voz vazia = a do processo)
+  saída     pronto\t<voz>                 (uma vez, na subida)
+            ok\t<id>\t<ext>\t<texto>      (o texto volta como ECO)
             erro\t<id>\t<motivo>
 ```
 
 A **extensão** vai na resposta porque são dois sintetizadores e o servidor não
 pode adivinhar: um `readFile` no nome errado devolveria `ENOENT` e a fala
 sumiria com o sintetizador tendo funcionado perfeitamente.
+
+A **voz vai na linha**, e não no ambiente do processo, por causa do rodízio
+(abaixo): o processo é de vida longa, e trocar de voz por frase reiniciando-o
+custaria 1,9 s por fala. O `pronto` responde qual voz o processo assumiu ao
+subir — é ele que o painel mostra, e é o que diz que a voz pedida existe
+naquele motor.
 
 O **eco** existe para conferir que o acento chegou inteiro. O stdin do Windows
 PowerShell 5.1 não é UTF-8 por padrão, e "Conceição" vira "Concei??o" **sem
@@ -289,6 +296,35 @@ eternidade. Reaproveitado, cada frase custa **~90 ms**.
 
 É por isso que `voz.js` mantém um `Map` de máquinas (uma por motor), cada uma
 com o seu processo, a sua espera e o seu estado.
+
+### O rodízio de vozes
+
+A live fala com **duas vozes**, alternando a cada frase:
+`pt-BR-FranciscaNeural` e `pt-BR-AntonioNeural`, na ordem em que estão em
+`narracao.vozes` (`config/local.json`). O motivo é o mesmo do projeto dos
+cavalos, de onde a ideia veio: uma voz só, dizendo quarenta frases por noite,
+soa automática. Duas soam como duas pessoas acompanhando a live.
+
+Três decisões que valem o registro:
+
+- **o rodízio não é por evento, é por FRASE.** Duas pessoas que chegam juntas
+  são anunciadas uma por cada voz. Amarrar a voz à pessoa faria o espectador
+  ouvir sempre a mesma, que é o efeito que se quer evitar;
+- **a voz entra na CHAVE do cache**, e por isso a mesma frase dita por duas
+  vozes são dois arquivos. Sem isso, a segunda voz receberia o áudio da
+  primeira — o rodízio existiria na conta e não no ouvido;
+- **a lista VAZIA é uma decisão**, e não um campo esquecido: `"vozes": []`
+  quer dizer "uma voz só, a do campo `voz`". É a mesma regra de
+  `narracao.falas`, e é o que permite desligar o rodízio sem apagar `voz`.
+
+O processo do sintetizador **sobrevive à troca de voz**: o que muda por frase
+é só o campo da linha. O processo só é reiniciado quando muda algo que é dele
+— o motor, a velocidade, ou a voz quando ela é fixa (sem rodízio). É o que
+`assinaturaDe` compara.
+
+A queda para o outro motor manda a voz **vazia** de propósito: as vozes
+neurais não existem no SAPI, e `SelectVoice` com um nome que ele não conhece
+lança em toda frase — a reserva ficaria muda justamente quando é chamada.
 
 ### A queda para o outro motor
 
@@ -310,6 +346,44 @@ vez de cair para a reserva. O conserto foi `maq.espera` (a promessa) mais
 caminhos de falha.
 
 Quem mexer no ciclo de vida do processo precisa saber disso.
+
+### O que merece fala
+
+`server/narracao.js` decide **uma** coisa, e é puro: dado um evento, sai fala
+ou sai silêncio. A parte difícil não é falar — é **calar**. Numa live
+movimentada chegam dezenas de eventos por minuto, e um narrador que fala tudo
+vira uma metralhadora de nomes que ninguém entende.
+
+| Evento | Fala? | Por quê |
+|---|---|---|
+| `seguidor`, `entrada`, `compartilhou`, `assinatura` | sim | É a pessoa sendo vista: quem segue precisa ouvir que valeu |
+| `curtida` | só quando vira **gesto** | 20 toques em 3 s (o número do `tiktok-live-horse`). Uma curtida solta encheria a fila de "valeu pela curtida" |
+| `presente` **contado** | sim | É o ÚNICO evento que conta voto, e o único que custou dinheiro a quem mandou |
+| `presente` **órfão** | **não** | Ele não virou voto. Quem fala por ele é a cobrança da espera, 15 s depois, dizendo o que fazer |
+| `comentario` | não | O narrador viraria um leitor de chat |
+
+O `{vezes}` do presente é o combo, e chega pronto: `5x ` quando a pessoa
+mandou cinco, e **vazio** quando mandou um — "1x Rosa" não é como uma pessoa
+fala. A convenção vem do projeto dos cavalos, de onde as frases vieram.
+
+O `{urna}` é o nome de quem recebeu o voto, e nenhuma frase põe artigo na
+frente dele: as urnas são pessoas, e "a {urna} agradece" sairia errado para
+metade dos nomes.
+
+Cada tipo tem um **cooldown por pessoa** (um minuto; o do presente, trinta
+segundos), e é ele que impede quem sai e volta do TikTok de ser anunciado
+duas vezes. A fala escolhida sai de um **baralho**: as frases de um tipo são
+ditas todas, em ordem sorteada, antes de qualquer uma repetir.
+
+A fila da fala (`hub.js`) tem **teto de 6**. Cheia, ela recusa o anúncio
+seguinte em vez de crescer — a voz ficaria para trás e anunciaria quem chegou
+dois minutos atrás. A recusa é barata porque a fala é a parte que envelhece, e
+o voto **não passa** por essa fila: nenhuma recusa custa contagem.
+
+**A cobrança é a exceção** (`narrar(…, { essencial: true })`). Ela já foi
+retirada da espera antes de virar fala, então recusá-la não é adiá-la: é
+perdê-la — e com ela a única explicação que quem mandou um presente órfão
+teria para ouvir.
 
 ---
 
@@ -343,7 +417,7 @@ npm test                              # tudo
 node --test tests/voz.test.js         # um arquivo
 ```
 
-**695 testes**, `node --test`, sem navegador. A regra do projeto é **TDD**:
+**718 testes**, `node --test`, sem navegador. A regra do projeto é **TDD**:
 teste que falha primeiro, pelo motivo certo, depois o código.
 
 **Nada de DOM falso.** As funções puras são testadas direto. O que só existe
@@ -374,15 +448,22 @@ linha.** Elas são sorteadas sem repetir a anterior, e é a lista que carrega
 essa alternância — escritas numa linha só, elas virariam uma fala comprida que
 ninguém quer ouvir.
 
-`{nome}` é trocado pelo apelido (e por `Alguém` quando não há apelido),
-`{quantidade}` pelo número.
+Os marcadores são cinco, e só existem esses: `{nome}` (o apelido, ou `Alguém`
+quando não há apelido), `{quantidade}` (o número de curtidas, só na `curtida`),
+`{presente}` (o nome do presente), `{urna}` (o nome da urna que recebeu o
+voto) e `{vezes}` (o combo do presente, que chega pronto como `5x ` — com
+espaço — e **vazio** quando é um presente só, porque "1x Rosa" não é como uma
+pessoa fala). Um marcador fora dessa lista não é trocado por ninguém: a voz
+**fala o nome dele**.
 
 O arquivo é lido na **subida** do servidor: depois de salvar, reinicie.
 
 ### Quero mudar a voz
-`config/local.json` → `narracao.motor` e `narracao.voz`. O nome da voz é
-diferente em cada motor: a neural é `pt-BR-FranciscaNeural`, a do Windows é
-`Microsoft Maria Desktop`. `narracao.voz` vazia escolhe a melhor do motor.
+`config/local.json` → `narracao.motor`, `narracao.voz` e `narracao.vozes`. O
+nome da voz é diferente em cada motor: a neural é `pt-BR-FranciscaNeural`, a
+do Windows é `Microsoft Maria Desktop`. `narracao.voz` vazia escolhe a melhor
+do motor; `narracao.vozes` é a lista do rodízio, e uma lista **vazia** deixa a
+live com uma voz só (a de `voz`).
 
 ### Quero cadastrar um presente novo
 `config/local.json` → `presentes`, um objeto por presente. O `giftId` é o
@@ -481,8 +562,8 @@ transmissão com as instruções de captura no OBS.
 ### O que a suíte diz hoje
 
 ```
-ℹ tests 695
-ℹ pass 695
+ℹ tests 718
+ℹ pass 718
 ℹ fail 0
 ```
 
@@ -542,11 +623,9 @@ lista do servidor — e não de uma lista escrita no painel, que foi como
 
 `tests/admin-abas.test.js` prende os dois campos fora do painel até lá.
 
-**Rotação de vozes.** O projeto dos cavalos (`tiktok-live-horse`) alterna
-entre três vozes neurais a cada fala. Aqui não: isso pede mais superfície de
-configuração e triplica a rotatividade do cache, e o que o pedido original
-queria era a **qualidade** da voz neural. Se você quiser a rotação, ela é um
-acréscimo em `voz.js` — a tabela `MOTORES` já é o lugar onde a voz se escolhe.
+> A **rotação de vozes** esteve nesta lista até 2026-10-15, e saiu: ela existe
+> agora, com duas vozes neurais alternando a cada frase. Está em
+> [O rodízio de vozes](#o-rodízio-de-vozes), na seção da voz.
 
 ### O ramo
 

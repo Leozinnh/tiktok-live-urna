@@ -76,11 +76,17 @@ const CAMPOS_DA_URNA = [
  */
 export const ACOES_SOCIAIS = Object.freeze([
   { tipo: 'seguidor', rotulo: 'Seguiu', quantidade: 1 },
-  // Cinco, e não um: o narrador só fala de curtida quando ela vira GESTO —
-  // cinco toques em três segundos. Um botão de um toque só sairia mudo, e o
-  // silêncio do botão de teste é indistinguível de uma voz quebrada.
-  // `tests/servidor-hub.test.js` compara este número com o limiar do servidor.
-  { tipo: 'curtida', rotulo: 'Curtiu', quantidade: 5 },
+  // Vinte, e não um: o narrador só fala de curtida quando ela vira GESTO —
+  // vinte toques em três segundos, o mesmo número do `tiktok-live-horse`. Um
+  // botão abaixo disso sairia mudo, e o silêncio do botão de teste é
+  // indistinguível de uma voz quebrada.
+  //
+  // O número está ESCRITO aqui em vez de importado do servidor porque este
+  // arquivo roda no navegador, e o `narracao.js` é do servidor. Quem impede os
+  // dois de se separarem é `tests/servidor-hub.test.js`, que compara este
+  // campo com o limiar de verdade: subir o limiar sem subir o botão deixa o
+  // teste vermelho.
+  { tipo: 'curtida', rotulo: 'Curtiu', quantidade: 20 },
   { tipo: 'entrada', rotulo: 'Entrou', quantidade: 1 },
   { tipo: 'compartilhou', rotulo: 'Compartilhou', quantidade: 1 },
   { tipo: 'assinatura', rotulo: 'Assinou', quantidade: 1 },

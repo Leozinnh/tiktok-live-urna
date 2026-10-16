@@ -152,6 +152,8 @@ export function chaveDoTexto(texto, ajustes = {}) {
  * @param {string|object} [opcoes.exe] o interpretador, ou um por motor; existe
  *   para o teste poder apontar outro
  * @param {string} [opcoes.nome]     a voz escolhida; vazio usa a padrão do motor
+ * @param {string[]|Function} [opcoes.vozes] as vozes do rodízio, na ordem em
+ *   que alternam; lista vazia (ou ausente) é uma voz só, a de `nome`
  * @param {number} [opcoes.velocidade] -10 a 10, no ritmo que o painel promete
  * @param {number} [opcoes.timeoutMs] quanto esperar por uma frase antes de desistir
  */
@@ -160,6 +162,7 @@ export function criarVoz({
   motor = MOTOR_PADRAO,
   exe = null,
   nome = null,
+  vozes = null,
   velocidade = null,
   timeoutMs = 20_000,
   aoAvisar = null,
@@ -206,21 +209,74 @@ export function criarVoz({
     const v = typeof valor === 'function' ? valor() : valor;
     return v == null || v === '' ? padrao : v;
   };
+  /*
+   * As vozes do rodízio, limpas.
+   *
+   * Um item que não é texto, ou que é só espaço, não é uma voz: mandá-lo na
+   * linha da frase faria o sintetizador escolher a voz dele por um campo que o
+   * Leonardo acha que preencheu. O `config.js` já limpa a lista do arquivo;
+   * isto aqui é para quem constrói uma voz direto, sem passar por lá.
+   */
+  const listaDeVozes = (valor) => (Array.isArray(valor) ? valor : [])
+    .filter((v) => typeof v === 'string' && v.trim())
+    .map((v) => v.trim());
+
   const ajustesAgora = () => {
     const pedido = String(ajusteDe(motor, MOTOR_PADRAO));
+    const escolhida = String(ajusteDe(nome, '')).trim();
+    const rotacao = listaDeVozes(ajusteDe(vozes, null));
     return {
       // Um nome de motor que o código não conhece — o painel é texto livre —
       // não pode calar a live: cai no padrão, que fala.
       motor: motorConhecido(pedido) ? pedido : MOTOR_PADRAO,
-      nome: String(ajusteDe(nome, '')).trim(),
+      nome: escolhida,
+      rotacao,
+      /*
+       * A voz que o PROCESSO carrega — e ela não é a da frase.
+       *
+       * Com rodízio, é vazia de propósito: a voz viaja na linha de cada frase
+       * (ver `falarCom`), e é isso que permite as duas vozes saírem do MESMO
+       * processo. Um `URNA_VOZ_NOME` fixo aqui só valeria para as linhas que
+       * não escolhem voz — que, com rodízio ligado, não existem.
+       *
+       * Sem rodízio, é a voz do painel, como sempre foi.
+       */
+      vozDoProcesso: rotacao.length ? '' : escolhida,
       velocidade: Number(ajusteDe(velocidade, 0)) || 0,
     };
   };
-  // A assinatura é o que compara dois ajustes: `{nome:'', velocidade:0}` e
-  // `{}` são o mesmo pedido, e sem isto o processo morreria e renasceria a
-  // cada frase, pagando a partida de novo toda vez. O motor entra nela porque
-  // trocar de motor no painel tem que derrubar o processo e subir o outro.
-  const assinaturaDe = (a) => `${a.motor}\u0000${a.nome}\u0000${a.velocidade}`;
+  /*
+   * A assinatura é o que compara dois ajustes: `{nome:'', velocidade:0}` e
+   * `{}` são o mesmo pedido, e sem isto o processo morreria e renasceria a
+   * cada frase, pagando a partida de novo toda vez. O motor entra nela porque
+   * trocar de motor no painel tem que derrubar o processo e subir o outro.
+   *
+   * Entra a voz DO PROCESSO, e não a do painel: o que tem que derrubar o
+   * processo é uma mudança no que ele próprio carrega. A voz da frase muda a
+   * cada fala, e se ela entrasse aqui o rodízio derrubaria o sintetizador a
+   * cada nome anunciado — pagando ~1,9 s por frase, que é o defeito que o
+   * processo de vida longa existe para evitar.
+   */
+  const assinaturaDe = (a) => `${a.motor}\u0000${a.vozDoProcesso}\u0000${a.velocidade}`;
+
+  /*
+   * De quem é a vez.
+   *
+   * Um contador que anda a cada frase falada, e não um sorteio: com sorteio, a
+   * mesma voz podia sair três vezes seguidas e o rodízio sumiria justamente
+   * nas horas de movimento, que é quando ele mais se ouve.
+   *
+   * O contador não reinicia quando a lista muda de tamanho — o resto da
+   * divisão cuida disso, e uma lista que encolhe no meio da live continua
+   * alternando sem estourar.
+   */
+  let vez = 0;
+  const proximaVoz = (a) => {
+    if (!a.rotacao.length) return a.nome;
+    const voz = a.rotacao[vez % a.rotacao.length];
+    vez += 1;
+    return voz;
+  };
 
   /** O interpretador deste motor, respeitando o `exe` do teste. */
   const comandoDe = (m) => (typeof exe === 'string' ? exe : exe?.[m]) ?? MOTORES[m].comando;
@@ -251,8 +307,20 @@ export function criarVoz({
     return null;
   }
 
-  /** Pede uma frase a um motor, e devolve o áudio que ele escreveu. */
-  async function falarCom(m, chave, texto) {
+  /**
+   * Pede uma frase a um motor, e devolve o áudio que ele escreveu.
+   *
+   * A VOZ VAI NA LINHA, e não só no ambiente do processo. É o que faz o
+   * rodízio caber numa partida só: o sintetizador sobe uma vez e fala nas duas
+   * vozes, em vez de morrer e renascer a cada frase — ~1,9 s de partida por
+   * nome anunciado, que numa live movimentada é a fila nunca alcançando a live.
+   *
+   * Voz vazia é "fala com a que você tem", e é assim que a frase vai para o
+   * motor de reserva: as vozes do rodízio são neurais, e o SAPI não tem
+   * nenhuma delas. Mandar o nome a ele daria um `SelectVoice` que falha a cada
+   * frase — barulho em stderr e nenhuma diferença nenhuma no som.
+   */
+  async function falarCom(m, chave, texto, voz = '') {
     await subir(m);
     const maq = maquina(m);
 
@@ -262,7 +330,7 @@ export function criarVoz({
         rejeitar(new Error(`o sintetizador ${m} não respondeu em ${timeoutMs}ms`));
       }, timeoutMs);
       esperando.set(chave, { resolver, rejeitar, temporizador, motor: m });
-      maq.processo.stdin.write(`${chave}\t${texto}\n`, 'utf8');
+      maq.processo.stdin.write(`${chave}\t${voz}\t${texto}\n`, 'utf8');
     });
 
     /*
@@ -398,7 +466,7 @@ export function criarVoz({
       env: {
         ...process.env,
         URNA_VOZ_PASTA: pasta,
-        ...(ajustes.nome ? { URNA_VOZ_NOME: ajustes.nome } : {}),
+        ...(ajustes.vozDoProcesso ? { URNA_VOZ_NOME: ajustes.vozDoProcesso } : {}),
         ...(ajustes.velocidade ? { URNA_VOZ_VELOCIDADE: String(ajustes.velocidade) } : {}),
       },
       windowsHide: true,
@@ -531,11 +599,17 @@ export function criarVoz({
       const limpo = String(texto ?? '').trim();
       if (!limpo || encerrada) return null;
 
-      // Os ajustes entram na chave, e não só no processo: é o arquivo em
-      // disco que decide se a frase precisa ser sintetizada, e a mesma frase
-      // dita por outra voz é outro som.
+      /*
+       * De quem é a vez, ANTES da chave.
+       *
+       * A ordem importa: a voz da vez é o que separa "a mesma frase dita por
+       * outra voz" de "a mesma frase", e é a chave que decide se ela precisa
+       * ser sintetizada. Escolher a voz depois da chave faria a segunda fala
+       * achar o arquivo da primeira e sair na voz errada, para sempre.
+       */
       const ajustes = ajustesAgora();
-      const chave = chaveDoTexto(limpo, ajustes);
+      const vozDaVez = proximaVoz(ajustes);
+      const chave = chaveDoTexto(limpo, { nome: vozDaVez, velocidade: ajustes.velocidade });
 
       // O disco é a memória do narrador: sobrevive ao processo, e por isso o
       // primeiro seguidor de apelido conhecido sai na hora, mesmo depois de
@@ -546,7 +620,7 @@ export function criarVoz({
       await mkdir(pasta, { recursive: true });
 
       try {
-        const r = await falarCom(ajustes.motor, chave, limpo);
+        const r = await falarCom(ajustes.motor, chave, limpo, vozDaVez);
         sinteses += 1;
         // Voltou a funcionar: a próxima queda merece um aviso novo.
         reclamou = false;
@@ -567,6 +641,11 @@ export function criarVoz({
           avisar(`a voz ${ajustes.motor} falhou (${e.message}) — falando com a do Windows`);
           reclamou = true;
         }
+        /*
+         * Sem voz na linha, de propósito: o rodízio é de vozes neurais, e o
+         * SAPI não tem nenhuma delas. Mandar o nome adiante daria um
+         * `SelectVoice` falhando a cada frase, e o mesmo som no fim.
+         */
         const r = await falarCom(MOTOR_RESERVA, chave, limpo);
         sinteses += 1;
         return r;

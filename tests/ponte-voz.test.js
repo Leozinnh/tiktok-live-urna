@@ -202,6 +202,56 @@ test('a voz escolhida no painel é a que fala', { skip: semPython }, async () =>
   } finally { await r.limpar(); }
 });
 
+test('o rodízio de vozes cabe numa partida só do worker', { skip: semPython }, async () => {
+  /*
+   * É aqui que o campo novo do protocolo se paga.
+   *
+   * O rodízio não pode custar uma partida por frase: subir este worker custa
+   * ~1,9 s, e uma live que recebe gente sem parar pagaria esse preço a cada
+   * nome — a fila cresceria mais rápido do que esvaziaria, e o narrador
+   * falaria daqui a dez minutos sobre quem chegou agora.
+   *
+   * Com a voz na LINHA, o mesmo processo fala nas duas. O `pronto` sai uma vez
+   * só, e continua dizendo qual é a voz da subida: a que fala quando a linha
+   * não escolhe nenhuma.
+   *
+   * O eco tem que ser só o TEXTO. Se o corte fosse ainda no primeiro TAB, o
+   * nome da voz entraria no áudio — a Francisca leria "pt-BR-AntonioNeural
+   * Boa noite" — e ninguém desconfiaria do protocolo.
+   */
+  const r = await falar([
+    'a\tpt-BR-FranciscaNeural\tBom dia.',
+    'b\tpt-BR-AntonioNeural\tBoa noite.',
+  ]);
+  try {
+    assert.equal(r.codigo, 0, `o worker saiu com ${r.codigo}: ${r.erro}`);
+    assert.deepEqual(r.linhas, [
+      'pronto\tpt-BR-FranciscaNeural',
+      'ok\ta\tmp3\tBom dia.',
+      'ok\tb\tmp3\tBoa noite.',
+    ]);
+    assert.deepEqual(await r.anotado(), [
+      'Bom dia.|pt-BR-FranciscaNeural|+8%|+3Hz',
+      'Boa noite.|pt-BR-AntonioNeural|+8%|+3Hz',
+    ]);
+  } finally { await r.limpar(); }
+});
+
+test('a linha sem voz fala na voz da subida, e o eco é só o texto', { skip: semPython }, async () => {
+  /*
+   * Uma linha com um TAB só não pode virar silêncio: é assim que o servidor
+   * fala quando o rodízio está desligado, e é assim que se testa este worker à
+   * mão, com um `echo`. O degrau existe para o campo novo não quebrar quem já
+   * falava — inclusive uma versão antiga do servidor, que ainda manda duas
+   * colunas.
+   */
+  const r = await falar(['a\tBom dia.'], { URNA_VOZ_NOME: 'pt-BR-AntonioNeural' });
+  try {
+    assert.equal(r.linhas[1], 'ok\ta\tmp3\tBom dia.', 'a voz entrou no texto falado');
+    assert.equal((await r.anotado())[0], 'Bom dia.|pt-BR-AntonioNeural|+8%|+3Hz');
+  } finally { await r.limpar(); }
+});
+
 test('voz que o serviço não tem cai na padrão, e não em silêncio', { skip: semPython }, async () => {
   /*
    * A lista de vozes do edge-tts muda sem avisar — voz nova entra, voz antiga

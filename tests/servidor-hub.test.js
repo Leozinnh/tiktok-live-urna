@@ -553,6 +553,20 @@ function vozDeMentira({ arquivo = null, erro = null, atrasos = [] } = {}) {
 /** O hub não termina de falar no mesmo tick: o `sintetizar` é assíncrono. */
 const respirar = (ms = 60) => new Promise((ok) => setTimeout(ok, ms));
 
+/**
+ * A mesma configuração, com UMA frase de presente — e com a urna nela.
+ *
+ * Só ALGUMAS frases do padrão citam `{urna}`, e a do dia é sorteada do
+ * baralho: um teste que dependesse do sorteio passaria ou falharia conforme a
+ * frase da vez, que é o pior tipo de teste vermelho. Fixando a frase, o que
+ * se prende é o DADO que o hub manda para o narrador, e não a sorte.
+ */
+const CONFIG_COM_URNA_NA_FRASE = normalizar({
+  urnas: { u1: { id: 'u1', nome: 'Urna 1', numero: '22', multiplicador: 2 } },
+  presentes: [{ id: 'p1', nome: 'Heart Me', giftId: '1', urnaId: 'u1', votos: 1 }],
+  narracao: { falas: { presente: ['{nome} mandou {vezes}{presente} pra {urna}!'] } },
+}).config;
+
 const seguir = (nome, userId = nome) => ({
   plataforma: 'simulador', tipo: 'seguidor', usuario: nome, userId, em: 7000,
 });
@@ -579,19 +593,55 @@ test('um seguidor vira fala na tela, e não voto', () => {
   });
 });
 
-test('o presente NÃO vira narração', () => {
+test('o presente contado vira fala: quem mandou, o quê, quantos e pra quem', () => {
   /*
-   * O presente já tem o espetáculo dele: a mão digita, a urna apita, a cédula
-   * cai e o placar sobe. Falar por cima disso seria anunciar de novo o que a
-   * tela inteira acabou de mostrar — e numa live de presentes em sequência a
-   * voz cobriria a própria animação.
+   * Este teste dizia o CONTRÁRIO até 2026-10-15 — "o presente NÃO vira
+   * narração" —, e a decisão mudou a pedido do Leonardo: "narrar cada
+   * presente". O motivo antigo era o espetáculo da tela fazer o barulho todo;
+   * o motivo novo é que o presente é o ÚNICO evento que conta voto, e o único
+   * que custou dinheiro a quem mandou. A pessoa paga e a voz fica muda: é o
+   * silêncio mais estranho possível, justamente no evento mais importante.
+   *
+   * O que a fala precisa dizer é o que a tela não diz junto: a tela mostra a
+   * cédula caindo, e não que foram três rosas da Ana para a Urna 1. Sem o
+   * combo, quem mandou cinco presentes ouve a mesma frase de quem mandou um.
+   */
+  const { hub, fonte } = montar({ config: CONFIG_COM_URNA_NA_FRASE });
+  const tela = hub.conectar(cliente('broadcast'));
+  fonte.emitir({
+    plataforma: 'simulador', userId: 'ana', usuario: 'Ana',
+    giftId: '1', combo: 3, comboIndex: 1, em: 5,
+  });
+  return respirar().then(() => {
+    assert.equal(tela.de('vote.counted').length, 1, 'o presente deixou de contar');
+    const fala = tela.de('narrate')[0];
+    assert.ok(fala, 'o presente contado ficou mudo');
+    assert.equal(fala.payload.tipo, 'presente');
+    assert.match(fala.payload.texto, /Ana/, 'a fala não diz quem mandou');
+    assert.match(fala.payload.texto, /Heart Me/, 'a fala não diz o que foi mandado');
+    assert.match(fala.payload.texto, /3x Heart Me/, 'a fala perdeu o combo');
+    assert.match(fala.payload.texto, /Urna 1/, 'a fala não diz pra quem foi');
+  });
+});
+
+test('o presente sem urna fica quieto até o número chegar', () => {
+  /*
+   * O outro lado da decisão acima: só fala o presente que VIROU VOTO.
+   *
+   * O presente órfão não tem urna, então não tem destino para onde o voto
+   * foi — e a frase que sairia agora anunciaria um voto que não aconteceu.
+   * Quem fala por ele é a cobrança dos quinze segundos, que diz o que ele
+   * precisa ouvir: o que fazer para o presente valer.
+   *
+   * Sem esta guarda o silêncio vira mentira: o padrão TEM frases de presente
+   * desde que a lista nova entrou, e um presente órfão acharia uma.
    */
   const { hub, fonte } = montar();
   const tela = hub.conectar(cliente('broadcast'));
-  fonte.emitir({ plataforma: 'simulador', userId: 'ana', giftId: '1', em: 5 });
+  fonte.emitir({ plataforma: 'simulador', userId: 'ana', usuario: 'Ana', giftId: '777', em: 5 });
   return respirar().then(() => {
-    assert.equal(tela.de('vote.counted').length, 1);
-    assert.equal(tela.de('narrate').length, 0, 'o presente virou narração');
+    assert.equal(tela.de('vote.counted').length, 0, 'o presente órfão contou voto');
+    assert.equal(tela.de('narrate').length, 0, 'o presente órfão falou antes de virar voto');
   });
 });
 
@@ -701,6 +751,49 @@ test('duas falas seguidas chegam na ordem em que aconteceram', () => {
     assert.match(textos[0], /Ana/);
     assert.match(textos[1], /Bia/);
   });
+});
+
+test('a fila da fala tem teto: cheia, ela recusa o anúncio seguinte', () => {
+  /*
+   * A fila existe para as falas chegarem na ordem, e sem teto ela vira uma
+   * dívida. Numa live movimentada chegam mais eventos por segundo do que a
+   * voz consegue falar — cada fala custa o tempo de pronúncia mais o do
+   * arquivo —, e a fila cresce para sempre. O sintoma no ar é o pior
+   * possível: a voz vai ficando para trás e anuncia quem chegou há dois
+   * minutos, falando do passado enquanto a live já é outra.
+   *
+   * Recusar é a escolha certa justamente porque a fala é a parte que envelhece:
+   * um voto perdido é um voto que não subiu, mas uma boas-vindas perdida não
+   * custa nada — a próxima pessoa que entrar é anunciada do mesmo jeito. O que
+   * não pode acontecer é a recusa ENVENENAR a fila: passado o aperto, a fala
+   * seguinte tem que sair normalmente.
+   */
+  const voz = vozDeMentira({ arquivo: 'x.wav', atrasos: new Array(20).fill(40) });
+  const { hub, fonte } = montar({ voz });
+  const tela = hub.conectar(cliente('broadcast'));
+  for (let i = 1; i <= 8; i += 1) fonte.emitir(seguir(`Pessoa ${i}`, `p${i}`));
+
+  return respirar(500)
+    .then(() => {
+      // Seis é o teto, e as oito entraram no MESMO tick: as duas últimas não
+      // têm como ter entrado. As seis primeiras saíram na ordem em que
+      // chegaram, que é o que a fila existe para garantir.
+      const falados = tela.de('narrate').map((m) => m.payload.usuario);
+      assert.deepEqual(
+        falados,
+        ['Pessoa 1', 'Pessoa 2', 'Pessoa 3', 'Pessoa 4', 'Pessoa 5', 'Pessoa 6'],
+        'a fila não cortou em seis, ou cortou fora de ordem',
+      );
+
+      // Passado o aperto, a fila drena — e volta a aceitar.
+      tela.recebidas.length = 0;
+      fonte.emitir(seguir('Depois', 'depois'));
+      return respirar(200);
+    })
+    .then(() => {
+      assert.equal(tela.de('narrate').length, 1, 'a fila ficou entupida depois do aperto');
+      assert.match(tela.de('narrate')[0].payload.texto, /Depois/);
+    });
 });
 
 /*
@@ -905,6 +998,31 @@ test('o presente resgatado leva o nome que a live deu a ele', () => {
   assert.equal(tela.de('vote.animate')[0]?.payload.presente, 'Diamante');
 });
 
+test('o presente resgatado no chat fala como qualquer outro voto', () => {
+  /*
+   * O resgate existe para o presente órfão não sumir, e um presente que virou
+   * voto é um presente que merece fala — igual ao que estava mapeado. Se a
+   * fala saísse só pelo caminho mapeado, o voto resgatado seria um voto de
+   * segunda classe: a tela animava e a voz ficava quieta.
+   *
+   * O COMBO vem junto, e é o detalhe que se perde fácil: o evento do resgate
+   * é um COMENTÁRIO, e o comentário não tem combo nenhum. Quem mandou "5x
+   * Diamante" e escreveu o número ouviria "mandou Diamante" — a mesma frase
+   * de quem mandou um só.
+   */
+  const { fonte, hub, relogio } = montar({ config: CONFIG_COM_URNA_NA_FRASE });
+  const tela = hub.conectar(cliente('broadcast'));
+  fonte.enviar(orfao({ giftNome: 'Diamante', combo: 5, em: relogio.t }));
+  tela.recebidas.length = 0;
+  fonte.comentario({ userId: 'ana', userName: 'Ana', texto: '22', em: relogio.t });
+  return respirar().then(() => {
+    const fala = tela.de('narrate')[0];
+    assert.ok(fala, 'o voto resgatado no chat ficou mudo');
+    assert.match(fala.payload.texto, /5x Diamante/, 'a fala perdeu o combo do presente');
+    assert.match(fala.payload.texto, /Urna 1/, 'a fala não diz para qual urna foi');
+  });
+});
+
 test('o comentário de outra pessoa não resgata o presente', () => {
   /*
    * O chat é público. Se qualquer um resgatasse, um espectador levaria o
@@ -953,6 +1071,40 @@ test('quinze segundos sem número: a voz cobra o número', () => {
     assert.ok(fala, 'os quinze segundos passaram em silêncio');
     assert.match(fala.payload.texto, /Ana/, 'a cobrança não diz de quem é o presente');
     assert.equal(fala.payload.tipo, 'espera');
+  });
+});
+
+test('a cobrança do número não é recusada nem com a fila cheia', () => {
+  /*
+   * A fila cheia recusa fala — mas não esta.
+   *
+   * A cobrança é a única fala do sistema que responde a um SILÊNCIO, e a única
+   * que existe para desfazer um prejuízo: alguém mandou um presente que não
+   * virou voto, e está olhando para uma tela que não explicou nada. Se a fila
+   * cheia a engolisse, o resultado seria o pior caso possível do projeto — a
+   * pessoa pagou, nada aconteceu, e ninguém disse o que fazer.
+   *
+   * E ela é jogada fora de verdade quando é recusada: o `vencidas()` do
+   * `cobrarEsperas` já a consumiu antes de a fala existir. Recusar aqui não é
+   * adiar, é perder.
+   *
+   * A boas-vindas, essa pode ser recusada sem dor: quem chegou depois é
+   * anunciado igual, e é essa assimetria que justifica as duas regras.
+   */
+  const voz = vozDeMentira({ arquivo: 'x.wav', atrasos: new Array(20).fill(40) });
+  const { fonte, hub, relogio } = montar({ voz });
+  const tela = hub.conectar(cliente('broadcast'));
+
+  // A fila inteira ocupada por boas-vindas, no mesmo tick.
+  for (let i = 1; i <= 8; i += 1) fonte.emitir(seguir(`Pessoa ${i}`, `p${i}`));
+  fonte.enviar(orfao({ em: relogio.t }));
+  relogio.t += 20_000;
+  hub.tick();
+
+  return respirar(900).then(() => {
+    const fala = tela.de('narrate').find((m) => m.payload.tipo === 'espera');
+    assert.ok(fala, 'a fila cheia engoliu a cobrança do número');
+    assert.match(fala.payload.texto, /Ana/);
   });
 });
 

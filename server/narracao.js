@@ -22,32 +22,281 @@
  * sem isto o Leonardo teria que inventar todas antes de ouvir a primeira.
  *
  * Mais de uma por tipo porque a alternância é o que impede a live de soar
- * automática. `{nome}` e `{quantidade}` são os marcadores.
+ * automática — e quanto mais frases a lista tem, mais longe a live vai antes
+ * de qualquer uma repetir. Os marcadores são cinco: `{nome}`, `{quantidade}`,
+ * `{presente}`, `{urna}` e `{vezes}`. Só a curtida usa `{quantidade}`, que é
+ * uma contagem; nas outras listas o número é o do combo do presente, que chega
+ * em `{vezes}` já pronto.
+ *
+ * As quatro listas de evento social — `entrada`, `seguidor`, `curtida` e
+ * `presente` — foram ampliadas com as do `tiktok-live-horse`, que é a mesma
+ * plateia e o mesmo narrador. Lá as frases são sobre a prova de turfe; aqui o
+ * assunto é voto. O que não sobreviveu à troca está explicado antes de cada
+ * lista.
+ *
+ * Duas coisas que NENHUMA frase faz, e são de propósito:
+ *
+ *   - **artigo antes de `{nome}` ou de `{urna}`.** Nada de "pro {nome}", "do
+ *     {nome}", "o {nome}" nem "a {urna}". Os dois são gente de nome próprio, e
+ *     o artigo sai certo para metade delas e errado para a outra metade — o
+ *     "pro Ana" que a live inteira ouve. Onde o turfe escrevia "pro {cavalo}",
+ *     aqui é "pra {nome}"; onde escrevia "do {nome}", é "de {nome}", que serve
+ *     para os dois;
+ *   - **"1x".** O `{vezes}` vazio no presente único é o que faz a frase sair
+ *     "mandou Rosa" em vez de "mandou 1x Rosa", que não é como uma pessoa fala.
  */
 export const FALAS_PADRAO = Object.freeze({
+  /*
+   * Quem passou a seguir a live.
+   *
+   * As frases novas vieram da lista de seguidor do `tiktok-live-horse`, quase
+   * todas inteiras — seguir é seguir nas duas lives. Ficaram de fora as que
+   * tratavam a plateia como público de turfe e as que elogiavam o seguidor por
+   * não perder prova: são cenário do hipódromo, e trocar uma palavra ali
+   * deixaria um remendo no lugar de uma frase.
+   */
   seguidor: Object.freeze([
     'Mais um seguidor! Valeu, {nome}!',
     '{nome} acabou de seguir! Bem-vindo à família!',
     'Seguidor novo na área: {nome}!',
     'Obrigado por seguir, {nome}!',
+    'Mais um seguidor na família! Muito obrigado, {nome}!',
+    'Seguiu a live! Seja muito bem-vindo, {nome}! Tamo junto!',
+    'Olha aí, {nome} começou a seguir a live! Valeu demais!',
+    'Gratidão por seguir, {nome}!',
+    'A família cresceu! Valeu pelo follow, {nome}!',
+    'Aeee! {nome} seguiu a live! Seja bem-vindo à família!',
+    'Follow novo na área! Obrigado, {nome}!',
+    'Uhuu! {nome} entrou pra família! Gratidão pelo follow!',
+    'É isso! {nome} seguiu a live! Seja muito bem-vindo!',
+    'Olha o follow! {nome} agora é da família! Valeu demais!',
+    'Boa, {nome}! Seguiu a live! Obrigado!',
+    'Que alegria, {nome}! Obrigado por seguir a live!',
+    'Muito obrigado por seguir, {nome}! Aqui você sempre tem lugar!',
+    '{nome}, gratidão por fazer parte da família! Valeu pelo follow!',
+    'Que carinho seguir a live, {nome}! Seja muito bem-vindo!',
+    'Você é parte da família agora, {nome}! Obrigado pelo follow!',
+    'Que bom ter você por aqui, {nome}! Valeu por seguir!',
+    'Obrigado pela confiança, {nome}! Seguiu e já é da família!',
+    '{nome}, fica à vontade! Obrigado por seguir a live!',
+    'Alô, alô! {nome} apertou o botão de seguir! Valeu!',
+    '{nome} deu o follow e a live agradece! Bem-vindo!',
+    'Seguiu, entrou! Agora {nome} é da família! Obrigado!',
+    'Chama a banda! {nome} seguiu a live! Valeu demais!',
+    'Valeu por seguir, {nome}!',
+    'Seguiu! Obrigado, {nome}!',
+    'Bem-vindo à família, {nome}!',
+    'Follow de {nome}! Gratidão!',
+    'Obrigado pelo follow, {nome}!',
   ]),
+  /*
+   * A rajada de curtidas — o gesto, e não o toque (ver `LIMIAR_CURTIDA`).
+   *
+   * As frases novas vieram da lista de curtidas do `tiktok-live-horse`, quase
+   * todas inteiras. Só duas mexidas: a que elogiava a velocidade do dedo
+   * comparando com o turfe saiu, e a que dizia "mais de vinte curtidas" virou
+   * `{quantidade}` — vinte é o limiar de HOJE, e uma frase que decorasse o
+   * número mentiria no dia em que ele mudasse (e já mentiria na rajada de
+   * exatamente vinte).
+   */
   curtida: Object.freeze([
     '{nome} mandou {quantidade} curtidas!',
     'Valeu pelas {quantidade} curtidas, {nome}!',
     '{quantidade} curtidas de uma vez, {nome}! Isso é apoio!',
+    'Valeu pelas {quantidade} curtidas, {nome}! O dedo tá voando!',
+    'Olha a chuva de curtidas de {nome}! Muito obrigado pelo carinho!',
+    '{quantidade} curtidas na tela! {nome} tá fortalecendo a live!',
+    'Metralhadora de curtidas de {nome}! Gratidão demais, família!',
+    'Que rajada de curtidas! Valeu, {nome}! O dedo não para!',
+    'Explodiu de curtida! {nome} tá com tudo! Muito obrigado!',
+    'Chuva de coração! {nome} mandou {quantidade} curtidas! Valeu demais!',
+    'Olha o carinho! {nome} mandou {quantidade} curtidas de uma vez!',
+    'É curtida que não acaba! Valeu, {nome}! Gratidão total!',
+    'Que dedo rápido! {nome} mandou {quantidade} curtidas! Obrigado!',
+    'A tela encheu de coração! Valeu pelas curtidas, {nome}!',
+    '{nome} mandou ver nas curtidas! Muito obrigado, família!',
+    'Que carinho, {nome}! Obrigado por tantas curtidas!',
+    'Muito obrigado pelas curtidas, {nome}! Isso ajuda demais a live!',
+    '{nome}, gratidão por cada curtida! Você é demais!',
+    'Que apoio lindo, {nome}! Valeu pelas {quantidade} curtidas!',
+    'Cada curtida conta! Obrigado, {nome}!',
+    'Obrigado por fortalecer a live, {nome}! Que chuva de curtidas!',
+    'Isso aquece o coração! Valeu pelas curtidas, {nome}!',
+    '{nome}, seu carinho chegou! Valeu pelas curtidas, família!',
+    'Tá com o dedo de ouro, {nome}! {quantidade} curtidas! Valeu!',
+    'O dedo de {nome} tá pegando fogo! Muito obrigado pelas curtidas!',
+    'Cuidado, {nome}! Assim a tela quebra de tanta curtida! Valeu!',
+    'Tapete vermelho pra {nome}! Mandou {quantidade} curtidas de uma vez!',
+    'Alô, alô! {nome} tá curtindo sem parar! Gratidão!',
+    '{nome} treinou o dedo! Valeu pelas curtidas, família!',
+    'Aplausos pra {nome}! Que rajada de curtidas! Obrigado!',
+    'Valeu pelas curtidas, {nome}!',
+    'Que rajada de curtidas, {nome}! Obrigado!',
+    '{nome} mandou {quantidade} curtidas! Valeu!',
+    'Gratidão, {nome}! Chuva de curtidas!',
+    'Show, {nome}! Obrigado pelas curtidas!',
   ]),
+  /*
+   * A chegada. As três primeiras são as deste projeto; as demais vieram da
+   * lista de boas-vindas do `tiktok-live-horse`.
+   *
+   * Metade da lista de lá só existia por causa do turfe — a chegada no
+   * hipódromo, o lugar cativo na plateia, a torcida que crescia —, e essas
+   * ficaram de fora inteiras: trocar uma palavra deixaria um remendo no lugar
+   * de uma frase, e o que se ganharia era uma linha morna a mais. A exceção
+   * são as que tinham o turfe como apêndice: onde cortar o pedaço deixava a
+   * ideia de pé ("Bem-vindo à família", "Fica com a gente"), a frase veio
+   * cortada, sem uma palavra nova no lugar.
+   *
+   * A outra seção descartada é a do convite para escolher o animal da prova
+   * comentando um número de um a oito: aqui o comentário não escolhe nada, e o
+   * convite certo é mandar presente — esse sim conta voto.
+   */
   entrada: Object.freeze([
     'Bem-vindo, {nome}!',
-    'Olha o {nome} chegando!',
+    'Olha {nome} chegando!',
     'Fala, {nome}! Chegou na hora certa.',
+    'Olha quem chegou! {nome}, seja bem-vindo à live!',
+    'Chegou mais um torcedor! Bem-vindo, {nome}!',
+    'Aeee! {nome} chegou! Bem-vindo à família!',
+    'Família crescendo! {nome} chegou! Seja bem-vindo!',
+    'Uhuu! Olha {nome} aqui! Bem-vindo!',
+    'Que bom te ver, {nome}! Seja bem-vindo à live!',
+    'Chegou {nome}! Bem-vindo, família!',
+    '{nome} entrou na live! Bem-vindo!',
+    'A live ficou melhor! {nome} chegou! Bem-vindo!',
+    'Bem-vindo, {nome}! Comenta e vibra com a gente!',
+    'Olha ele aí! {nome}, seja bem-vindo!',
+    'Tá começando a festa! {nome} chegou! Bem-vindo!',
+    '{nome} chegou na hora certa! Bem-vindo!',
+    'Eita, chegou gente boa! Bem-vindo, {nome}!',
+    'Que alegria te receber, {nome}! Fica à vontade!',
+    'Bem-vindo, {nome}! Aqui todo mundo é família!',
+    'Oi, {nome}! Que bom que você chegou! Bem-vindo!',
+    '{nome}, a live ficou mais bonita com você! Bem-vindo!',
+    'Obrigado por vir, {nome}! Fica com a gente!',
+    'Que bom ter você aqui, {nome}! Bem-vindo, de coração!',
+    'Bem-vindo, {nome}! Manda um presente!',
+    'Chama a banda! {nome} chegou! Bem-vindo!',
+    'Abram alas pra {nome}! Bem-vindo à live, família!',
+    'Entrada triunfal de {nome}! Seja bem-vindo à live!',
+    'Quem chegou? Foi {nome}! Bem-vindo!',
+    'Oi, {nome}! Bem-vindo à live!',
+    'Seja bem-vindo, {nome}!',
+    'Salve, {nome}! Bem-vindo, família!',
+    '{nome} na live! Bem-vindo!',
+    'Boa, {nome}! Bem-vindo e boa sorte!',
   ]),
   compartilhou: Object.freeze([
     '{nome} compartilhou a live! Valeu demais!',
     'A live chegou mais longe: {nome} compartilhou!',
+    '{nome} mandou a live pra galera! Isso ajuda demais!',
+    'Olha a força: {nome} compartilhou a live!',
+    'Compartilhou! {nome} tá trazendo gente nova pra cá!',
+    'Valeu, {nome}! A live agora tá na mão de mais gente!',
+    '{nome} espalhou a live! Chega mais gente pra votar!',
+    'Isso, {nome}! Compartilhar é o que traz a galera!',
+    'A live circulou! Obrigado, {nome}!',
+    '{nome} chamou o pessoal! Bem-vindos, todo mundo!',
   ]),
   assinatura: Object.freeze([
     '{nome} virou assinante! Que isso!',
     'Assinante novo: {nome}! Muito obrigado!',
+    'Olha {nome} apoiando de verdade! Virou assinante!',
+    '{nome} assinou a live! Gratidão, família!',
+    'Assinatura nova na área: {nome}! Valeu demais!',
+    'Que presente pra live: {nome} virou assinante!',
+    '{nome} tá junto de verdade agora! Assinante novo!',
+    'Obrigado por assinar, {nome}! Isso sustenta a live!',
+    '{nome} entrou pra lista de assinantes! Que honra!',
+    'Assinante na casa: {nome}! Muito obrigado pelo apoio!',
+  ]),
+  /*
+   * O PRESENTE, que é o evento que mais importa aqui.
+   *
+   * Ele é o único que conta voto — a pessoa gastou moeda e a urna recebeu —, e
+   * até esta versão ele não era falado: a tela animava a mão digitando e a voz
+   * ficava quieta, que é o silêncio mais estranho possível para quem acabou de
+   * pagar por ele.
+   *
+   * `{vezes}` é "5x " quando o presente veio em combo, e vazio quando veio um
+   * só — "1x Rosa" não existe na língua falada, é "mandou Rosa". A convenção é
+   * a mesma do `tiktok-live-horse`, de onde estas frases vieram.
+   *
+   * `{urna}` é o nome de quem recebeu o voto. Ele aparece porque é o que a
+   * pessoa quer ouvir de volta: o presente dela fez diferença PARA ALGUÉM.
+   * Nenhuma frase põe artigo antes dele: as urnas deste projeto são gente, e
+   * "a {urna} agradece" sairia errado para metade dos nomes.
+   *
+   * A lista foi ampliada com as do `tiktok-live-horse`, e a troca é sempre a
+   * mesma: onde lá a frase apontava para o corredor, aqui ela aponta para a
+   * urna, sem artigo na frente; o combo, que lá chegava em `{quantidade}`,
+   * chega aqui em `{vezes}`; e o resto da frase veio palavra por palavra.
+   *
+   * O que só existia por causa da prova — arrancada, velocidade, spa, o
+   * corredor ganhando asas ou massagem — ficou de fora, e sem substituto: uma
+   * frase inventada para preencher cota soa pior do que a lista menor.
+   */
+  presente: Object.freeze([
+    'Olha o presente! {nome} mandou {vezes}{presente}!',
+    '{nome} mandou {vezes}{presente}! Valeu, família!',
+    'Presente na área! {nome} mandou {vezes}{presente}!',
+    '{nome} mandou {vezes}{presente} pra {urna}! Valeu demais!',
+    'Que presente! {nome} mandou {vezes}{presente} pra {urna}!',
+    'É presente! {nome} mandou {vezes}{presente}!',
+    'Uhuu! {nome} mandou {vezes}{presente} pra {urna}!',
+    '{nome} mandou {vezes}{presente}! {urna} agradece!',
+    'Gratidão, {nome}! {vezes}{presente} pra {urna}!',
+    'Olha a força! {nome} mandou {vezes}{presente} pra {urna}!',
+    '{nome} mandou {vezes}{presente}! Isso é apoio de verdade!',
+    'Presente pra {urna}! {nome} mandou {vezes}{presente}!',
+    'Família, olha isso! {nome} mandou {vezes}{presente} pra {urna}!',
+    '{nome} mandou {vezes}{presente}! Obrigado pelo apoio!',
+    'Chegou presente! {nome} mandou {vezes}{presente} pra {urna}!',
+    '{nome} mandou {vezes}{presente}! Chega mais, família!',
+    'Aeee! {nome} mandou {vezes}{presente} pra {urna}!',
+    '{nome} mandou {vezes}{presente}! A urna agradece o apoio!',
+    'Olha o presente! {nome} mandou {vezes}{presente} pra {urna}!',
+    'Aeee! {nome} mandou {vezes}{presente} pra {urna}! Valeu, família!',
+    'Presente na área! {nome} mandou {vezes}{presente}! {urna} agradece!',
+    'Que jogada! {nome} mandou {vezes}{presente} pra {urna}! Valeu demais!',
+    'É presente! {nome} mandou {vezes}{presente} pra {urna}!',
+    'Olha a força! {nome} mandou {vezes}{presente} pra {urna}! Obrigado!',
+    'Forte! {nome} mandou {vezes}{presente} pra {urna}! Muito obrigado!',
+    'Chegou chegando! {nome} mandou {vezes}{presente} pra {urna}!',
+    'Uau! {nome} mandou {vezes}{presente}, família!',
+    'Valeu, {nome}! {vezes}{presente} recebido!',
+    'Que carinho! {nome} mandou {vezes}{presente}!',
+    'Combustível novo! {nome} mandou {vezes}{presente} pra {urna}! Obrigado!',
+    'Sentiu o empurrão? {nome} mandou {vezes}{presente} pra {urna}! Valeu!',
+    'Que vento a favor! {nome} mandou {vezes}{presente}! {urna} agradece!',
+    'Acelerou! {nome} mandou {vezes}{presente}! Não para mais!',
+    'Haja coração! {nome} mandou {vezes}{presente} pra {urna}! Obrigadão!',
+    'É emoção demais! {nome} mandou {vezes}{presente}!',
+    'Isso é amor! {nome} mandou {vezes}{presente} pra {urna}! Valeu!',
+    'Grita aí, família! {nome} mandou {vezes}{presente} pra {urna}!',
+    'Que coração bonito, {nome}! {vezes}{presente} pra {urna}! Obrigado!',
+    'Obrigado pelo carinho, {nome}! {vezes}{presente} pra {urna}!',
+    'Você é demais, {nome}! {vezes}{presente} pra {urna}! Gratidão!',
+    'Que gesto lindo! {nome} mandou {vezes}{presente} pra {urna}! Valeu!',
+    'Família linda! {nome} mandou {vezes}{presente}! {urna} agradece!',
+    'Isso aquece o coração! {nome} mandou {vezes}{presente} pra {urna}!',
+    'De coração, {nome}! {vezes}{presente} pra {urna}! Muito obrigado!',
+    'Alô, alô! {nome} mandou {vezes}{presente}!',
+    '{nome} não veio brincar! {vezes}{presente} pra {urna}! Valeu!',
+    'Tapete vermelho pra {nome}! Mandou {vezes}{presente} pra {urna}!',
+    'Tá chovendo presente! {nome} mandou {vezes}{presente} pra {urna}!',
+    'Dá-lhe, {nome}! {vezes}{presente} pra {urna}! Valeu demais!',
+    'Cuidado, adversários! {nome} mandou {vezes}{presente} pra {urna}!',
+    'Aplausos pra {nome}! {vezes}{presente} pra {urna}! Valeu, família!',
+    'Valeu, {nome}! {vezes}{presente} pra {urna}!',
+    'Obrigado, {nome}! {vezes}{presente}!',
+    'Show, {nome}! {vezes}{presente} pra {urna}!',
+    'Gratidão, {nome}! {vezes}{presente}!',
+    'Boa, {nome}! {vezes}{presente} pra {urna}!',
+    'Top, {nome}! {vezes}{presente}! {urna} agradece!',
+    'Chegou {vezes}{presente} de {nome}!',
+    'É isso, {nome}! {vezes}{presente} pra {urna}! Valeu!',
   ]),
   /*
    * A cobrança de quem mandou um presente que não está no painel.
@@ -84,6 +333,19 @@ const COOLDOWN_MS = Object.freeze({
   assinatura: 60_000,
   curtida: 60_000,
   /*
+   * O do presente é CURTO — trinta segundos —, e é o único que não podia ser
+   * um minuto.
+   *
+   * Ele não existe para calar o presente: existe para quem manda DEZ presentes
+   * seguidos não virar dez falas e a fila inteira parar atrás dessa pessoa.
+   * Trinta segundos é o meio-termo: o primeiro presente sempre fala, e quem
+   * continua mandando é anunciado de novo antes de a live esquecer o nome
+   * dele. Com um minuto, quem presenteia a cada quarenta segundos a noite
+   * inteira teria METADE dos presentes falados — e é o evento que a pessoa
+   * pagou para ver.
+   */
+  presente: 30_000,
+  /*
    * O da cobrança é CURTO, e de propósito: ele não protege contra repetição —
    * quem protege é a própria espera, que só vence uma vez por presente. Ele
    * está aqui só para um caso patológico, o de alguém mandando presentes
@@ -99,10 +361,16 @@ const COOLDOWN_MS = Object.freeze({
  *
  * O TikTok manda um evento por toque. Falar cada um encheria a fila de
  * "valeu pela curtida" centenas de vezes, e o narrador ficaria minutos atrás
- * da live. Cinco toques são um gesto; uma curtida perdida no meio da noite
+ * da live. Vinte toques são um gesto; uma curtida perdida no meio da noite
  * não é, e é a janela abaixo que separa os dois.
+ *
+ * Vinte, e não cinco, é o número do `tiktok-live-horse`: lá ele foi ajustado
+ * ouvindo a live, e a cinco a fala saía em toda rajada pequena — o que soa
+ * como o narrador comemorando qualquer coisa. Aqui ele é o mesmo por dois
+ * motivos: é um número já testado no ar, e as duas lives são do mesmo dono,
+ * com a mesma plateia.
  */
-const LIMIAR_CURTIDA = 5;
+const LIMIAR_CURTIDA = 20;
 const JANELA_CURTIDA_MS = 3_000;
 
 /**
@@ -190,14 +458,24 @@ export function nomeFalavel(nome, usuario = '') {
  *
  * `usuario` é o @: ele só é consultado quando o apelido não tem nada que se
  * possa falar.
+ *
+ * `{vezes}` chega PRONTO de quem chama ("5x " ou vazio), e não é calculado
+ * aqui: o mesmo `{quantidade}` quer dizer números diferentes em tipos
+ * diferentes — "6 curtidas" é uma contagem, "5x Rosa" é um prefixo —, e
+ * juntar os dois numa regra só faria uma das duas frases sair errada.
  */
-export function preencher(modelo, { nome = '', usuario = '', quantidade = 0 } = {}) {
+export function preencher(modelo, {
+  nome = '', usuario = '', quantidade = 0, presente = '', urna = '', vezes = '',
+} = {}) {
   const quem = nomeFalavel(nome, usuario);
   return String(modelo ?? '')
     // `replaceAll`, e não `replace`: uma frase com `{nome}` duas vezes sairia
     // com o segundo marcador cru na tela.
     .replaceAll('{nome}', quem)
-    .replaceAll('{quantidade}', String(quantidade));
+    .replaceAll('{quantidade}', String(quantidade))
+    .replaceAll('{presente}', String(presente))
+    .replaceAll('{urna}', String(urna))
+    .replaceAll('{vezes}', String(vezes));
 }
 
 /**
@@ -300,6 +578,22 @@ export function criarNarrador({ falas = {}, sorteio = Math.random, agora = Date.
       const modelos = modelosDe(tipo);
       if (modelos.length === 0) return null;
 
+      /*
+       * O presente só fala depois de virar VOTO.
+       *
+       * O presente que chega sem catálogo, ou com um que o mapeamento não
+       * conhece, não conta voto nenhum: ele abre uma espera e vira uma
+       * cobrança quinze segundos depois. Falar por ele agora anunciaria um
+       * voto que não aconteceu — e a frase sairia "Ana mandou !", com o nome
+       * do presente em branco, na frente da live inteira.
+       *
+       * Quem enche o `presente` é quem sabe que o voto aconteceu. Aqui, sem
+       * ele, é silêncio — e a guarda fica ANTES do cooldown de propósito: um
+       * presente órfão não pode gastar o silêncio de trinta segundos de quem
+       * manda outro presente, dez segundos depois, que esse sim vale.
+       */
+      if (tipo === 'presente' && !String(evento.presente ?? '').trim()) return null;
+
       const t = agora();
       const quem = String(evento.userId || evento.usuario || '');
       const chave = `${tipo}:${quem || '?'}`;
@@ -319,12 +613,25 @@ export function criarNarrador({ falas = {}, sorteio = Math.random, agora = Date.
         rajadas.delete(chave);
       }
 
+      /*
+       * O combo do presente, que é o que `{vezes}` mostra.
+       *
+       * A TikTok manda "cinco rosas" como UM evento com combo 5, e não como
+       * cinco eventos — então a contagem do combo é o que a pessoa fez, e
+       * dizê-la é o que faz a fala valer para quem mandou. Um `1` vira vazio:
+       * "mandou 1x Rosa" não é como uma pessoa fala.
+       */
+      const combo = tipo === 'presente' ? Math.max(1, Math.floor(Number(evento.combo) || 1)) : 1;
+
       liberadoEm.set(chave, t + (COOLDOWN_MS[tipo] ?? 60_000));
       const texto = preencher(escolher(tipo, modelos), {
         nome: evento.usuario,
         // O @ só é usado se o apelido não sobrar em nada falável.
         usuario: evento.userId,
         quantidade,
+        presente: evento.presente,
+        urna: evento.urna,
+        vezes: combo > 1 ? `${combo}x ` : '',
       });
       aoNarrar?.(texto);
       return texto;

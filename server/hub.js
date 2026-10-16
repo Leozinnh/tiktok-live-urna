@@ -367,21 +367,58 @@ export function criarHub({
    *   - **uma fala de cada vez.** Numa live movimentada chegam vários eventos
    *     no mesmo segundo, e cada `sintetizar` demora o que demora. Sem a
    *     fila, a segunda fala, que é rápida, chegaria antes da primeira: a
-   *     live ouviria "bem-vindo, Bia" antes do "bem-vindo, Ana".
+   *     live ouviria "bem-vindo, Bia" antes do "bem-vindo, Ana";
+   *   - **a fila tem TETO.** Sem ele, uma live movimentada acumula mais fala
+   *     do que a voz consegue dizer, e o sintoma no ar é a voz ficando para
+   *     trás: ela anuncia quem chegou há dois minutos, falando do passado
+   *     enquanto a live já é outra. Cheia, a fila recusa — e recusar é barato
+   *     justamente aqui, porque a fala é a parte que envelhece: o nome de quem
+   *     acabou de chegar não volta, mas o de quem chegar depois é anunciado
+   *     igual. O voto NÃO passa por esta fila, então nenhuma recusa custa
+   *     contagem.
    */
+  const FILA_DA_FALA_MAX = 6;
   let filaDaFala = Promise.resolve();
+  let naFila = 0;
 
-  function narrar(evento) {
+  /**
+   * @param {object} evento
+   * @param {object} [opcoes]
+   * @param {boolean} [opcoes.essencial] `true` para a fala que NÃO pode ser
+   *   recusada pela fila cheia. É a cobrança do número, e só ela: as outras
+   *   falas são avisos, e a cobrança é a única que desfaz um prejuízo.
+   */
+  function narrar(evento, { essencial = false } = {}) {
     if (cfg.narracao?.ativa === false) return;
+    /*
+     * A recusa vem ANTES do narrador, e não depois.
+     *
+     * O `narrador.narrar` não só escolhe a frase: ele marca o cooldown da
+     * pessoa e acumula a rajada de curtidas. Consultá-lo para depois jogar a
+     * fala fora gastaria o silêncio de quem foi recusado — a pessoa ficaria um
+     * minuto muda por causa de uma fala que ninguém ouviu, e numa live cheia
+     * ela nunca mais seria anunciada.
+     *
+     * A exceção é a cobrança, e a assimetria tem motivo: uma boas-vindas
+     * recusada não custa nada — quem chegar depois é anunciado igual —, mas a
+     * cobrança já foi CONSUMIDA da espera antes de virar fala. Recusá-la não é
+     * adiá-la, é perdê-la, e o que se perde com ela é a única explicação que
+     * quem mandou um presente órfão tem para ouvir.
+     */
+    if (!essencial && naFila >= FILA_DA_FALA_MAX) return;
     const texto = narrador.narrar(evento);
     // `null` é a resposta para quem não merece fala — a curtida solta, o
     // repetido, o apelido em cooldown. Silêncio é decisão, e não erro.
     if (!texto) return;
+    naFila += 1;
     filaDaFala = filaDaFala
       .then(() => anunciarNaTela(evento, texto))
       // Um erro aqui não pode envenenar a fila pelo resto da noite: a
       // promessa rejeitada faria toda fala seguinte cair no mesmo buraco.
-      .catch(() => {});
+      .catch(() => {})
+      // A vaga só volta quando a fala TERMINA — é o tempo da voz que a fila
+      // mede. Soltar antes faria o teto contar falas que ainda nem começaram.
+      .then(() => { naFila -= 1; });
   }
 
   /**
@@ -416,7 +453,7 @@ export function criarHub({
         usuario: vencida.usuario,
         quantidade: vencida.combo,
         em: agora(),
-      });
+      }, { essencial: true });
     }
     avisarEspera();
   }
@@ -477,7 +514,20 @@ export function criarHub({
         { numero: resgate.numero },
       );
       if (r.contado) {
-        anunciarVoto(r, { ...evento, usuario: resgate.usuario, giftId: resgate.giftId });
+        /*
+         * O `giftNome` e o `combo` viajam JUNTO com o resgate, e não são
+         * detalhe: o evento daqui é um COMENTÁRIO, e comentário não tem
+         * presente nem combo nenhum. Sem eles a fala do voto resgatado sairia
+         * sem o nome do presente e sem o "5x" — a mesma frase de quem mandou
+         * um presente só, e um voto de segunda classe em relação ao mapeado.
+         */
+        anunciarVoto(r, {
+          ...evento,
+          usuario: resgate.usuario,
+          giftId: resgate.giftId,
+          giftNome: resgate.presente,
+          combo: resgate.combo,
+        });
         avisarEspera();
       }
       return;
@@ -577,6 +627,29 @@ export function criarHub({
     // saber ainda que havia um voto a caminho, e o número subia um quadro
     // antes de a mão aparecer. Custou uma medição no navegador para aparecer.
     enviarATodos('tally.update', placar());
+
+    /*
+     * A fala do presente, e ela vem DEPOIS do placar.
+     *
+     * O presente é o único evento que conta voto, e era o único que não era
+     * falado: a tela animava a mão digitando e a voz ficava quieta — no evento
+     * que a pessoa pagou para acontecer. A ordem não é detalhe: o que a tela
+     * mostra primeiro é o voto acontecendo, e a voz confirma o que já está lá.
+     *
+     * Os campos que a frase usa não estão no evento cru, e é aqui que eles
+     * nascem: `presente` é o nome que o MOTOR contou — o do mapeamento quando
+     * existe, o que veio da TikTok quando o voto foi resgatado no chat —, e
+     * `urna` é o nome de quem recebeu, que o evento não traz em lugar nenhum.
+     * O `combo` é o do evento, e sem ele quem manda cinco presentes ouve a
+     * mesma frase de quem mandou um.
+     */
+    narrar({
+      ...evento,
+      tipo: 'presente',
+      presente: r.presente,
+      urna: cfg.urnas?.[r.urnaId]?.nome,
+      combo: evento.combo,
+    });
 
     if (r.lideranca) {
       enviarATodos('lead.changed', {

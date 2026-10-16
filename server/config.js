@@ -112,6 +112,19 @@ export const PADRAO = Object.freeze({
     // deixaria a live muda com o narrador "ligado" — o painel mostra qual foi
     // escolhida justamente para isso ter onde aparecer.
     voz: '',
+    /*
+     * As vozes do rodízio, na ordem em que alternam.
+     *
+     * O padrão é feminina + masculina, e não duas do mesmo timbre: o que se
+     * ouve na live é o CONTRASTE. Duas vozes parecidas alternando soariam
+     * como uma voz só falhando, e aí o rodízio não valeria o trabalho.
+     *
+     * LISTA VAZIA É UMA DECISÃO: uma voz só, a de `voz`. É a mesma distinção
+     * que as frases fazem, e sem ela apagar a lista no arquivo traria as duas
+     * de volta no salvamento seguinte — o Leonardo não teria como pedir uma
+     * voz só sem escolher uma voz que ele não quer.
+     */
+    vozes: Object.freeze(['pt-BR-FranciscaNeural', 'pt-BR-AntonioNeural']),
     // A escala do painel, de -10 a 10. No edge, o 0 é o +8% do horse.
     velocidade: 0,
     volume: 1,
@@ -259,6 +272,25 @@ function conferirEscolha(valor, permitidos, padrao, rotulo, avisos) {
 }
 
 /**
+ * Uma lista de textos vinda do arquivo, limpa.
+ *
+ * A linha em branco é o jeito mais natural de separar grupos numa caixa de
+ * texto do painel. Deixá-la passar viraria uma fala muda na fila, atrasando a
+ * seguinte num silêncio que ninguém pediu.
+ *
+ * AUSENTE (ou coisa que não é lista) herda o padrão; LISTA vale o que sobrar
+ * dela — inclusive nada. Lista que limpa para vazia é uma lista VAZIA, e não
+ * um erro a resgatar: as duas são o mesmo pedido, e o pedido é do Leonardo.
+ *
+ * As frases e as vozes usam esta mesma função de propósito. São o mesmo campo
+ * em dois lugares, e duas cópias da regra acabariam discordando.
+ */
+function listaDeTextos(bruto, padrao) {
+  if (!Array.isArray(bruto)) return [...padrao];
+  return bruto.filter((f) => typeof f === 'string' && f.trim()).map((f) => f.trim());
+}
+
+/**
  * As frases do narrador — a lista de cada tipo social.
  *
  * A distinção que faz o painel funcionar: lista APAGADA cala aquele tipo,
@@ -272,24 +304,26 @@ function conferirFalas(bruto, avisos) {
   const fonte = ehObjeto(bruto) ? bruto : {};
   const saida = {};
   for (const tipo of Object.keys(FALAS_PADRAO)) {
-    const lista = fonte[tipo];
-    if (!Array.isArray(lista)) {
-      // Ausente, ou coisa que não é lista: herda o projeto.
-      saida[tipo] = [...FALAS_PADRAO[tipo]];
-      continue;
-    }
-    // A linha em branco é o jeito mais natural de separar grupos numa caixa
-    // de texto do painel. Deixá-la passar viraria uma fala muda na fila,
-    // atrasando a seguinte num silêncio que ninguém pediu.
-    saida[tipo] = lista
-      .filter((f) => typeof f === 'string' && f.trim())
-      .map((f) => f.trim());
+    // Ausente, ou coisa que não é lista: herda o projeto.
+    saida[tipo] = listaDeTextos(fonte[tipo], FALAS_PADRAO[tipo]);
   }
   const desconhecidos = Object.keys(fonte).filter((k) => !(k in FALAS_PADRAO));
   if (desconhecidos.length) {
     avisos.push(`narracao.falas: "${desconhecidos.join(', ')}" não é um tipo de fala conhecido; ignorei`);
   }
   return saida;
+}
+
+/**
+ * As vozes do rodízio.
+ *
+ * Mesma regra das frases, e de propósito: a lista AUSENTE herda o projeto (e
+ * o projeto decide rodízio, porque é ele que sabe o que soa bem numa live), e
+ * a lista APAGADA é uma voz só, a de `voz` — sem essa distinção o Leonardo não
+ * teria como pedir uma voz sem escolher uma que ele não quer.
+ */
+function conferirVozes(bruto) {
+  return listaDeTextos(bruto, PADRAO.narracao.vozes);
 }
 
 /** Entre dois números, sem deixar `NaN` passar pela comparação. */
@@ -379,6 +413,7 @@ export function normalizar(bruto = {}) {
       return motorConhecido(pedido) ? pedido : PADRAO.narracao.motor;
     })(),
     voz: texto(base.narracao?.voz),
+    vozes: conferirVozes(base.narracao?.vozes),
     // O SAPI vai de -10 a 10. Um `99` não estoura nada, mas o número que o
     // painel mostraria não seria o que está valendo — e aí ele mexeria no
     // campo, nada mudaria, e ele não entenderia por quê.

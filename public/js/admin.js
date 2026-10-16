@@ -431,7 +431,17 @@ secoesEl.addEventListener('click', (ev) => {
     rede.enviar({
       tipo: 'sim.gift',
       giftId: disparar.dataset.disparar,
-      userId: 'painel',
+      /*
+       * Cada aperto é uma PESSOA NOVA, pelo mesmo motivo do botão social
+       * abaixo: desde que o presente contado virou fala, o narrador anuncia
+       * cada pessoa uma vez a cada trinta segundos. Com o `userId` fixo, o
+       * segundo aperto sairia mudo — e um botão de teste mudo é indistinguível
+       * de uma voz quebrada, que é justamente o que ele existe para descobrir.
+       *
+       * O nome mostrado continua sendo o do campo "quem": quem muda é só a
+       * identidade que o cooldown usa.
+       */
+      userId: `teste-${++pessoasDeTeste}`,
       userName: el('quem')?.value || 'Painel',
       combo,
     });

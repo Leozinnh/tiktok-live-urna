@@ -131,8 +131,8 @@
   /* O número é aceso na cor da urna — é o que faz a etiqueta parecer um
      letreiro e não um rótulo impresso. */
   text-shadow:
-    0 0 10px var(--cor-urna, #8a8f98),
-    0 0 22px var(--cor-urna, #8a8f98);
+    0 0 5px var(--cor-urna, #8a8f98),
+    0 0 10px var(--cor-urna, #8a8f98);
 }
 
 /*

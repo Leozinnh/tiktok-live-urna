@@ -169,12 +169,19 @@ test('uma curtida sozinha não merece fala', () => {
 });
 
 test('a rajada de curtidas vira UMA fala, com o total junto', () => {
-  // Cinco toques seguidos são um gesto só, e é assim que a live deve ouvir.
+  /*
+   * Vinte toques seguidos são um gesto só, e é assim que a live deve ouvir.
+   *
+   * O número subiu de cinco para vinte em 2026-10-15, para casar com o
+   * `tiktok-live-horse`, onde ele foi ajustado ouvindo a live: a cinco, a fala
+   * saía em toda rajada pequena e soava como o narrador comemorando qualquer
+   * coisa. Quem prende os dois números juntos é o `fonte-tiktok.test.js`.
+   */
   const { narrador } = montar({ falas: { curtida: ['{quantidade} curtidas, {nome}'] } });
   const ana = (q) => ({ tipo: 'curtida', usuario: 'Ana', userId: 'ana', quantidade: q });
-  assert.equal(narrador.narrar(ana(2)), null);
-  assert.equal(narrador.narrar(ana(2)), null);
-  assert.equal(narrador.narrar(ana(2)), '6 curtidas, Ana');
+  assert.equal(narrador.narrar(ana(8)), null);
+  assert.equal(narrador.narrar(ana(8)), null);
+  assert.equal(narrador.narrar(ana(8)), '24 curtidas, Ana');
   // E a rajada continua depois da fala sem soar de novo na hora.
   assert.equal(narrador.narrar(ana(5)), null);
 });
@@ -182,16 +189,111 @@ test('a rajada de curtidas vira UMA fala, com o total junto', () => {
 test('a rajada lenta não acumula', () => {
   /*
    * A janela existe para separar gesto de hábito. Se ela não fechasse, quem
-   * curtisse uma vez a cada meia hora acabaria ouvindo "5 curtidas" no fim da
+   * curtisse uma vez a cada meia hora acabaria ouvindo "24 curtidas" no fim da
    * noite por um gesto que nunca existiu.
    */
   const { narrador, avancar } = montar({ falas: { curtida: ['{quantidade} curtidas, {nome}'] } });
-  const ana = { tipo: 'curtida', usuario: 'Ana', userId: 'ana', quantidade: 2 };
+  const ana = { tipo: 'curtida', usuario: 'Ana', userId: 'ana', quantidade: 10 };
   assert.equal(narrador.narrar(ana), null);
   avancar(10_000);
   assert.equal(narrador.narrar(ana), null);
   avancar(10_000);
   assert.equal(narrador.narrar(ana), null, 'a janela não fechou e o total vazou');
+});
+
+/* ------------------------------------------------------------- o presente */
+
+test('o presente sem nome de presente não tem o que falar', () => {
+  /*
+   * O presente que chegou sem catálogo — ou sem urna no mapeamento — não vira
+   * voto, e uma frase sobre ele anunciaria um voto que não existiu. Quem fala
+   * por esse caso é a cobrança, que pede o número da urna e tem frase própria.
+   *
+   * A guarda é o que mantém o silêncio verdadeiro: o padrão TEM frases de
+   * presente, e sem ela um evento de presente acharia uma — e sairia "Ana
+   * mandou !" para a live inteira ouvir.
+   *
+   * O cooldown também não pode ser gasto por ele: quem manda um presente
+   * órfão e depois um mapeado, dez segundos depois, tem que ouvir o mapeado.
+   */
+  const { narrador } = montar({ falas: { presente: ['{nome} mandou {vezes}{presente}!'] } });
+  const semNome = { tipo: 'presente', usuario: 'Ana', userId: 'ana', combo: 1 };
+  assert.equal(narrador.narrar(semNome), null, 'falou de um presente que não virou voto');
+  assert.equal(
+    narrador.narrar({ tipo: 'presente', usuario: 'Ana', userId: 'ana', presente: 'Rosa', combo: 1 }),
+    'Ana mandou Rosa!',
+    'o presente órfão calou o presente que valeu',
+  );
+});
+
+test('o presente conta quem mandou, o que mandou, quantos, e pra quem', () => {
+  /*
+   * O presente é o único evento que a pessoa PAGA para acontecer, e até esta
+   * versão ele não era falado: a tela animava e a voz ficava quieta.
+   *
+   * Os quatro dados são o que a frase precisa para valer a pena. O nome, para
+   * quem mandou se ouvir; o presente, para a live saber o que passou na tela;
+   * o `5x`, para um combo não soar igual a um presente único; e a urna, porque
+   * é o que a pessoa quer saber — o dinheiro dela virou voto de QUEM.
+   */
+  const { narrador } = montar({ falas: { presente: ['{nome} mandou {vezes}{presente} pra {urna}'] } });
+  assert.equal(
+    narrador.narrar({
+      tipo: 'presente', usuario: 'Ana', userId: 'ana', presente: 'Rosa', combo: 5, urna: 'Lula',
+    }),
+    'Ana mandou 5x Rosa pra Lula',
+  );
+});
+
+test('um presente só não vira "1x"', () => {
+  /*
+   * "mandou 1x Rosa" não é como uma pessoa fala — é "mandou Rosa". O combo 1
+   * deixa o marcador vazio, e a frase sai inteira sem ele.
+   *
+   * É a mesma convenção do `tiktok-live-horse`, de onde as frases vieram, e
+   * por isso ela é conferida aqui: um marcador que deixasse "1x" passar
+   * apareceria em TODA fala de presente, a noite inteira.
+   */
+  const { narrador } = montar({ falas: { presente: ['{nome} mandou {vezes}{presente}!'] } });
+  const ana = (combo) => ({
+    tipo: 'presente', usuario: 'Ana', userId: 'ana', presente: 'Rosa', combo, urna: 'Lula',
+  });
+  assert.equal(narrador.narrar(ana(1)), 'Ana mandou Rosa!');
+});
+
+test('quem manda presente sem parar não vira uma fala por presente', () => {
+  /*
+   * O presente é o evento mais repetível da live: quem gosta manda dez
+   * seguidos. Sem cooldown, são dez falas enfileiradas — a fila inteira
+   * parada atrás de uma pessoa, e a chegada de quem entrou depois falada um
+   * minuto tarde.
+   *
+   * O primeiro presente SEMPRE fala: é ele que a pessoa está esperando ouvir.
+   * O segundo, trinta segundos depois, fala de novo — o cooldown é curto de
+   * propósito, porque calar quem presenteia a noite inteira é perder o evento
+   * que paga a live.
+   */
+  const { narrador, avancar } = montar({ falas: { presente: ['{presente}, {nome}'] } });
+  const ana = { tipo: 'presente', usuario: 'Ana', userId: 'ana', presente: 'Rosa', combo: 1, urna: 'Lula' };
+  assert.equal(narrador.narrar(ana), 'Rosa, Ana');
+  assert.equal(narrador.narrar(ana), null, 'o segundo presente falou na hora');
+  avancar(31_000);
+  assert.equal(narrador.narrar(ana), 'Rosa, Ana', 'o cooldown do presente é longo demais');
+});
+
+test('a mesma pessoa pode presentear e seguir: são falas diferentes', () => {
+  /*
+   * O cooldown é por TIPO e por pessoa, e não só por pessoa. Quem acabou de
+   * seguir e logo manda um presente fez duas coisas, e as duas merecem ser
+   * ditas — com uma chave só por pessoa, a segunda ficaria muda e a live
+   * pareceria ter ignorado o presente.
+   */
+  const { narrador } = montar({
+    falas: { presente: ['{presente}, {nome}'], seguidor: ['Seguiu, {nome}'] },
+  });
+  const ana = { usuario: 'Ana', userId: 'ana' };
+  assert.equal(narrador.narrar({ ...ana, tipo: 'seguidor' }), 'Seguiu, Ana');
+  assert.equal(narrador.narrar({ ...ana, tipo: 'presente', presente: 'Rosa', combo: 1 }), 'Rosa, Ana');
 });
 
 /* --------------------------------------------------------- o que se cala */
@@ -224,8 +326,27 @@ test('sem lista nenhuma no config, valem as frases que vêm no código', () => {
 test('o padrão tem frase para todo tipo social', () => {
   // Um tipo que passa pela normalização e não tem frase é um evento que
   // atravessa o sistema inteiro para morrer no fim, em silêncio.
-  for (const tipo of ['seguidor', 'curtida', 'entrada', 'compartilhou', 'assinatura']) {
+  for (const tipo of ['seguidor', 'curtida', 'entrada', 'compartilhou', 'assinatura', 'presente']) {
     assert.ok(FALAS_PADRAO[tipo]?.length > 0, `falta a frase padrão de ${tipo}`);
+  }
+});
+
+test('nenhuma frase do padrão se repete dentro da mesma lista', () => {
+  /*
+   * O baralho existe para TODAS as frases de um tipo serem ditas antes de
+   * qualquer uma repetir. Uma frase escrita duas vezes na lista encurta o
+   * baralho em silêncio: a mesma fala sai duas vezes na mesma rodada e a live
+   * ouve isso como defeito, não como sorte.
+   *
+   * A lista é escrita à mão, uma linha embaixo da outra, e repetir uma é o
+   * erro mais fácil de cometer e o mais difícil de achar relendo.
+   */
+  for (const [tipo, lista] of Object.entries(FALAS_PADRAO)) {
+    const vistas = new Set();
+    for (const frase of lista) {
+      assert.ok(!vistas.has(frase), `a frase "${frase}" aparece duas vezes em ${tipo}`);
+      vistas.add(frase);
+    }
   }
 });
 

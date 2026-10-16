@@ -13,10 +13,19 @@ da ponte do TikTok.
 
 O protocolo é o MESMO do `voz.ps1`, com um campo a mais:
 
-  entrada   <id>\\t<texto>
+  entrada   <id>\\t<voz>\\t<texto>
   saída     pronto\\t<voz>
             ok\\t<id>\\t<ext>\\t<texto>     (o texto volta como ECO)
             erro\\t<id>\\t<motivo>
+
+A `voz` na LINHA é o que permite o rodízio de duas vozes caber numa partida só
+deste processo. Ela poderia vir do ambiente, na subida — e era assim —, mas aí
+trocar de voz exigiria derrubar e subir o worker, que custa ~1,9 s: numa live
+movimentada, dois segundos por nome anunciado é a fila de fala nunca alcançando
+a live, e o narrador falando de quem chegou dez minutos atrás.
+
+O campo vazio quer dizer "fala com a voz deste processo" — é o que o servidor
+manda quando o rodízio está desligado, e é o que um `echo` de teste manda.
 
 O `ext` é a parte nova, e ela existe porque agora há DOIS motores: este escreve
 `.mp3`, o PowerShell escreve `.wav`. Quem lê o arquivo é o servidor, e ele não
@@ -174,10 +183,19 @@ def main() -> int:
         if corte < 1:
             continue
 
-        identificador, texto = linha[:corte], linha[corte + 1:]
+        identificador, resto = linha[:corte], linha[corte + 1:]
+        # O segundo TAB separa a VOZ do texto. A ausência dele não é erro: é
+        # uma linha que não escolhe voz, e ela fala com a deste processo.
+        corte2 = resto.find("\t")
+        if corte2 < 0:
+            voz_da_vez, texto = voz, resto
+        else:
+            voz_da_vez = resto[:corte2].strip() or voz
+            texto = resto[corte2 + 1:]
+
         destino = os.path.join(pasta, f"{identificador}.mp3")
         try:
-            sintetizar(texto, voz, ritmo, destino)
+            sintetizar(texto, voz_da_vez, ritmo, destino)
             responder(f"ok\t{identificador}\tmp3\t{texto}")
         except Exception as e:  # noqa: BLE001 — uma frase ruim não derruba a live
             apagar(destino)

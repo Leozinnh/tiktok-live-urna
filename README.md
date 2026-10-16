@@ -43,15 +43,24 @@ separada, em outra aba do navegador — nada que se clica nele pode cair no
 enquadramento do OBS.
 
 **A narração.** Além das urnas, o sistema tem um narrador: quando alguém
-segue, curte, entra, compartilha ou assina, ele **fala** e mostra uma faixa
-na tela. As frases são suas, em `config/local.json`, na chave
-`narracao.falas` — uma frase por linha.
+segue, curte, entra, compartilha, assina **ou manda um presente**, ele
+**fala** e mostra uma faixa na tela. As frases são suas, em
+`config/local.json`, na chave `narracao.falas` — uma frase por linha. Sem
+essa chave, valem as frases que já vêm no código (dezenas por tipo, sorteadas
+sem repetir).
+
+**São duas vozes**, alternando a cada fala — de fábrica, a
+`pt-BR-FranciscaNeural` e a `pt-BR-AntonioNeural` —, porque uma voz só
+dizendo quarenta frases por noite soa automática. Como trocar isso está logo
+abaixo, com o resto da voz.
 
 A voz sai pelo **servidor**, e não pela página: o navegador que o OBS embarca
 não fala, então quem sintetiza é o Node, que guarda o áudio em arquivo e manda
 a página tocar. Se a voz não sair, o problema está no motor escolhido ou no
 volume — e não na live. Para descobrir isso sem esperar alguém seguir de
-verdade, a aba **Teste** tem um botão para cada um dos cinco avisos.
+verdade, a aba **Teste** tem um botão para cada aviso: os cinco sociais, os
+presentes cadastrados (com o campo do combo ao lado), o presente órfão e o
+número escrito no chat.
 
 **São dois motores de voz, e você escolhe em `narracao.motor`, no
 `config/local.json`:**
@@ -71,6 +80,12 @@ Um nome de voz se escreve diferente em cada motor (a neural se chama
 `pt-BR-FranciscaNeural`, a do Windows é `Microsoft Maria Desktop`). Deixar o
 campo **Voz** vazio escolhe a melhor voz do motor — que é o que você quer, a
 não ser que tenha uma preferida.
+
+O **rodízio** é a lista `narracao.vozes`, e ela é do motor neural — os nomes
+que estão lá só existem nele. Esvaziar a lista (ou tirar o campo) desliga a
+alternância e deixa a live com uma voz só, a do campo `voz`. Cada fala pega a
+voz da vez, e cada voz guarda o seu áudio em cache: a mesma frase sai nas
+duas, e não sempre na primeira.
 
 **A live de verdade (Etapa 7).** Na aba **Integração**, troque o modo para
 **TikTok ao vivo**, escreva o nome da sua live (sem o `@`) e salve. A troca
@@ -210,10 +225,10 @@ Volte à janela do PowerShell e aperte **Ctrl+C**.
 npm test
 ```
 
-São **695 testes** cobrindo a geometria da cena, a matemática da animação, a
+São **718 testes** cobrindo a geometria da cena, a matemática da animação, a
 fila, as poses da mão, a tela da urna, o placar, o protocolo do servidor, os
-campos do painel, as duas pontas da voz e o desenho da urna contra a foto.
-A suíte roda em poucos segundos e não precisa de navegador.
+campos do painel, as duas pontas da voz, o narrador e o desenho da urna contra
+a foto. A suíte roda em poucos segundos e não precisa de navegador.
 
 O que a suíte **não** cobre sozinha é o que só existe dentro de um navegador
 de verdade — se a mão aparece, se o placar sobe na hora certa, se o que o
@@ -222,7 +237,7 @@ painel salva chega à tela do ar. Para isso existem as sondas em
 protocolo de depuração. Elas não fazem parte do `npm test` porque precisam de
 um navegador instalado.
 
-**A suíte está inteira verde: 695 de 695.**
+**A suíte está inteira verde: 718 de 718.**
 
 ---
 
@@ -279,7 +294,7 @@ server/
   tally.js              A contagem e as rodadas
   db.js                 O banco (SQLite, escrito à mão)
   config.js             Lê, normaliza e grava a configuração
-  narracao.js           As frases da voz: sorteia sem repetir e troca {nome}
+  narracao.js           As frases da voz: quem fala, quem fica quieto, e os {marcadores}
   espera.js             A espera do número no chat, e a cobrança por voz
   ws.js                 O protocolo WebSocket, escrito à mão
   porta.js              Porta ocupada: quem está segurando e o que fazer
@@ -297,7 +312,7 @@ ponte/
 config/local.json       A configuração do Leonardo (nasce vazia)
 dados/                  O banco e os votos gravados
 fotos/                  Os retratos dos candidatos
-tests/                  695 testes, rodando no `node --test`
+tests/                  718 testes, rodando no `node --test`
 .superpowers/sonda/     As sondas de navegador (não rodam no `npm test`)
 docs/superpowers/       A spec do produto e o plano de implementação
 ```

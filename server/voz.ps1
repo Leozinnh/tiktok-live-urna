@@ -16,9 +16,20 @@
 
   O protocolo é uma linha por frase, em UTF-8, separada por TAB:
 
-    entrada   <id>\t<texto>
-    saída     ok\t<id>\t<wav>\t<texto>      (o texto volta como ECO)
+    entrada   <id>\t<voz>\t<texto>
+    saída     pronto\t<voz>
+              ok\t<id>\t<wav>\t<texto>      (o texto volta como ECO)
               erro\t<id>\t<motivo>
+
+  A `voz` na LINHA é o que permite o rodízio de duas vozes caber numa partida
+  só deste processo. Ela poderia vir do ambiente, na subida — e era assim —,
+  mas aí trocar de voz exigiria derrubar e subir o worker, que custa ~1,9 s:
+  numa live movimentada, dois segundos por nome anunciado é a fila de fala
+  nunca alcançando a live.
+
+  O campo vazio quer dizer "fala com a voz deste processo". É o que o servidor
+  manda para a voz de reserva — as vozes do rodízio são neurais, e nenhuma
+  delas existe no SAPI —, e é o que um `echo` de teste manda.
 
   A extensão vai na resposta porque agora há DOIS sintetizadores: este escreve
   `.wav`, e o neural, em `ponte/voz.py`, escreve `.mp3`. Quem lê o arquivo é o
@@ -67,9 +78,15 @@ if ($env:URNA_VOZ_VELOCIDADE) {
 $pasta = $env:URNA_VOZ_PASTA
 $out = [Console]::Out
 
+# A voz com que este processo nasceu, para voltar a ela quando a linha não
+# escolher nenhuma. Guardada ANTE da primeira troca: `$s.Voice.Name` muda a
+# cada `SelectVoice`, e depois da primeira frase com voz escolhida não haveria
+# mais como saber qual era a da subida.
+$vozDoProcesso = $s.Voice.Name
+
 # A voz escolhida vai junto: o painel precisa poder MOSTRAR qual é, senão um
 # dia o Leonardo ouve inglês no ar e não tem onde descobrir por quê.
-$out.WriteLine("pronto`t$($s.Voice.Name)")
+$out.WriteLine("pronto`t$vozDoProcesso")
 
 while ($true) {
   $linha = [Console]::In.ReadLine()
@@ -80,7 +97,29 @@ while ($true) {
   if ($corte -lt 1) { continue }
 
   $id = $linha.Substring(0, $corte)
-  $texto = $linha.Substring($corte + 1)
+  $resto = $linha.Substring($corte + 1)
+
+  # O segundo TAB separa a VOZ do texto. A ausência dele não é erro: é uma
+  # linha que não escolhe voz, e ela fala com a deste processo.
+  $corte2 = $resto.IndexOf("`t")
+  if ($corte2 -lt 0) {
+    $vozDaVez = $vozDoProcesso
+    $texto = $resto
+  } else {
+    $pedida = $resto.Substring(0, $corte2).Trim()
+    if ($pedida) { $vozDaVez = $pedida } else { $vozDaVez = $vozDoProcesso }
+    $texto = $resto.Substring($corte2 + 1)
+  }
+
+  # Trocar de voz é barato; o que é caro é NASCER de novo, e não é o que
+  # acontece aqui: este processo atende as duas vozes do rodízio sem sair do ar.
+  #
+  # A conferência contra a voz em uso evita um `SelectVoice` por frase, e o
+  # `catch` vazio é o degrau de sempre: um nome que esta máquina não tem — as
+  # vozes neurais, por exemplo — deixa a voz que já estava, e a frase sai.
+  if ($vozDaVez -and $vozDaVez -ne $s.Voice.Name) {
+    try { $s.SelectVoice($vozDaVez) } catch { }
+  }
 
   try {
     $caminho = Join-Path $pasta "$id.wav"

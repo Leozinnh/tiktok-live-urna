@@ -385,12 +385,15 @@ if (executadoDireto()) {
   let cfgAtual = config;
   const voz = criarVoz({
     pasta: pastaDaVoz,
-    // Os três como FUNÇÃO, e não como valor: o painel os troca com a live no
+    // Os quatro como FUNÇÃO, e não como valor: o painel os troca com a live no
     // ar, e quem os lê no momento de subir o sintetizador pega o que vale
     // agora. Como valor fixo, mudar a voz no painel só teria efeito depois de
     // reiniciar o servidor — e nada na tela diria isso.
     motor: () => cfgAtual.narracao?.motor,
     nome: () => cfgAtual.narracao?.voz,
+    // As vozes do rodízio. Elas NÃO reiniciam o sintetizador: a voz viaja na
+    // linha de cada frase, e é o que permite as duas saírem do mesmo processo.
+    vozes: () => cfgAtual.narracao?.vozes,
     velocidade: () => cfgAtual.narracao?.velocidade,
     aoAvisar: (texto) => console.warn(`  voz: ${texto}`),
   });
@@ -418,10 +421,19 @@ if (executadoDireto()) {
    * subir, e a live não pode depender da voz para existir.
    */
   voz.aquecer().then((ok) => {
-    // O motor vai junto porque as duas vozes se chamam de coisas parecidas e
-    // soam completamente diferentes: sem ele, "Microsoft Maria Desktop" e
-    // "pt-BR-FranciscaNeural" não diriam ao Leonardo QUAL sintetizador subiu.
-    if (ok) console.log(`  Voz:    ${voz.voz || `a padrão do ${voz.motor}`} (${voz.motor})`);
+    /*
+     * O motor vai junto porque as duas vozes se chamam de coisas parecidas e
+     * soam completamente diferentes: sem ele, "Microsoft Maria Desktop" e
+     * "pt-BR-FranciscaNeural" não diriam ao Leonardo QUAL sintetizador subiu.
+     *
+     * E o rodízio aparece INTEIRO, na ordem em que alterna. Ele é a primeira
+     * coisa que se estranha ao ouvir a live — duas vozes diferentes falando —
+     * e quem lê esta linha no boot sabe na hora que é o projeto, e não o
+     * Windows trocando de voz sozinho.
+     */
+    const rotacao = cfgAtual.narracao?.vozes ?? [];
+    const quem = rotacao.length ? rotacao.join(' + ') : (voz.voz || `a padrão do ${voz.motor}`);
+    if (ok) console.log(`  Voz:    ${quem} (${voz.motor})`);
   });
 
   const servidor = criarServidor({ raiz, voz: pastaDaVoz, motor });

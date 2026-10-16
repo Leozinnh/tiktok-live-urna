@@ -218,7 +218,7 @@ test('sem nada configurado, a narração vem ligada e com as frases do projeto',
   assert.equal(config.narracao.ativa, true);
   assert.equal(config.narracao.voz, '');
   assert.equal(config.narracao.volume, 1);
-  for (const tipo of ['seguidor', 'curtida', 'entrada', 'compartilhou', 'assinatura']) {
+  for (const tipo of ['seguidor', 'curtida', 'entrada', 'compartilhou', 'assinatura', 'presente']) {
     assert.ok(config.narracao.falas[tipo]?.length > 0, `a narração nasceu muda em ${tipo}`);
   }
 });
@@ -352,4 +352,62 @@ test('um motor que o servidor não conhece cai no padrão, e não cala a live', 
   assert.equal(normalizar({ narracao: { motor: 'edgi' } }).config.narracao.motor, 'edge');
   assert.equal(normalizar({ narracao: { motor: '' } }).config.narracao.motor, 'edge');
   assert.equal(normalizar({ narracao: { motor: 7 } }).config.narracao.motor, 'edge');
+});
+
+test('a narração nasce com duas vozes, e não com uma', () => {
+  /*
+   * O rodízio é o que faz a live deixar de soar como um robô lendo avisos: a
+   * mesma frase dita por duas vozes soa como duas pessoas chamando na tela.
+   *
+   * As duas são neurais (`edge`), que é o motor padrão, e o par é feminina +
+   * masculina de propósito: é o contraste que se ouve. Duas femininas de
+   * timbres parecidos soariam como uma voz só com defeito.
+   */
+  const { config } = normalizar({});
+  assert.deepEqual(config.narracao.vozes, ['pt-BR-FranciscaNeural', 'pt-BR-AntonioNeural']);
+});
+
+test('a lista de vozes aceita o que o Leonardo escreveu, limpa', () => {
+  const { config } = normalizar({
+    narracao: { vozes: ['  pt-BR-AntonioNeural  ', 'Microsoft Maria Desktop'] },
+  });
+  assert.deepEqual(config.narracao.vozes, ['pt-BR-AntonioNeural', 'Microsoft Maria Desktop']);
+});
+
+test('lista de vozes VAZIA é uma decisão: uma voz só, a de `voz`', () => {
+  /*
+   * A mesma distinção que as frases fazem, e pelo mesmo motivo: `[]` é alguém
+   * dizendo "quero uma voz" — e quem a escolhe é o campo `voz`. Ausente é
+   * outra coisa: é o projeto decidindo, e o projeto decide rodízio.
+   *
+   * Sem esta separação, apagar a lista no arquivo traria as duas vozes de
+   * volta no salvamento seguinte, e o Leonardo não teria como pedir uma voz só
+   * sem escolher uma voz que ele não quer.
+   *
+   * Uma lista que só tinha lixo é a MESMA coisa que a lista vazia: quem
+   * esvazia uma caixa de texto no painel produz `[""]`, e não `[]`. Resgatar
+   * esse caso para o padrão desfaria o pedido — e seria a única regra do
+   * arquivo a tratar lixo como erro em vez de como ausência.
+   */
+  assert.deepEqual(normalizar({ narracao: { vozes: [] } }).config.narracao.vozes, []);
+  assert.deepEqual(normalizar({ narracao: { vozes: ['', '  ', null, 7] } }).config.narracao.vozes, []);
+  assert.equal(normalizar({}).config.narracao.vozes.length, 2);
+});
+
+test('o que não é lista de vozes vira a lista padrão, e não cala a live', () => {
+  /*
+   * O campo é escrito à mão no arquivo: uma string solta (o erro clássico de
+   * quem escreve uma voz só depois de ter aprendido a chave nova), um número,
+   * um objeto. Nenhum deles é uma lista, e nenhum deles pode deixar o narrador
+   * mudo — todos viram o padrão, que é o pedido de quem nunca escreveu nada.
+   */
+  assert.deepEqual(normalizar({ narracao: { vozes: 'pt-BR-FranciscaNeural' } }).config.narracao.vozes,
+    ['pt-BR-FranciscaNeural', 'pt-BR-AntonioNeural']);
+  assert.deepEqual(normalizar({ narracao: { vozes: 7 } }).config.narracao.vozes,
+    ['pt-BR-FranciscaNeural', 'pt-BR-AntonioNeural']);
+});
+
+test('uma voz só na lista é uma lista de uma, e o rodízio não a perde', () => {
+  const { config } = normalizar({ narracao: { vozes: ['pt-BR-ThalitaMultilingualNeural'] } });
+  assert.deepEqual(config.narracao.vozes, ['pt-BR-ThalitaMultilingualNeural']);
 });

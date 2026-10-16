@@ -22,12 +22,14 @@ import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 import { criarFonteTiktok } from '../server/sources/tiktok.js';
 import { criarTrocaDeFontes } from '../server/sources/troca.js';
 import { montarMotor } from '../server/index.js';
 import { criarHub } from '../server/hub.js';
+import { LIMIAR_DA_CURTIDA } from '../server/narracao.js';
 import { criarTally } from '../server/tally.js';
 import { abrirBanco } from '../server/db.js';
 import { carregar, normalizar } from '../server/config.js';
@@ -542,4 +544,98 @@ test('a ponte declara o ouvinte do chat, e com o conteúdo do comentário', () =
   // o resgate não acharia número nenhum, e a espera venceria em silêncio.
   assert.match(ponte, /getattr\(evento, "content"/, 'a ponte não lê o texto do comentário');
   assert.match(ponte, /CommentEvent,\n/, 'o CommentEvent não foi importado');
+});
+
+test('a ponte ouve o compartilhamento e a assinatura', () => {
+  /*
+   * Os dois eventos sociais que o servidor já sabia contar e ninguém mandava.
+   *
+   * O narrador tem frases para `compartilhou` e `assinatura` desde que existe,
+   * e o painel tem os dois botões de teste — mas a ponte não os ouvia, e o
+   * botão de teste era a única forma de eles acontecerem. Numa live de verdade
+   * a fala nunca saía, e nada indicava por quê: o tipo era conhecido em todo
+   * lugar, menos em quem recebe o evento da TikTok.
+   */
+  const ponte = readFileSync(fileURLToPath(new URL('../ponte/tiktok.py', import.meta.url)), 'utf8');
+  for (const [evento, tipo] of [['ShareEvent', 'compartilhou'], ['SubNotifyEvent', 'assinatura']]) {
+    assert.match(ponte, new RegExp(`@cliente\\.on\\(${evento}\\)`), `a ponte não ouve o ${evento}`);
+    assert.match(ponte, new RegExp(`"tipo": "${tipo}"`), `a ponte não emite o tipo ${tipo}`);
+  }
+});
+
+/*
+ * O que só o Python sabe sobre a ponte, perguntado UMA vez para os dois testes
+ * que precisam dele.
+ *
+ * A importação da biblioteca do TikTok custa uns dois segundos, e perguntar
+ * duas vezes pagaria os dois. O resultado fica guardado — inclusive o erro,
+ * que é o que permite pular os testes numa máquina sem a biblioteca, em vez de
+ * reprová-los por um motivo que não é do código.
+ */
+let respostaDaPonte = null;
+function perguntarAoPython() {
+  if (respostaDaPonte) return respostaDaPonte;
+  const roteiro = [
+    'import json, sys',
+    'sys.path.insert(0, "ponte")',
+    'try:',
+    '    import tiktok',
+    'except Exception as e:',
+    '    print(json.dumps({"erro": f"{type(e).__name__}: {e}"})); raise SystemExit(0)',
+    'class F:',
+    '    def __init__(self, s): self.subscribing_status = s',
+    'print(json.dumps({',
+    '    "limiar": tiktok.LIMIAR_CURTIDA,',
+    '    "assinatura": [tiktok.assinatura_nova(F(i)) for i in range(5)],',
+    '    "semCampo": tiktok.assinatura_nova(object()),',
+    '}))',
+  ].join('\n');
+  const r = spawnSync('python', ['-c', roteiro], {
+    cwd: fileURLToPath(new URL('..', import.meta.url)),
+    encoding: 'utf8',
+  });
+  const saida = String(r.stdout ?? '').trim();
+  respostaDaPonte = saida
+    ? JSON.parse(saida)
+    : { erro: String(r.stderr ?? '').trim() || 'não consegui chamar o Python' };
+  return respostaDaPonte;
+}
+
+test('o limiar da curtida é o MESMO nos dois lados', (t) => {
+  /*
+   * O número existe duas vezes — no narrador, que decide se fala, e na ponte,
+   * que decide se o evento chega lá —, e o comentário em cada um diz que tem
+   * que ser o mesmo. Só o comentário não bastava: subir um e esquecer o outro
+   * deixa o narrador mudo SEM ERRO NENHUM, porque a ponte simplesmente não
+   * manda o evento. É o defeito mais caro desta costura, porque não deixa
+   * rastro: a live funciona, e ninguém é anunciado.
+   *
+   * O número não é lido por expressão regular de propósito: um
+   * `LIMIAR_CURTIDA` citado dentro do comentário passaria, e o teste estaria
+   * conferindo texto em vez de valor. Quem responde é a própria ponte,
+   * importada pelo Python.
+   */
+  const p = perguntarAoPython();
+  if (p.erro) return t.skip(`a ponte não roda aqui: ${p.erro}`);
+  assert.equal(p.limiar, LIMIAR_DA_CURTIDA,
+    'a ponte e o narrador discordam de quantas curtidas viram fala');
+});
+
+test('a assinatura só vira fala quando a assinatura é NOVA', (t) => {
+  /*
+   * O `SubNotifyEvent` não é "alguém assinou": é "o estado da assinatura
+   * mudou". Cancelamento e reembolso chegam pelo mesmo ouvinte, e as frases do
+   * narrador são de boas-vindas — sem o filtro, a live anuncia "virou
+   * assinante!" para quem acabou de desistir, na frente de todo mundo.
+   *
+   * Aqui o Python é executado de verdade, com eventos de mentira, porque a
+   * pergunta não é se a linha existe: é o que ela RESPONDE. `1` é a assinatura
+   * de um mês, `2` é a que renova sozinha; `3` é cancelamento e `4` é
+   * reembolso.
+   */
+  const p = perguntarAoPython();
+  if (p.erro) return t.skip(`a ponte não roda aqui: ${p.erro}`);
+  assert.deepEqual(p.assinatura, [false, true, true, false, false],
+    'ONCE(1) e CIRCLE(2) são assinatura nova; CANCEL(3) e REFUND(4) não são');
+  assert.equal(p.semCampo, false, 'um evento sem o campo não pode virar fala');
 });

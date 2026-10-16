@@ -13,9 +13,11 @@
  *     arquivo que não saiu: o nome de quem chegou aparece do mesmo jeito.
  *     Perder a fala é um detalhe; perder as boas-vindas é a tela parecer
  *     morta para quem acabou de seguir;
- *   - **uma fala de cada vez.** Duas vozes sobrepostas viram uma terceira
- *     coisa, que não é nenhuma das duas. A fila também é o que dá tempo de
- *     ler: numa rajada, as falas passam em ordem, e não empilhadas.
+ *   - **uma fala de cada vez.** Duas falas sobrepostas viram uma terceira
+ *     coisa, que não é nenhuma das duas — e isso vale ainda mais agora que o
+ *     narrador fala com DUAS vozes alternadas: sobrepostas, elas soariam como
+ *     uma voz quebrada, e não como duas pessoas. A fila também é o que dá
+ *     tempo de ler: numa rajada, as falas passam em ordem, e não empilhadas.
  */
 
 /**

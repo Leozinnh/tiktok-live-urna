@@ -56,7 +56,10 @@ from TikTokLive.events import (
     JoinEvent,
     LikeEvent,
     LiveEndEvent,
+    ShareEvent,
+    SubNotifyEvent,
 )
+from TikTokLive.proto import SubscribingStatus
 
 BACKOFF_INICIAL = 5.0
 BACKOFF_MAX = 60.0
@@ -66,7 +69,30 @@ DORMIR_BLOQUEADO = 60.0
 # Quantas curtidas seguidas viram um gesto. É o MESMO número do narrador em
 # `server/narracao.js` — e tem que ser, porque é ele que decide se o evento
 # chega lá ou não. Um abaixo do outro seria um narrador mudo sem erro nenhum.
-LIMIAR_CURTIDA = 5
+LIMIAR_CURTIDA = 20
+
+# Os dois estados do `SubscribingStatus` que são uma assinatura NOVA.
+#
+# O `SubNotifyEvent` chega também quando alguém CANCELA (`CIRCLE_CANCEL`) ou
+# pede reembolso (`REFUND`) — é um evento de "mudou o estado da assinatura",
+# não de "assinou". E as frases do narrador são de boas-vindas: sem este
+# filtro, a live anunciaria "virou assinante!" para quem acabou de desistir, na
+# frente de todo mundo, e o erro só apareceria como um comentário no chat.
+#
+# `SUBSCRIBING_STATUS_ONCE` é a assinatura de um mês; `CIRCLE` é a que renova
+# sozinha. As duas são apoio de verdade.
+ASSINATURA_NOVA = (SubscribingStatus.SUBSCRIBING_STATUS_ONCE, SubscribingStatus.CIRCLE)
+
+
+def assinatura_nova(evento) -> bool:
+    """Este `SubNotifyEvent` é uma assinatura que começou agora?
+
+    Existe como função, e não como um `if` inline, porque é a REGRA — e regra
+    com nome é regra que se pode conferir. O `getattr` é defensivo pelo motivo
+    de sempre nesta ponte: um campo que mude de nome numa versão nova da
+    biblioteca não pode derrubar o ouvinte e calar as assinaturas da noite.
+    """
+    return getattr(evento, "subscribing_status", None) in ASSINATURA_NOVA
 
 log = logging.getLogger("ponte")
 
@@ -176,6 +202,40 @@ async def correr(usuario: str) -> None:
                 bruto, apelido = identidade(evento)
                 emitir({
                     "tipo": "entrada", "plataforma": "tiktok",
+                    "userId": bruto, "usuario": apelido, "em": agora_ms(),
+                })
+
+            @cliente.on(ShareEvent)
+            async def ao_compartilhar(evento: ShareEvent) -> None:
+                """
+                Alguém mandou a live para fora.
+
+                É o evento que traz plateia nova — quem chega por ele não
+                estava aqui antes —, e é por isso que ele merece fala: quem
+                compartilhou precisa OUVIR que funcionou, senão não compartilha
+                de novo.
+                """
+                bruto, apelido = identidade(evento)
+                emitir({
+                    "tipo": "compartilhou", "plataforma": "tiktok",
+                    "userId": bruto, "usuario": apelido, "em": agora_ms(),
+                })
+
+            @cliente.on(SubNotifyEvent)
+            async def ao_assinar(evento: SubNotifyEvent) -> None:
+                """
+                Assinatura nova — e SÓ nova.
+
+                Quem decide é o `assinatura_nova`, que conhece os estados do
+                `SubscribingStatus`. Cancelamento e reembolso chegam pelo mesmo
+                evento, e anunciá-los com uma frase de boas-vindas seria o tipo
+                de erro que a live inteira vê.
+                """
+                if not assinatura_nova(evento):
+                    return
+                bruto, apelido = identidade(evento)
+                emitir({
+                    "tipo": "assinatura", "plataforma": "tiktok",
                     "userId": bruto, "usuario": apelido, "em": agora_ms(),
                 })
 
