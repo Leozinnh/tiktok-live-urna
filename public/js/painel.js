@@ -32,7 +32,7 @@ function esc(s) {
 
 const TITULO_FILA = 'NA FILA';
 const TITULO_RANKING = 'QUEM MAIS PRESENTEOU';
-const TITULO_ULTIMOS = 'ÚLTIMOS VOTOS';
+const TITULO_ULTIMOS = 'ÚLTIMOS';
 
 /** Quantos nomes cabem antes de virar "+N". */
 export const FILA_VISIVEL = 4;
